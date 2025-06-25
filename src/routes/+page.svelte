@@ -41,10 +41,12 @@
 	</header>
 
 	<!-- Hero Section -->
-	<section class="container mx-auto px-4 py-4 md:py-16 text-center">
-		<h1 class="mb-6 text-3xl md:text-5xl leading-tight font-bold text-white">Publish Markdown From Neovim</h1>
+	<section class="container mx-auto px-4 py-4 text-center md:py-16">
+		<h1 class="mb-6 text-3xl leading-tight font-bold text-white md:text-5xl">
+			Publish Markdown From Neovim
+		</h1>
 
-		<p class="mx-auto mb-2 md:mb-12 max-w-3xl text-lg md:text-xl text-gray-300">
+		<p class="mx-auto mb-2 max-w-3xl text-lg text-gray-300 md:mb-12 md:text-xl">
 			Perfect for writers who want to publish and sync document instantly.
 		</p>
 
@@ -62,7 +64,7 @@
 					<span class="text-sm text-gray-400">.md</span>
 				</div>
 				<div class="p-6 text-left">
-					<pre class="font-mono text-sm leading-relaxed text-green-400 text-wrap"><code
+					<pre class="font-mono text-sm leading-relaxed text-wrap text-green-400"><code
 							>---
 title: "My Note"
 // 👇 just add these 2 lines 
@@ -88,7 +90,9 @@ https://neonote.sshawn.com/[id]
 
 			<p class="my-4 text-gray-400">Free tier: 5 publishable markdown files, unlimited views.</p>
 
-      <a href="https://github.com/lsshawn/neonote.nvim" class="text-gray-400 underline">Documentation and Plugin Install Guide</a>
+			<a href="https://github.com/lsshawn/neonote.nvim" class="text-gray-400 underline"
+				>Documentation and Plugin Install Guide</a
+			>
 
 			<dialog id="subscribe_modal" class="modal">
 				<div class="modal-box max-w-2xl border border-gray-700 bg-gray-800 text-white">
@@ -148,7 +152,7 @@ https://neonote.sshawn.com/[id]
 	</section>
 
 	<!-- Features Section -->
-	<section class="container mx-auto bg-gray-800/50 px-4 py-16">
+	<section class="container min-w-full bg-gray-800/50 px-10 py-16">
 		<h2 class="text-center text-3xl font-bold text-white">Built for Neovim Users</h2>
 		<div class="mt-12 grid gap-8 md:grid-cols-3">
 			<div class="card border border-gray-700 bg-gray-800/50 text-center shadow-lg">
@@ -156,7 +160,9 @@ https://neonote.sshawn.com/[id]
 					<Code class="mx-auto mb-4 h-12 w-12 text-blue-400" />
 					<h2 class="card-title justify-center text-white">Simple API</h2>
 					<p class="text-gray-300">
-						<a href="https://github.com/lsshawn/neonote.nvim" class="underline">Install the plugin</a> and add frontmatter to your markdown files.
+						<a href="https://github.com/lsshawn/neonote.nvim" class="underline"
+							>Install the plugin</a
+						> and add frontmatter to your markdown files.
 					</p>
 				</div>
 			</div>
@@ -182,7 +188,7 @@ https://neonote.sshawn.com/[id]
 				</div>
 			</div>
 		</div>
-		<div class="mt-8 text-center italic">Coming soon: Obsidian</div>
+		<!-- <div class="mt-8 text-center italic">Coming soon: Obsidian</div> -->
 	</section>
 
 	<!-- Footer -->

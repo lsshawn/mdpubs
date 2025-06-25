@@ -3,18 +3,21 @@
 	import { Menu, X, List } from 'lucide-svelte';
 	import { fade } from 'svelte/transition';
 	import type { PageData } from './$types';
+	import DiffView from '$lib/components/DiffView.svelte';
 
 	let { data }: { data: PageData } = $props();
-	
+
 	let tocOpen = $state(false);
 	let sidebarOpen = $state(true); // Desktop sidebar toggle
 	let tocContentVisible = $state(true); // Controls TOC content visibility with delay
 	let activeSection = $state('');
 	let scrollCleanup: (() => void) | null = null;
 	let clickOutsideCleanup: (() => void) | null = null;
-	
+
 	// Get note from server-loaded data
 	let note = $derived(data.note);
+	let versions = $derived(data.versions);
+	let showDiffs = $derived(!!versions);
 
 	// Helper function to safely query elements by ID, handling IDs that start with numbers
 	function safeQueryById(id: string): Element | null {
@@ -26,6 +29,10 @@
 	}
 
 	onMount(async () => {
+		if (showDiffs) {
+			return; // Don't setup scroll spy etc for diff view
+		}
+
 		// Wait for the DOM to update with the server-loaded content
 		await tick();
 
@@ -109,7 +116,7 @@
 			// Find the mobile TOC container using data attribute
 			const tocContainer = event.target.closest('[data-mobile-toc]');
 
-						// If click is outside the TOC container, close the menu
+			// If click is outside the TOC container, close the menu
 			if (!tocContainer) {
 				tocOpen = false;
 			}
@@ -212,17 +219,17 @@
 <svelte:head>
 	<title>{data.meta.title} - NeoNote</title>
 	<meta name="description" content={data.meta.description} />
-	
+
 	<!-- Search engine indexing control -->
-	<meta name="robots" content={data.meta.allowIndexing ? "index, follow" : "noindex, nofollow"} />
-	
+	<meta name="robots" content={data.meta.allowIndexing ? 'index, follow' : 'noindex, nofollow'} />
+
 	<!-- Open Graph / Facebook -->
 	<meta property="og:type" content="article" />
 	<meta property="og:url" content={data.meta.url} />
 	<meta property="og:title" content={data.meta.title} />
 	<meta property="og:description" content={data.meta.description} />
 	<meta property="og:image" content={data.meta.ogImage} />
-	
+
 	<!-- Twitter -->
 	<meta name="twitter:card" content="summary_large_image" />
 	<meta name="twitter:url" content={data.meta.url} />
@@ -232,8 +239,50 @@
 </svelte:head>
 
 <div class="min-h-screen bg-white">
-	<!-- Main Content -->
-	{#if note}
+	{#if showDiffs}
+		<div class="mx-auto max-w-4xl px-6 py-6 lg:py-12">
+			<header class="mb-8">
+				{#if note?.frontmatter?.title}
+					<h1 class="text-2xl leading-tight font-bold text-gray-900 lg:text-4xl">
+						Version history for: {note.frontmatter.title}
+					</h1>
+				{/if}
+				{#if note}
+					<a href="/{note.id}" class="text-sm text-blue-600 hover:underline">
+						&larr; Back to note
+					</a>
+				{/if}
+			</header>
+
+			{#if versions && versions.length > 0}
+				<div class="space-y-12">
+					{#each versions as version (version.id)}
+						<div>
+							<div class="mb-2 flex items-center gap-4 text-sm text-gray-500">
+								<div class="font-bold">Version {version.version}</div>
+								<p class="text-xs text-gray-500">
+									{new Date(version.createdAt).toLocaleString('en-US', {
+										year: 'numeric',
+										month: 'long',
+										day: 'numeric',
+										hour: 'numeric',
+										minute: 'numeric'
+									})}
+								</p>
+							</div>
+							<DiffView diff={version.diff} />
+						</div>
+					{/each}
+				</div>
+			{:else if versions}
+				<p>No version history found for this note.</p>
+			{:else}
+				<p>Error loading version history.</p>
+			{/if}
+		</div>
+	{:else}
+		<!-- Main Content -->
+		{#if note}
 			<div class="flex min-h-screen">
 				<!-- TOC Sidebar for Desktop -->
 				{#if note?.toc?.length > 0}
@@ -390,4 +439,5 @@
 				</div>
 			</div>
 		{/if}
+	{/if}
 </div>
