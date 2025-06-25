@@ -148,8 +148,8 @@ https://neonote.sshawn.com/public/[your-neonote-id]
 
 	<!-- Features Section -->
 	<section class="container mx-auto bg-gray-800/50 px-4 py-16">
-		<h2 class="mb-12 text-center text-3xl font-bold text-white">Built for Developers</h2>
-		<div class="grid gap-8 md:grid-cols-3">
+		<h2 class="text-center text-3xl font-bold text-white">Built for Neovim Users</h2>
+		<div class="mt-12 grid gap-8 md:grid-cols-3">
 			<div class="card border border-gray-700 bg-gray-800/50 text-center shadow-lg">
 				<div class="card-body items-center">
 					<Code class="mx-auto mb-4 h-12 w-12 text-blue-400" />
@@ -183,6 +183,7 @@ https://neonote.sshawn.com/public/[your-neonote-id]
 				</div>
 			</div>
 		</div>
+		<div class="mt-8 text-center italic">Coming soon: Obsidian</div>
 	</section>
 
 	<!-- Footer -->

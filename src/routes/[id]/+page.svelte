@@ -10,8 +10,18 @@
 	let note = $state({});
 	let error = $state('');
 	let tocOpen = $state(false);
+	let sidebarOpen = $state(true); // Desktop sidebar toggle
 	let activeSection = $state('');
 	let scrollCleanup: (() => void) | null = null;
+
+	// Helper function to safely query elements by ID, handling IDs that start with numbers
+	function safeQueryById(id: string): Element | null {
+		// If ID starts with a number, use attribute selector instead
+		if (/^\d/.test(id)) {
+			return document.querySelector(`[id="${id}"]`);
+		}
+		return document.getElementById(id);
+	}
 
 	onMount(async () => {
 		try {
@@ -45,83 +55,66 @@
 		loading = false;
 	});
 
-	function setupScrollSpy() {
+		function setupScrollSpy() {
 		if (!note?.toc?.length) return;
 
-		const observer = new IntersectionObserver(
-			(entries) => {
-				// Find all currently intersecting entries
-				const intersectingEntries = entries.filter((entry) => entry.isIntersecting);
-
-				if (intersectingEntries.length > 0) {
-					// Sort by intersection ratio and position to get the most prominent section
-					intersectingEntries.sort((a, b) => {
-						// First sort by intersection ratio (higher is better)
-						if (b.intersectionRatio !== a.intersectionRatio) {
-							return b.intersectionRatio - a.intersectionRatio;
-						}
-						// Then sort by position (higher on page is better)
-						return a.boundingClientRect.top - b.boundingClientRect.top;
-					});
-
-					const mostProminentEntry = intersectingEntries[0];
-					const id = mostProminentEntry.target.id;
-					if (id) {
-						const newActiveSection = `#${id}`;
-						if (activeSection !== newActiveSection) {
-							activeSection = newActiveSection;
-							console.log('Active section updated to:', activeSection);
-						}
-					}
-				}
-			},
-			{
-				rootMargin: '-10% 0px -70% 0px',
-				threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-			}
-		);
-
-		// Observe all sections that are in the TOC
-		note.toc.forEach((item) => {
-			const element = document.querySelector(item.link);
-			if (element) {
-				observer.observe(element);
-			}
-		});
-
-		// Also set up a scroll listener as a fallback
-		let scrollTimeout;
+		// Simple scroll listener - find section closest to top of viewport
 		const handleScroll = () => {
-			clearTimeout(scrollTimeout);
-			scrollTimeout = setTimeout(() => {
-				// Find the section that's closest to the top of the viewport
-				let closestSection = null;
-				let closestDistance = Infinity;
+			const isMobile = window.innerWidth < 1024;
+			
+			// Auto-close mobile TOC menu when scrolling
+			if (isMobile && tocOpen) {
+				tocOpen = false;
+			}
+			
+			const offset = isMobile ? 60 : 20; // Account for mobile TOC button
+			
+			let activeId = null;
+			let minDistance = Infinity;
 
-				note.toc.forEach((item) => {
-					const element = document.querySelector(item.link);
-					if (element) {
-						const rect = element.getBoundingClientRect();
-						const distance = Math.abs(rect.top - 100); // 100px offset from top
-						if (distance < closestDistance && rect.top <= 200) {
-							closestDistance = distance;
-							closestSection = item.link;
-						}
+			// Check each TOC section
+			note.toc.forEach((item) => {
+				const id = item.link.substring(1); // Remove #
+				const element = safeQueryById(id);
+				
+				if (element) {
+					const rect = element.getBoundingClientRect();
+					const distance = Math.abs(rect.top - offset);
+					
+					// If this section is visible and closer to our target position
+					if (rect.top <= offset + 100 && distance < minDistance) {
+						minDistance = distance;
+						activeId = item.link;
 					}
-				});
-
-				if (closestSection && activeSection !== closestSection) {
-					activeSection = closestSection;
-					console.log('Active section updated via scroll to:', activeSection);
 				}
-			}, 100);
+			});
+
+			// Update active section if changed
+			if (activeId && activeId !== activeSection) {
+				activeSection = activeId;
+			}
 		};
 
-		window.addEventListener('scroll', handleScroll);
+		// Throttled scroll listener
+		let ticking = false;
+		const scrollListener = () => {
+			if (!ticking) {
+				requestAnimationFrame(() => {
+					handleScroll();
+					ticking = false;
+				});
+				ticking = true;
+			}
+		};
+
+		window.addEventListener('scroll', scrollListener);
+		
+		// Initial check
+		handleScroll();
 
 		// Store cleanup function
 		scrollCleanup = () => {
-			window.removeEventListener('scroll', handleScroll);
+			window.removeEventListener('scroll', scrollListener);
 		};
 	}
 
@@ -149,43 +142,27 @@
 	}
 
 	function scrollToSection(sectionId: string) {
-		const element = document.getElementById(sectionId);
-		console.log('[LS] -> src/routes/[id]/+page.svelte:41 -> element: ', element);
-		console.log('[LS] -> Looking for ID:', sectionId);
+		const element = safeQueryById(sectionId);
 
 		if (element) {
-			element.scrollIntoView({
-				behavior: 'smooth',
-				block: 'start',
-				inline: 'nearest'
-			});
+			const isMobile = window.innerWidth < 1024;
 
-			// Update URL without triggering page reload
-			window.history.replaceState(null, '', `#${sectionId}`);
-		} else {
-			// Try alternative approaches
-			// Sometimes markdown parsers create different ID formats
-			const alternatives = [
-				sectionId.toLowerCase(),
-				sectionId.replace(/\s+/g, '-').toLowerCase(),
-				sectionId.replace(/[^a-zA-Z0-9-]/g, '').toLowerCase()
-			];
+			if (isMobile) {
+				// Mobile: Calculate position with offset for TOC button
+				const elementRect = element.getBoundingClientRect();
+				const targetY = window.scrollY + elementRect.top - 60; // 60px for TOC button + padding
 
-			for (const altId of alternatives) {
-				const altElement = document.getElementById(altId);
-				if (altElement) {
-					console.log('[LS] -> Found with alternative ID:', altId);
-					altElement.scrollIntoView({
-						behavior: 'smooth',
-						block: 'start',
-						inline: 'nearest'
-					});
-					window.history.replaceState(null, '', `#${altId}`);
-					return;
-				}
+				window.scrollTo({
+					top: Math.max(0, targetY),
+					behavior: 'smooth'
+				});
+			} else {
+				// Desktop: Standard scroll
+				element.scrollIntoView({
+					behavior: 'smooth',
+					block: 'start'
+				});
 			}
-
-			console.log('[LS] -> No element found for any variant of:', sectionId);
 		}
 	}
 
@@ -218,8 +195,8 @@
 </script>
 
 <svelte:head>
-	<title>{note?.title || 'Note'} - NeoNote</title>
-	<meta name="description" content={note?.description || 'A published note'} />
+	<title>{note?.frontmatter?.title || 'Note'} - NeoNote</title>
+	<meta name="description" content={note?.frontmatter?.description || 'A published note'} />
 </svelte:head>
 
 <div class="min-h-screen bg-white">
@@ -259,20 +236,31 @@
 			<div class="flex min-h-screen">
 				<!-- TOC Sidebar for Desktop -->
 				{#if note?.toc?.length > 0}
-					<aside class="hidden w-64 flex-shrink-0 lg:block">
-						<div class="sticky top-6 h-fit max-h-[calc(100vh-3rem)] overflow-y-auto">
-							<div class="p-6">
-								<div class="mb-4 flex items-center">
-									<List class="mr-2 h-5 w-5 text-gray-600" />
-									<h2 class="text-sm font-semibold tracking-wide text-gray-900 uppercase">
-										Table of Contents
-									</h2>
+					<aside class="hidden w-64 flex-shrink-0 lg:block relative">
+						<div 
+							class="sticky top-6 h-fit max-h-[calc(100vh-3rem)] overflow-y-auto transition-transform duration-300 ease-in-out {sidebarOpen ? 'translate-x-0' : '-translate-x-full'}"
+						>
+							<div class="p-6 bg-white">
+								<div class="mb-4 flex items-center justify-between">
+									<div class="flex items-center">
+										<List class="mr-2 h-5 w-5 text-gray-600" />
+										<h2 class="text-sm font-semibold tracking-wide text-gray-900 uppercase">
+											Table of Contents
+										</h2>
+									</div>
+									<button
+										onclick={() => (sidebarOpen = false)}
+										class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+										title="Hide sidebar"
+									>
+										<X class="h-4 w-4" />
+									</button>
 								</div>
 								<nav class="space-y-1">
 									{#each note.toc as item}
 										<button
 											onclick={() => handleTocClick(item.link)}
-											class="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors duration-200 hover:bg-gray-100 {activeSection ===
+											class="block w-full rounded-none px-3 py-2 text-left text-sm transition-colors duration-200 hover:bg-gray-100 {activeSection ===
 											item.link
 												? 'border-r-2 border-blue-600 bg-blue-50 text-blue-700'
 												: 'text-gray-600 hover:text-gray-900'}"
@@ -283,11 +271,24 @@
 								</nav>
 							</div>
 						</div>
+						
+						<!-- Show Sidebar Button (overlaid when sidebar is hidden) -->
+						{#if !sidebarOpen}
+							<div class="absolute left-4 top-6 z-10">
+								<button
+									onclick={() => (sidebarOpen = true)}
+									class="rounded-lg bg-white p-3 shadow-lg ring-1 ring-gray-200 hover:bg-gray-50 hover:shadow-xl transition-all duration-200"
+									title="Show table of contents"
+								>
+									<List class="h-5 w-5 text-gray-600" />
+								</button>
+							</div>
+						{/if}
 					</aside>
 				{/if}
 
 				<!-- Main Content Area -->
-				<div class="flex-1 {note?.toc?.length > 0 ? 'lg:pl-0' : ''}">
+				<div class="flex-1">
 					<!-- Mobile TOC Button -->
 					{#if note?.toc?.length > 0}
 						<div class="sticky top-0 z-40 border-b border-gray-200 bg-white lg:hidden">
@@ -309,7 +310,7 @@
 						<!-- Mobile TOC Dropdown -->
 						{#if tocOpen}
 							<div
-								class="sticky top-[57px] z-30 border-b border-gray-200 bg-white shadow-sm lg:hidden"
+								class="sticky top-[50px] z-30 border-b border-gray-200 bg-white shadow-sm lg:hidden"
 							>
 								<nav class="max-h-64 overflow-y-auto px-6 py-4">
 									{#each note.toc as item}
@@ -365,7 +366,7 @@
 						</article>
 
 						<!-- Footer -->
-						<footer class="mt-16 border-t border-gray-200 pt-8">
+						<footer class="mt-32 border-t border-gray-200 pt-8">
 							<div class="flex flex-col items-center justify-center text-gray-500">
 								<a
 									href="http://neonote.sshawn.com"
