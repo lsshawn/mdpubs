@@ -1,21 +1,20 @@
 <script lang="ts">
-	import { page } from '$app/state';
 	import { onMount, tick, onDestroy } from 'svelte';
 	import { Menu, X, List } from 'lucide-svelte';
-
-	import { app } from '$lib/config';
 	import { fade } from 'svelte/transition';
+	import type { PageData } from './$types';
 
-	let notFound = $state(false);
-	let loading = $state(true);
-	let note = $state({});
-	let error = $state('');
+	let { data }: { data: PageData } = $props();
+	
 	let tocOpen = $state(false);
 	let sidebarOpen = $state(true); // Desktop sidebar toggle
 	let tocContentVisible = $state(true); // Controls TOC content visibility with delay
 	let activeSection = $state('');
 	let scrollCleanup: (() => void) | null = null;
 	let clickOutsideCleanup: (() => void) | null = null;
+	
+	// Get note from server-loaded data
+	let note = $derived(data.note);
 
 	// Helper function to safely query elements by ID, handling IDs that start with numbers
 	function safeQueryById(id: string): Element | null {
@@ -27,35 +26,19 @@
 	}
 
 	onMount(async () => {
-		try {
-			const res = await fetch(`${app.apiUrl}/public/notes/${page.params.id}?parse=markdown`);
-			if (!res.ok) {
-				if (res.status === 404) {
-					notFound = true;
-				} else {
-					error = 'Failed to load note';
-				}
-			} else {
-				note = await res.json();
+		// Wait for the DOM to update with the server-loaded content
+		await tick();
 
-				// Wait for the DOM to update with the new content
-				await tick();
-
-				// Small delay to ensure @html content is fully rendered
-				setTimeout(() => {
-					setupSectionLinks();
-					setupScrollSpy();
-					setupClickOutside();
-					// Set initial active section if none is set
-					if (!activeSection && note?.toc?.length > 0) {
-						activeSection = note.toc[0].link;
-					}
-				}, 200);
+		// Small delay to ensure @html content is fully rendered
+		setTimeout(() => {
+			setupSectionLinks();
+			setupScrollSpy();
+			setupClickOutside();
+			// Set initial active section if none is set
+			if (!activeSection && note?.toc?.length > 0) {
+				activeSection = note.toc[0].link;
 			}
-		} catch (e) {
-			error = 'Network error occurred';
-		}
-		loading = false;
+		}, 200);
 	});
 
 	function setupScrollSpy() {
@@ -126,16 +109,8 @@
 			// Find the mobile TOC container using data attribute
 			const tocContainer = event.target.closest('[data-mobile-toc]');
 
-			console.log('Click outside check:', {
-				isMobile,
-				tocOpen,
-				tocContainer: !!tocContainer,
-				target: event.target
-			});
-
-			// If click is outside the TOC container, close the menu
+						// If click is outside the TOC container, close the menu
 			if (!tocContainer) {
-				console.log('Closing TOC - click outside');
 				tocOpen = false;
 			}
 		};
@@ -199,11 +174,9 @@
 
 			// Check if clicked element is an anchor link or contains one
 			const link = target.closest('a[href^="#"]') as HTMLAnchorElement;
-			console.log('[LS] -> src/routes/[id]/+page.svelte:60 -> link: ', link);
 			if (link) {
 				e.preventDefault();
 				const sectionId = link.getAttribute('href')?.substring(1);
-				console.log('[LS] -> src/routes/[id]/+page.svelte:64 -> sectionId: ', sectionId);
 				if (sectionId) {
 					scrollToSection(sectionId);
 				}
@@ -237,44 +210,27 @@
 </script>
 
 <svelte:head>
-	<title>{note?.frontmatter?.title || 'Note'} - NeoNote</title>
-	<meta name="description" content={note?.frontmatter?.description || 'A published note'} />
+	<title>{data.meta.title} - NeoNote</title>
+	<meta name="description" content={data.meta.description} />
+	
+	<!-- Open Graph / Facebook -->
+	<meta property="og:type" content="article" />
+	<meta property="og:url" content={data.meta.url} />
+	<meta property="og:title" content={data.meta.title} />
+	<meta property="og:description" content={data.meta.description} />
+	<meta property="og:image" content={data.meta.ogImage} />
+	
+	<!-- Twitter -->
+	<meta property="twitter:card" content="summary_large_image" />
+	<meta property="twitter:url" content={data.meta.url} />
+	<meta property="twitter:title" content={data.meta.title} />
+	<meta property="twitter:description" content={data.meta.description} />
+	<meta property="twitter:image" content={data.meta.ogImage} />
 </svelte:head>
 
 <div class="min-h-screen bg-white">
-	{#if loading}
-		<!-- Loading State -->
-		<div class="flex min-h-screen items-center justify-center">
-			<div class="text-center">
-				<div class="loading loading-spinner loading-lg text-gray-400"></div>
-				<p class="mt-4 text-gray-500">Loading note...</p>
-			</div>
-		</div>
-	{:else if notFound}
-		<!-- 404 State -->
-		<div class="flex min-h-screen items-center justify-center">
-			<div class="text-center">
-				<div class="mb-4 text-6xl">📝</div>
-				<h1 class="mb-2 text-2xl font-semibold text-gray-900">Page not found</h1>
-				<p class="mb-6 text-gray-500">
-					The note you're looking for doesn't exist or has been removed.
-				</p>
-				<a href="/" class="btn btn-primary">Go Home</a>
-			</div>
-		</div>
-	{:else if error}
-		<!-- Error State -->
-		<div class="flex min-h-screen items-center justify-center">
-			<div class="text-center">
-				<div class="mb-4 text-6xl">⚠️</div>
-				<h1 class="mb-2 text-2xl font-semibold text-gray-900">Something went wrong</h1>
-				<p class="mb-6 text-gray-500">{error}</p>
-				<button class="btn btn-primary" onclick={() => location.reload()}>Try Again</button>
-			</div>
-		</div>
-	{:else}
-		<!-- Main Content -->
-		{#if note}
+	<!-- Main Content -->
+	{#if note}
 			<div class="flex min-h-screen">
 				<!-- TOC Sidebar for Desktop -->
 				{#if note?.toc?.length > 0}
@@ -341,9 +297,7 @@
 								<button
 									onclick={(event) => {
 										event.stopPropagation();
-										console.log('Toggle button clicked, tocOpen was:', tocOpen);
 										tocOpen = !tocOpen;
-										console.log('Toggle button clicked, tocOpen now:', tocOpen);
 									}}
 									class="flex items-center text-sm font-medium text-gray-700 hover:text-gray-900"
 								>
@@ -433,5 +387,4 @@
 				</div>
 			</div>
 		{/if}
-	{/if}
 </div>
