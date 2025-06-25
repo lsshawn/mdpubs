@@ -217,7 +217,7 @@ https://neonote.sshawn.com/[id]
 			<!-- Open the modal using ID.showModal() method -->
 			<button
 				class="btn btn-lg border-none bg-blue-600 px-12 py-6 text-xl text-white shadow-lg hover:bg-blue-700"
-				on:click={openModal}>Get Your Free API Key</button
+				onclick={openModal}>Get Your Free API Key</button
 			>
 
 			<p class="my-4 text-gray-400">Free tier: 5 publishable markdown files, unlimited views.</p>
@@ -226,7 +226,7 @@ https://neonote.sshawn.com/[id]
 				>Documentation and Plugin Install Guide</a
 			>
 
-			<dialog id="subscribe_modal" class="modal" on:close={resetModal}>
+			<dialog id="subscribe_modal" class="modal" onclose={resetModal}>
 				<div class="modal-box max-w-2xl border border-gray-700 bg-gray-800 text-white">
 					<form method="dialog">
 						<button
@@ -241,7 +241,7 @@ https://neonote.sshawn.com/[id]
 							Sign up to get your API key and start publishing markdown files instantly
 						</p>
 
-						<form on:submit|preventDefault={handleSubmitEmail} class="mt-4 space-y-6">
+						<form onsubmit={handleSubmitEmail} class="mt-4 space-y-6">
 							<!-- Email Input -->
 							<div class="form-control w-full">
 								<label for="email-input" class="label">
@@ -290,7 +290,7 @@ https://neonote.sshawn.com/[id]
 							We've sent a one-time password to <strong>{email}</strong>. Please enter it below.
 						</p>
 
-						<form on:submit|preventDefault={handleSubmitOtp} class="mt-4 space-y-6">
+						<form onsubmit={handleSubmitOtp} class="mt-4 space-y-6">
 							<!-- OTP Input -->
 							<div class="form-control w-full">
 								<label for="otp-input" class="label">
@@ -320,7 +320,7 @@ https://neonote.sshawn.com/[id]
 							<div class="text-center text-sm">
 								<button
 									type="button"
-									on:click={handleResendOtp}
+									onclick={handleResendOtp}
 									class="text-blue-400 hover:underline"
 									disabled={isLoading}>Resend OTP</button
 								>
@@ -346,7 +346,7 @@ https://neonote.sshawn.com/[id]
 								<div class="relative mt-1 rounded-lg bg-gray-900 p-4 font-mono text-green-400">
 									<span class="break-all">{apiKey.slice(0, 12)}...{apiKey.slice(-12)}</span>
 									<button
-										on:click={() => copyToClipboard(apiKey, 'api')}
+										onclick={() => copyToClipboard(apiKey, 'api')}
 										class="btn btn-neutral btn-sm absolute top-2 right-2"
 										disabled={apiKeyCopyText === 'Copied!'}
 									>
@@ -361,7 +361,7 @@ https://neonote.sshawn.com/[id]
 										>{readOnlyApiKey.slice(0, 12)}...{readOnlyApiKey.slice(-12)}</span
 									>
 									<button
-										on:click={() => copyToClipboard(readOnlyApiKey, 'ro')}
+										onclick={() => copyToClipboard(readOnlyApiKey, 'ro')}
 										class="btn btn-neutral btn-sm absolute top-2 right-2"
 										disabled={readOnlyApiKeyCopyText === 'Copied!'}
 									>
