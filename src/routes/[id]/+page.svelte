@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
+
+	import { app } from '$lib/config';
 
 	let notFound = $state(false);
 	let loading = $state(true);
@@ -9,9 +11,7 @@
 
 	onMount(async () => {
 		try {
-			const res = await fetch(
-				`https://api-neonote.sshawn.com/public/notes/${page.params.id}?parse=markdown`
-			);
+			const res = await fetch(`${app.apiUrl}/public/notes/${page.params.id}?parse=markdown`);
 			if (!res.ok) {
 				if (res.status === 404) {
 					notFound = true;
@@ -20,12 +20,98 @@
 				}
 			} else {
 				note = await res.json();
+				console.log('[LS] -> src/routes/[id]/+page.svelte:22 -> note: ', note);
+
+				// Wait for the DOM to update with the new content
+				await tick();
+
+				// Small delay to ensure @html content is fully rendered
+				setTimeout(() => {
+					setupSectionLinks();
+				}, 200);
 			}
 		} catch (e) {
 			error = 'Network error occurred';
 		}
 		loading = false;
 	});
+
+	function setupSectionLinks() {
+		// Debug: Log all elements with IDs
+		const elementsWithIds = document.querySelectorAll('[id]');
+		console.log(
+			'[LS] -> Available IDs:',
+			Array.from(elementsWithIds).map((el) => el.id)
+		);
+
+		// Handle initial hash in URL after content loads
+		if (window.location.hash) {
+			scrollToSection(window.location.hash.substring(1));
+		}
+
+		// Add click event listeners for anchor links
+		addSectionLinkHandlers();
+	}
+
+	function scrollToSection(sectionId: string) {
+		const element = document.getElementById(sectionId);
+		console.log('[LS] -> src/routes/[id]/+page.svelte:41 -> element: ', element);
+		console.log('[LS] -> Looking for ID:', sectionId);
+
+		if (element) {
+			element.scrollIntoView({
+				behavior: 'smooth',
+				block: 'start',
+				inline: 'nearest'
+			});
+
+			// Update URL without triggering page reload
+			window.history.replaceState(null, '', `#${sectionId}`);
+		} else {
+			// Try alternative approaches
+			// Sometimes markdown parsers create different ID formats
+			const alternatives = [
+				sectionId.toLowerCase(),
+				sectionId.replace(/\s+/g, '-').toLowerCase(),
+				sectionId.replace(/[^a-zA-Z0-9-]/g, '').toLowerCase()
+			];
+
+			for (const altId of alternatives) {
+				const altElement = document.getElementById(altId);
+				if (altElement) {
+					console.log('[LS] -> Found with alternative ID:', altId);
+					altElement.scrollIntoView({
+						behavior: 'smooth',
+						block: 'start',
+						inline: 'nearest'
+					});
+					window.history.replaceState(null, '', `#${altId}`);
+					return;
+				}
+			}
+
+			console.log('[LS] -> No element found for any variant of:', sectionId);
+		}
+	}
+
+	function addSectionLinkHandlers() {
+		// Add event delegation for anchor links
+		document.addEventListener('click', (e) => {
+			const target = e.target as HTMLElement;
+
+			// Check if clicked element is an anchor link or contains one
+			const link = target.closest('a[href^="#"]') as HTMLAnchorElement;
+			console.log('[LS] -> src/routes/[id]/+page.svelte:60 -> link: ', link);
+			if (link) {
+				e.preventDefault();
+				const sectionId = link.getAttribute('href')?.substring(1);
+				console.log('[LS] -> src/routes/[id]/+page.svelte:64 -> sectionId: ', sectionId);
+				if (sectionId) {
+					scrollToSection(sectionId);
+				}
+			}
+		});
+	}
 </script>
 
 <svelte:head>
