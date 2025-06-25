@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Twitter, Mail, MessageCircle, Calendar, Zap, Shield } from 'lucide-svelte';
+	import { Pencil, Mail, MessageCircle, Calendar, Zap, Shield } from 'lucide-svelte';
 
 	let deliveryMethod = $state('email');
 	let twitterInput = $state('');
@@ -24,33 +24,28 @@
 	<header class="container mx-auto px-4 py-6">
 		<div class="flex items-center justify-between">
 			<div class="flex items-center space-x-2">
-				<Twitter class="h-8 w-8 text-blue-600" />
-				<span class="text-2xl font-bold text-gray-900">TwitterDigest</span>
+				<Pencil class="h-8 w-8 text-blue-600" />
+				<span class="text-2xl font-bold text-gray-900">NeoNote</span>
 			</div>
-			<button class="btn btn-outline bg-white text-gray-700"> Sign In </button>
 		</div>
 	</header>
 
 	<!-- Hero Section -->
 	<section class="container mx-auto px-4 py-16 text-center">
-		<div class="badge mb-4 border-none bg-blue-100 p-3 text-blue-800 hover:bg-blue-100">
-			🚀 Early Bird Special - Limited Time
-		</div>
 		<h1 class="mb-6 text-5xl leading-tight font-bold text-gray-900">
-			Never Miss What Matters on <span class="text-blue-600">Twitter</span>
+			Easiest Way to Sync and Publish Markdown
 		</h1>
-		<p class="mx-auto mb-8 max-w-3xl text-xl text-gray-600">
-			Get a curated summary of your favorite Twitter accounts or lists delivered every Wednesday.
-			Stay informed without the endless scrolling.
-		</p>
 
 		<!-- Simplified Main CTA -->
 		<div class="mx-auto max-w-xl">
 			<!-- Open the modal using ID.showModal() method -->
 			<button
 				class="btn btn-lg border-none bg-blue-600 px-12 py-6 text-xl text-white hover:bg-blue-700"
-				onclick={() => subscribe_modal.showModal()}>Get Started - $10/month</button
+				onclick={() => subscribe_modal.showModal()}>Get Your Free API Key</button
 			>
+
+			<p class="mt-4 text-gray-600">Free 5 publishable markdown files, unlimited views.</p>
+
 			<dialog id="subscribe_modal" class="modal">
 				<div class="modal-box max-w-2xl">
 					<form method="dialog">
@@ -58,14 +53,14 @@
 					</form>
 					<h3 class="text-2xl font-bold">Start Your Weekly Digest</h3>
 					<p class="py-4">
-						Enter your Twitter source and choose how you'd like to receive your summaries
+						Enter your Pencil source and choose how you'd like to receive your summaries
 					</p>
 
 					<form onsubmit={handleSubmit} class="mt-4 space-y-6">
-						<!-- Twitter Input -->
+						<!-- Pencil Input -->
 						<div class="form-control w-full">
 							<label for="twitter-input" class="label">
-								<span class="label-text">Twitter Handle or List URL</span>
+								<span class="label-text">Pencil Handle or List URL</span>
 							</label>
 							<input
 								type="text"
@@ -77,7 +72,7 @@
 							/>
 							<label class="label">
 								<span class="label-text-alt"
-									>Enter a Twitter username (e.g., @elonmusk) or a Twitter list URL</span
+									>Enter a Pencil username (e.g., @elonmusk) or a Pencil list URL</span
 								>
 							</label>
 						</div>
@@ -179,14 +174,12 @@
 					<button>close</button>
 				</form>
 			</dialog>
-
-			<p class="mt-4 text-gray-600">Weekly Twitter summaries delivered every Wednesday</p>
 		</div>
 	</section>
 
 	<!-- Features Section -->
 	<section class="container mx-auto px-4 py-16">
-		<h2 class="mb-12 text-center text-3xl font-bold text-gray-900">Why Choose TwitterDigest?</h2>
+		<h2 class="mb-12 text-center text-3xl font-bold text-gray-900">Use Cases</h2>
 		<div class="grid gap-8 md:grid-cols-3">
 			<div class="card border bg-white text-center shadow-sm">
 				<div class="card-body items-center">
@@ -222,80 +215,21 @@
 			</div>
 		</div>
 	</section>
-
-	<!-- Honest Early Stage Section -->
-	<section class="container mx-auto px-4 py-16 text-center">
-		<div class="mx-auto max-w-2xl">
-			<h2 class="mb-6 text-2xl font-bold text-gray-900">We're Just Getting Started</h2>
-			<p class="mb-8 text-lg text-gray-600">
-				TwitterDigest is a new service with our first 2 users already loving their weekly summaries.
-				Join us early and help shape the future of Twitter content curation.
-			</p>
-			<div class="rounded-lg bg-blue-50 p-6">
-				<p class="font-medium text-blue-800">
-					🚀 Early Bird Benefits: Lock in $10/month pricing forever + Direct feedback line to
-					improve the service
-				</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- FAQ -->
-	<section class="container mx-auto px-4 py-16">
-		<h2 class="mb-12 text-center text-3xl font-bold text-gray-900">Frequently Asked Questions</h2>
-		<div class="mx-auto max-w-3xl space-y-6">
-			<div class="card collapse-arrow border bg-white">
-				<input type="checkbox" />
-				<div class="collapse-title text-xl font-medium">How does the summary work?</div>
-				<div class="collapse-content">
-					<p class="text-gray-600">
-						Our AI analyzes all tweets from your chosen accounts or lists from the past week,
-						identifies the most important and engaging content, and creates a concise summary
-						delivered every Wednesday.
-					</p>
-				</div>
-			</div>
-
-			<div class="card collapse-arrow border bg-white">
-				<input type="checkbox" />
-				<div class="collapse-title text-xl font-medium">Can I change my delivery method later?</div>
-				<div class="collapse-content">
-					<p class="text-gray-600">
-						Yes! You can switch between email and Telegram delivery at any time through your account
-						settings.
-					</p>
-				</div>
-			</div>
-
-			<div class="card collapse-arrow border bg-white">
-				<input type="checkbox" />
-				<div class="collapse-title text-xl font-medium">What if I want to cancel?</div>
-				<div class="collapse-content">
-					<p class="text-gray-600">
-						You can cancel your subscription at any time. No long-term commitments or cancellation
-						fees.
-					</p>
-				</div>
-			</div>
-		</div>
-	</section>
-
 	<!-- Footer -->
 	<footer class="bg-gray-900 py-12 text-white">
-		<div class="container mx-auto px-4">
-			<div class="flex flex-col items-center justify-between md:flex-row">
-				<div class="mb-4 flex items-center space-x-2 md:mb-0">
-					<Twitter class="h-6 w-6" />
-					<span class="text-xl font-bold">TwitterDigest</span>
-				</div>
-				<div class="flex space-x-6 text-sm">
-					<a href="#" class="hover:text-blue-400"> Privacy Policy </a>
-					<a href="#" class="hover:text-blue-400"> Terms of Service </a>
-					<a href="#" class="hover:text-blue-400"> Contact </a>
-				</div>
+		<div class="container mx-auto flex justify-between px-4">
+			<div class="text-sm text-gray-400">
+				<p>
+					&copy; {new Date().getFullYear()} NeoNote, built by
+					<a href="https://x.com/me_sshawn" target="_blank">Shawn</a>.
+				</p>
 			</div>
-			<div class="mt-8 border-t border-gray-800 pt-8 text-center text-sm text-gray-400">
-				<p>&copy; 2024 TwitterDigest. All rights reserved.</p>
+			<div class="flex flex-col items-center justify-between md:flex-row">
+				<div class="flex space-x-6 text-sm">
+					<!-- <a href="#" class="hover:text-blue-400"> Privacy Policy </a> -->
+					<!-- <a href="#" class="hover:text-blue-400"> Terms of Service </a> -->
+					<!-- <a href="#" class="hover:text-blue-400"> Contact </a> -->
+				</div>
 			</div>
 		</div>
 	</footer>
