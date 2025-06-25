@@ -224,11 +224,11 @@
 	<meta property="og:image" content={data.meta.ogImage} />
 	
 	<!-- Twitter -->
-	<meta property="twitter:card" content="summary_large_image" />
-	<meta property="twitter:url" content={data.meta.url} />
-	<meta property="twitter:title" content={data.meta.title} />
-	<meta property="twitter:description" content={data.meta.description} />
-	<meta property="twitter:image" content={data.meta.ogImage} />
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:url" content={data.meta.url} />
+	<meta name="twitter:title" content={data.meta.title} />
+	<meta name="twitter:description" content={data.meta.description} />
+	<meta name="twitter:image" content={data.meta.ogImage} />
 </svelte:head>
 
 <div class="min-h-screen bg-white">
