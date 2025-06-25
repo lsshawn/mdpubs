@@ -213,6 +213,9 @@
 	<title>{data.meta.title} - NeoNote</title>
 	<meta name="description" content={data.meta.description} />
 	
+	<!-- Search engine indexing control -->
+	<meta name="robots" content={data.meta.allowIndexing ? "index, follow" : "noindex, nofollow"} />
+	
 	<!-- Open Graph / Facebook -->
 	<meta property="og:type" content="article" />
 	<meta property="og:url" content={data.meta.url} />

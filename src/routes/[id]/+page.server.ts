@@ -20,13 +20,17 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
 		const description = note?.frontmatter?.description || 'A published note from NeoNote';
 		const ogImage = `https://neonote.sshawn.com/og/${params.id}.png`; // We'll create this endpoint
 		
+		// Check if note should be indexed (default: false for privacy)
+		const allowIndexing = note?.frontmatter?.['neonote-allow-indexing'] === true;
+		
 		return {
 			note,
 			meta: {
 				title,
 				description,
 				ogImage,
-				url: `https://neonote.sshawn.com/${params.id}`
+				url: `https://neonote.sshawn.com/${params.id}`,
+				allowIndexing
 			}
 		};
 	} catch (e) {

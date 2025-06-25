@@ -1,0 +1,22 @@
+User-agent: *
+Allow: /
+Disallow: /*/
+Disallow: /og/
+
+# Allow social media crawlers for link previews
+User-agent: facebookexternalhit/*
+Allow: /
+Allow: /*/
+Allow: /og/
+
+User-agent: Twitterbot
+Allow: /
+Allow: /*/
+Allow: /og/
+
+User-agent: LinkedInBot
+Allow: /
+Allow: /*/
+Allow: /og/
+
+Sitemap: https://neonote.sshawn.com/sitemap.xml 
