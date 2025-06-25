@@ -25,6 +25,7 @@
 		"@tailwindcss/typography": "^0.5.15",
 		"@tailwindcss/vite": "^4.0.0",
 		"@types/node": "^20",
+		"daisyui": "^5.0.43",
 		"drizzle-kit": "^0.30.2",
 		"eslint": "^9.18.0",
 		"eslint-config-prettier": "^10.0.1",
@@ -43,8 +44,8 @@
 	},
 	"dependencies": {
 		"@libsql/client": "^0.14.0",
-		"daisyui": "^5.0.43",
-		"drizzle-orm": "^0.40.0"
+		"drizzle-orm": "^0.40.0",
+		"lucide-svelte": "^0.522.0"
 	},
 	"pnpm": {
 		"onlyBuiltDependencies": [

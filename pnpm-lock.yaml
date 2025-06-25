@@ -11,12 +11,12 @@ importers:
       '@libsql/client':
         specifier: ^0.14.0
         version: 0.14.0
-      daisyui:
-        specifier: ^5.0.43
-        version: 5.0.43
       drizzle-orm:
         specifier: ^0.40.0
         version: 0.40.1(@libsql/client@0.14.0)(gel@2.1.0)
+      lucide-svelte:
+        specifier: ^0.522.0
+        version: 0.522.0(svelte@5.34.7)
     devDependencies:
       '@eslint/compat':
         specifier: ^1.2.5
@@ -42,6 +42,9 @@ importers:
       '@types/node':
         specifier: ^20
         version: 20.19.1
+      daisyui:
+        specifier: ^5.0.43
+        version: 5.0.43
       drizzle-kit:
         specifier: ^0.30.2
         version: 0.30.6
@@ -1651,6 +1654,11 @@ packages:
 
   lru-cache@10.4.3:
     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
+
+  lucide-svelte@0.522.0:
+    resolution: {integrity: sha512-5/Xrf9kx60WaqLqyEFvJVh3HEi6t05PFTNczYsMkH4AQPKr2BW7HctlgDYfUwScz0/OHVlHG+gfgklymMtK2UQ==}
+    peerDependencies:
+      svelte: ^3 || ^4 || ^5.0.0-next.42
 
   magic-string@0.30.17:
     resolution: {integrity: sha512-sNPKHvyjVf7gyjwS4xGTaW/mCnF8wnjtifKBEhxfZ7E/S8tQ0rssrwGNn6q8JH/ohItJfSQp9mBtQYuTlH5QnA==}
@@ -3489,6 +3497,10 @@ snapshots:
   lodash.merge@4.6.2: {}
 
   lru-cache@10.4.3: {}
+
+  lucide-svelte@0.522.0(svelte@5.34.7):
+    dependencies:
+      svelte: 5.34.7
 
   magic-string@0.30.17:
     dependencies:
