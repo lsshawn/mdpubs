@@ -15,6 +15,7 @@
 	let tocContentVisible = $state(true); // Controls TOC content visibility with delay
 	let activeSection = $state('');
 	let scrollCleanup: (() => void) | null = null;
+	let clickOutsideCleanup: (() => void) | null = null;
 
 	// Helper function to safely query elements by ID, handling IDs that start with numbers
 	function safeQueryById(id: string): Element | null {
@@ -36,7 +37,6 @@
 				}
 			} else {
 				note = await res.json();
-				console.log('[LS] -> src/routes/[id]/+page.svelte:22 -> note: ', note);
 
 				// Wait for the DOM to update with the new content
 				await tick();
@@ -45,6 +45,7 @@
 				setTimeout(() => {
 					setupSectionLinks();
 					setupScrollSpy();
+					setupClickOutside();
 					// Set initial active section if none is set
 					if (!activeSection && note?.toc?.length > 0) {
 						activeSection = note.toc[0].link;
@@ -63,11 +64,6 @@
 		// Simple scroll listener - find section closest to top of viewport
 		const handleScroll = () => {
 			const isMobile = window.innerWidth < 1024;
-
-			// Auto-close mobile TOC menu when scrolling
-			if (isMobile && tocOpen) {
-				tocOpen = false;
-			}
 
 			const offset = isMobile ? 60 : 20; // Account for mobile TOC button
 
@@ -120,20 +116,48 @@
 		};
 	}
 
+	function setupClickOutside() {
+		const handleClickOutside = (event) => {
+			const isMobile = window.innerWidth < 1024;
+
+			// Only handle on mobile and when TOC is open
+			if (!isMobile || !tocOpen) return;
+
+			// Find the mobile TOC container using data attribute
+			const tocContainer = event.target.closest('[data-mobile-toc]');
+
+			console.log('Click outside check:', {
+				isMobile,
+				tocOpen,
+				tocContainer: !!tocContainer,
+				target: event.target
+			});
+
+			// If click is outside the TOC container, close the menu
+			if (!tocContainer) {
+				console.log('Closing TOC - click outside');
+				tocOpen = false;
+			}
+		};
+
+		document.addEventListener('click', handleClickOutside);
+
+		// Store cleanup function
+		clickOutsideCleanup = () => {
+			document.removeEventListener('click', handleClickOutside);
+		};
+	}
+
 	onDestroy(() => {
 		if (scrollCleanup) {
 			scrollCleanup();
 		}
+		if (clickOutsideCleanup) {
+			clickOutsideCleanup();
+		}
 	});
 
 	function setupSectionLinks() {
-		// Debug: Log all elements with IDs
-		const elementsWithIds = document.querySelectorAll('[id]');
-		console.log(
-			'[LS] -> Available IDs:',
-			Array.from(elementsWithIds).map((el) => el.id)
-		);
-
 		// Handle initial hash in URL after content loads
 		if (window.location.hash) {
 			scrollToSection(window.location.hash.substring(1));
@@ -258,8 +282,8 @@
 						<!-- Expandable TOC Button/Container -->
 						<div class="sticky top-6 z-20 ml-2">
 							<div
-								class="overflow-hidden rounded-lg bg-white shadow-lg ring-1 ring-gray-200 transition-all duration-100 ease-in-out {sidebarOpen
-									? 'w-64 shadow-xl ring-blue-200'
+								class="overflow-hidden rounded-md bg-white shadow-none ring-0 ring-gray-200 transition-all duration-100 ease-in-out {sidebarOpen
+									? 'w-64 '
 									: 'h-12 w-12'}"
 							>
 								<!-- Toggle Button Header -->
@@ -309,10 +333,18 @@
 				<div class="flex-1">
 					<!-- Mobile TOC Button -->
 					{#if note?.toc?.length > 0}
-						<div class="sticky top-0 z-40 border-b border-gray-200 bg-white lg:hidden">
+						<div
+							class="sticky top-0 z-40 border-b border-gray-200 bg-white lg:hidden"
+							data-mobile-toc
+						>
 							<div class="px-6 py-3">
 								<button
-									onclick={() => (tocOpen = !tocOpen)}
+									onclick={(event) => {
+										event.stopPropagation();
+										console.log('Toggle button clicked, tocOpen was:', tocOpen);
+										tocOpen = !tocOpen;
+										console.log('Toggle button clicked, tocOpen now:', tocOpen);
+									}}
 									class="flex items-center text-sm font-medium text-gray-700 hover:text-gray-900"
 								>
 									{#if tocOpen}
@@ -329,6 +361,7 @@
 						{#if tocOpen}
 							<div
 								class="sticky top-[50px] z-30 border-b border-gray-200 bg-white shadow-sm lg:hidden"
+								data-mobile-toc
 							>
 								<nav class="max-h-64 overflow-y-auto px-6 py-4">
 									{#each note.toc as item}
@@ -347,23 +380,23 @@
 						{/if}
 					{/if}
 
-					<div class="mx-auto max-w-4xl px-6 py-12">
+					<div class="mx-auto max-w-4xl px-6 py-6 lg:py-12">
 						<!-- Header -->
 						<header class="mb-8">
 							{#if note?.frontmatter?.title}
-								<h1 class="mb-4 text-4xl leading-tight font-bold text-gray-900">
+								<h1 class="text-2xl leading-tight font-bold text-gray-900 lg:text-4xl">
 									{note.frontmatter.title}
 								</h1>
 							{/if}
 
 							{#if note?.frontmatter?.description}
-								<p class="text-xl leading-relaxed text-gray-600">
+								<p class="leading-relaxed text-gray-600 lg:text-xl">
 									{note?.frontmatter?.description}
 								</p>
 							{/if}
 
 							{#if note.updatedAt}
-								<div class="mt-6 flex items-center text-sm text-gray-500">
+								<div class="mt-2 flex items-center text-xs text-gray-500 md:text-sm">
 									<time datetime={note.updatedAt}>
 										{new Date(note.updatedAt).toLocaleDateString('en-US', {
 											year: 'numeric',
@@ -379,7 +412,7 @@
 						<div class="mb-8 border-t border-gray-200"></div>
 
 						<!-- Content -->
-						<article class="prose prose-base prose-gray max-w-none">
+						<article class="prose prose-sm prose-gray max-w-none">
 							{@html note.html}
 						</article>
 
