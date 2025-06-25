@@ -178,43 +178,43 @@
 	</section>
 
 	<!-- Features Section -->
-	<section class="container mx-auto px-4 py-16">
-		<h2 class="mb-12 text-center text-3xl font-bold text-gray-900">Use Cases</h2>
-		<div class="grid gap-8 md:grid-cols-3">
-			<div class="card border bg-white text-center shadow-sm">
-				<div class="card-body items-center">
-					<Calendar class="mx-auto mb-4 h-12 w-12 text-blue-600" />
-					<h2 class="card-title justify-center">Weekly Summaries</h2>
-					<p class="text-gray-600">
-						Get perfectly timed summaries every Wednesday. Never miss important updates from your
-						favorite accounts.
-					</p>
-				</div>
-			</div>
-
-			<div class="card border bg-white text-center shadow-sm">
-				<div class="card-body items-center">
-					<Zap class="mx-auto mb-4 h-12 w-12 text-blue-600" />
-					<h2 class="card-title justify-center">AI-Powered Curation</h2>
-					<p class="text-gray-600">
-						Our AI identifies the most important and engaging tweets, filtering out noise and
-						focusing on what matters.
-					</p>
-				</div>
-			</div>
-
-			<div class="card border bg-white text-center shadow-sm">
-				<div class="card-body items-center">
-					<Shield class="mx-auto mb-4 h-12 w-12 text-blue-600" />
-					<h2 class="card-title justify-center">Privacy First</h2>
-					<p class="text-gray-600">
-						We only access public tweets and never store your personal data. Your privacy is our
-						priority.
-					</p>
-				</div>
-			</div>
-		</div>
-	</section>
+	<!-- <section class="container mx-auto px-4 py-16"> -->
+	<!-- 	<h2 class="mb-12 text-center text-3xl font-bold text-gray-900">Use Cases</h2> -->
+	<!-- 	<div class="grid gap-8 md:grid-cols-3"> -->
+	<!-- 		<div class="card border bg-white text-center shadow-sm"> -->
+	<!-- 			<div class="card-body items-center"> -->
+	<!-- 				<Calendar class="mx-auto mb-4 h-12 w-12 text-blue-600" /> -->
+	<!-- 				<h2 class="card-title justify-center">Weekly Summaries</h2> -->
+	<!-- 				<p class="text-gray-600"> -->
+	<!-- 					Get perfectly timed summaries every Wednesday. Never miss important updates from your -->
+	<!-- 					favorite accounts. -->
+	<!-- 				</p> -->
+	<!-- 			</div> -->
+	<!-- 		</div> -->
+	<!---->
+	<!-- 		<div class="card border bg-white text-center shadow-sm"> -->
+	<!-- 			<div class="card-body items-center"> -->
+	<!-- 				<Zap class="mx-auto mb-4 h-12 w-12 text-blue-600" /> -->
+	<!-- 				<h2 class="card-title justify-center">AI-Powered Curation</h2> -->
+	<!-- 				<p class="text-gray-600"> -->
+	<!-- 					Our AI identifies the most important and engaging tweets, filtering out noise and -->
+	<!-- 					focusing on what matters. -->
+	<!-- 				</p> -->
+	<!-- 			</div> -->
+	<!-- 		</div> -->
+	<!---->
+	<!-- 		<div class="card border bg-white text-center shadow-sm"> -->
+	<!-- 			<div class="card-body items-center"> -->
+	<!-- 				<Shield class="mx-auto mb-4 h-12 w-12 text-blue-600" /> -->
+	<!-- 				<h2 class="card-title justify-center">Privacy First</h2> -->
+	<!-- 				<p class="text-gray-600"> -->
+	<!-- 					We only access public tweets and never store your personal data. Your privacy is our -->
+	<!-- 					priority. -->
+	<!-- 				</p> -->
+	<!-- 			</div> -->
+	<!-- 		</div> -->
+	<!-- 	</div> -->
+	<!-- </section> -->
 	<!-- Footer -->
 	<footer class="bg-gray-900 py-12 text-white">
 		<div class="container mx-auto flex justify-between px-4">
