@@ -237,53 +237,48 @@
 				<!-- TOC Sidebar for Desktop -->
 				{#if note?.toc?.length > 0}
 					<aside class="hidden w-64 flex-shrink-0 lg:block relative">
+						<!-- Always visible toggle button -->
+						<div class="absolute left-4 top-6 z-20">
+							<button
+								onclick={() => (sidebarOpen = !sidebarOpen)}
+								class="rounded-lg bg-white p-3 shadow-lg ring-1 ring-gray-200 hover:bg-gray-50 hover:shadow-xl transition-all duration-200 {sidebarOpen ? 'shadow-xl ring-blue-200' : ''}"
+								title="{sidebarOpen ? 'Hide' : 'Show'} table of contents"
+							>
+								{#if sidebarOpen}
+									<X class="h-5 w-5 text-gray-600" />
+								{:else}
+									<List class="h-5 w-5 text-gray-600" />
+								{/if}
+							</button>
+						</div>
+
+						<!-- Sidebar content that expands from button -->
 						<div 
-							class="sticky top-6 h-fit max-h-[calc(100vh-3rem)] overflow-y-auto transition-transform duration-300 ease-in-out {sidebarOpen ? 'translate-x-0' : '-translate-x-full'}"
+							class="sticky top-6 h-fit max-h-[calc(100vh-3rem)] overflow-hidden transition-all duration-300 ease-in-out {sidebarOpen ? 'w-64 opacity-100' : 'w-12 opacity-0 pointer-events-none'}"
 						>
-							<div class="p-6 bg-white">
-								<div class="mb-4 flex items-center justify-between">
-									<div class="flex items-center">
-										<List class="mr-2 h-5 w-5 text-gray-600" />
+							<div class="w-64 bg-white rounded-lg shadow-lg ring-1 ring-gray-200 origin-top-left">
+								<div class="p-6 pt-16">
+									<div class="mb-4">
 										<h2 class="text-sm font-semibold tracking-wide text-gray-900 uppercase">
 											Table of Contents
 										</h2>
 									</div>
-									<button
-										onclick={() => (sidebarOpen = false)}
-										class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-										title="Hide sidebar"
-									>
-										<X class="h-4 w-4" />
-									</button>
+									<nav class="space-y-1">
+										{#each note.toc as item}
+											<button
+												onclick={() => handleTocClick(item.link)}
+												class="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors duration-200 hover:bg-gray-100 {activeSection ===
+												item.link
+													? 'border-r-2 border-blue-600 bg-blue-50 text-blue-700'
+													: 'text-gray-600 hover:text-gray-900'}"
+											>
+												{item.title}
+											</button>
+										{/each}
+									</nav>
 								</div>
-								<nav class="space-y-1">
-									{#each note.toc as item}
-										<button
-											onclick={() => handleTocClick(item.link)}
-											class="block w-full rounded-none px-3 py-2 text-left text-sm transition-colors duration-200 hover:bg-gray-100 {activeSection ===
-											item.link
-												? 'border-r-2 border-blue-600 bg-blue-50 text-blue-700'
-												: 'text-gray-600 hover:text-gray-900'}"
-										>
-											{item.title}
-										</button>
-									{/each}
-								</nav>
 							</div>
 						</div>
-						
-						<!-- Show Sidebar Button (overlaid when sidebar is hidden) -->
-						{#if !sidebarOpen}
-							<div class="absolute left-4 top-6 z-10">
-								<button
-									onclick={() => (sidebarOpen = true)}
-									class="rounded-lg bg-white p-3 shadow-lg ring-1 ring-gray-200 hover:bg-gray-50 hover:shadow-xl transition-all duration-200"
-									title="Show table of contents"
-								>
-									<List class="h-5 w-5 text-gray-600" />
-								</button>
-							</div>
-						{/if}
 					</aside>
 				{/if}
 
