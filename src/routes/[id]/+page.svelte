@@ -4,6 +4,7 @@
 	import { Menu, X, List } from 'lucide-svelte';
 
 	import { app } from '$lib/config';
+	import { fade } from 'svelte/transition';
 
 	let notFound = $state(false);
 	let loading = $state(true);
@@ -11,6 +12,7 @@
 	let error = $state('');
 	let tocOpen = $state(false);
 	let sidebarOpen = $state(true); // Desktop sidebar toggle
+	let tocContentVisible = $state(true); // Controls TOC content visibility with delay
 	let activeSection = $state('');
 	let scrollCleanup: (() => void) | null = null;
 
@@ -55,20 +57,20 @@
 		loading = false;
 	});
 
-		function setupScrollSpy() {
+	function setupScrollSpy() {
 		if (!note?.toc?.length) return;
 
 		// Simple scroll listener - find section closest to top of viewport
 		const handleScroll = () => {
 			const isMobile = window.innerWidth < 1024;
-			
+
 			// Auto-close mobile TOC menu when scrolling
 			if (isMobile && tocOpen) {
 				tocOpen = false;
 			}
-			
+
 			const offset = isMobile ? 60 : 20; // Account for mobile TOC button
-			
+
 			let activeId = null;
 			let minDistance = Infinity;
 
@@ -76,11 +78,11 @@
 			note.toc.forEach((item) => {
 				const id = item.link.substring(1); // Remove #
 				const element = safeQueryById(id);
-				
+
 				if (element) {
 					const rect = element.getBoundingClientRect();
 					const distance = Math.abs(rect.top - offset);
-					
+
 					// If this section is visible and closer to our target position
 					if (rect.top <= offset + 100 && distance < minDistance) {
 						minDistance = distance;
@@ -108,7 +110,7 @@
 		};
 
 		window.addEventListener('scroll', scrollListener);
-		
+
 		// Initial check
 		handleScroll();
 
@@ -192,6 +194,22 @@
 		scrollToSection(sectionId);
 		tocOpen = false; // Close mobile TOC after clicking
 	}
+
+	function toggleSidebar() {
+		if (sidebarOpen) {
+			// Closing: hide content first, then collapse container
+			tocContentVisible = false;
+			setTimeout(() => {
+				sidebarOpen = false;
+			}, 150);
+		} else {
+			// Opening: expand container first, then show content
+			sidebarOpen = true;
+			setTimeout(() => {
+				tocContentVisible = true;
+			}, 150);
+		}
+	}
 </script>
 
 <svelte:head>
@@ -236,47 +254,52 @@
 			<div class="flex min-h-screen">
 				<!-- TOC Sidebar for Desktop -->
 				{#if note?.toc?.length > 0}
-					<aside class="hidden w-64 flex-shrink-0 lg:block relative">
-						<!-- Always visible toggle button -->
-						<div class="absolute left-4 top-6 z-20">
-							<button
-								onclick={() => (sidebarOpen = !sidebarOpen)}
-								class="rounded-lg bg-white p-3 shadow-lg ring-1 ring-gray-200 hover:bg-gray-50 hover:shadow-xl transition-all duration-200 {sidebarOpen ? 'shadow-xl ring-blue-200' : ''}"
-								title="{sidebarOpen ? 'Hide' : 'Show'} table of contents"
+					<aside class="relative hidden w-64 flex-shrink-0 lg:block">
+						<!-- Expandable TOC Button/Container -->
+						<div class="sticky top-6 z-20 ml-2">
+							<div
+								class="overflow-hidden rounded-lg bg-white shadow-lg ring-1 ring-gray-200 transition-all duration-100 ease-in-out {sidebarOpen
+									? 'w-64 shadow-xl ring-blue-200'
+									: 'h-12 w-12'}"
 							>
-								{#if sidebarOpen}
-									<X class="h-5 w-5 text-gray-600" />
-								{:else}
-									<List class="h-5 w-5 text-gray-600" />
-								{/if}
-							</button>
-						</div>
-
-						<!-- Sidebar content that expands from button -->
-						<div 
-							class="sticky top-6 h-fit max-h-[calc(100vh-3rem)] overflow-hidden transition-all duration-300 ease-in-out {sidebarOpen ? 'w-64 opacity-100' : 'w-12 opacity-0 pointer-events-none'}"
-						>
-							<div class="w-64 bg-white rounded-lg shadow-lg ring-1 ring-gray-200 origin-top-left">
-								<div class="p-6 pt-16">
-									<div class="mb-4">
-										<h2 class="text-sm font-semibold tracking-wide text-gray-900 uppercase">
+								<!-- Toggle Button Header -->
+								<button
+									onclick={toggleSidebar}
+									class="flex w-full items-center p-3 transition-colors duration-200 hover:bg-gray-50 {sidebarOpen
+										? 'border-b border-gray-200'
+										: ''}"
+									title="{sidebarOpen ? 'Hide' : 'Show'} table of contents"
+								>
+									{#if sidebarOpen}
+										<X class="mr-2 h-5 w-5 flex-shrink-0 text-gray-600" />
+										<span class="text-sm font-semibold tracking-wide text-gray-900 uppercase">
 											Table of Contents
-										</h2>
+										</span>
+									{:else}
+										<List class="h-5 w-5 text-gray-600" />
+									{/if}
+								</button>
+
+								<!-- TOC Content (hidden when collapsed) -->
+								{#if sidebarOpen}
+									<div class="max-h-[calc(100vh-8rem)] overflow-y-auto p-4">
+										{#if tocContentVisible}
+											<nav class="space-y-1" transition:fade={{ duration: 200 }}>
+												{#each note.toc as item}
+													<button
+														onclick={() => handleTocClick(item.link)}
+														class="block w-full rounded-none px-3 py-2 text-left text-sm transition-colors duration-200 hover:bg-gray-100 {activeSection ===
+														item.link
+															? 'border-r-2 border-blue-600 bg-blue-50 text-blue-700'
+															: 'text-gray-600 hover:text-gray-900'}"
+													>
+														{item.title}
+													</button>
+												{/each}
+											</nav>
+										{/if}
 									</div>
-									<nav class="space-y-1">
-										{#each note.toc as item}
-											<button
-												onclick={() => handleTocClick(item.link)}
-												class="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors duration-200 hover:bg-gray-100 {activeSection ===
-												item.link
-													? 'border-r-2 border-blue-600 bg-blue-50 text-blue-700'
-													: 'text-gray-600 hover:text-gray-900'}"
-											>
-												{item.title}
-											</button>
-										{/each}
-									</nav>
-								</div>
+								{/if}
 							</div>
 						</div>
 					</aside>
