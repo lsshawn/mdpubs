@@ -41,12 +41,11 @@
 	</header>
 
 	<!-- Hero Section -->
-	<section class="container mx-auto px-4 py-16 text-center">
-		<h1 class="mb-6 text-5xl leading-tight font-bold text-white">Publish Markdown From Neovim</h1>
+	<section class="container mx-auto px-4 py-4 md:py-16 text-center">
+		<h1 class="mb-6 text-3xl md:text-5xl leading-tight font-bold text-white">Publish Markdown From Neovim</h1>
 
-		<p class="mx-auto mb-12 max-w-3xl text-xl text-gray-300">
-			Transform your local markdown files into beautiful, shareable web pages with a simple API.
-			Perfect for developers who want to publish documentation, blogs, or notes instantly.
+		<p class="mx-auto mb-2 md:mb-12 max-w-3xl text-lg md:text-xl text-gray-300">
+			Perfect for writers who want to publish and sync document instantly.
 		</p>
 
 		<!-- Code Example -->
@@ -60,19 +59,19 @@
 						<div class="h-3 w-3 rounded-full bg-yellow-500"></div>
 						<div class="h-3 w-3 rounded-full bg-green-500"></div>
 					</div>
-					<span class="text-sm text-gray-400">README.md</span>
+					<span class="text-sm text-gray-400">.md</span>
 				</div>
 				<div class="p-6 text-left">
-					<pre class="font-mono text-sm leading-relaxed text-green-400"><code
+					<pre class="font-mono text-sm leading-relaxed text-green-400 text-wrap"><code
 							>---
-title: "My Awesome Project"
-// 👇 just add these two lines to your frontmatter
+title: "My Note"
+// 👇 just add these 2 lines 
 neonote:  
 neonote-is-public: true
 ---
 
 This markdown file will be instantly available at:
-https://neonote.sshawn.com/public/[your-neonote-id]
+https://neonote.sshawn.com/[id]
 
 </code></pre>
 				</div>
@@ -87,7 +86,9 @@ https://neonote.sshawn.com/public/[your-neonote-id]
 				onclick={() => subscribe_modal.showModal()}>Get Your Free API Key</button
 			>
 
-			<p class="mt-4 text-gray-400">Free tier: 5 publishable markdown files, unlimited views.</p>
+			<p class="my-4 text-gray-400">Free tier: 5 publishable markdown files, unlimited views.</p>
+
+      <a href="https://github.com/lsshawn/neonote.nvim" class="text-gray-400 underline">Documentation and Plugin Install Guide</a>
 
 			<dialog id="subscribe_modal" class="modal">
 				<div class="modal-box max-w-2xl border border-gray-700 bg-gray-800 text-white">
@@ -155,8 +156,7 @@ https://neonote.sshawn.com/public/[your-neonote-id]
 					<Code class="mx-auto mb-4 h-12 w-12 text-blue-400" />
 					<h2 class="card-title justify-center text-white">Simple API</h2>
 					<p class="text-gray-300">
-						Just add frontmatter to your markdown files. Our API handles the rest - no complex setup
-						required.
+						<a href="https://github.com/lsshawn/neonote.nvim" class="underline">Install the plugin</a> and add frontmatter to your markdown files.
 					</p>
 				</div>
 			</div>
@@ -177,8 +177,7 @@ https://neonote.sshawn.com/public/[your-neonote-id]
 					<Globe class="mx-auto mb-4 h-12 w-12 text-blue-400" />
 					<h2 class="card-title justify-center text-white">Instant Publishing</h2>
 					<p class="text-gray-300">
-						Your content is live immediately. Perfect for documentation, blogs, or sharing quick
-						notes.
+						Your content is live immediately. You can also get the content via our API.
 					</p>
 				</div>
 			</div>
