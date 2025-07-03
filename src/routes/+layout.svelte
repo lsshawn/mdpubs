@@ -5,9 +5,9 @@
 	import { page } from '$app/state';
 	let { data, children }: { data: LayoutData; children: any } = $props();
 
-	let ogImage = data.meta?.ogImage
-		? `${page.url.origin}${data.meta.ogImage}`
-		: `${page.url.origin}/og.png`;
+	let ogImage = $state(
+		data.meta?.ogImage ? `${page.url.origin}${data.meta.ogImage}` : `${page.url.origin}/og.png`
+	);
 </script>
 
 <svelte:head>
