@@ -179,7 +179,7 @@
 		</h1>
 
 		<p class="mx-auto mb-2 max-w-3xl text-lg text-gray-300 md:mb-12 md:text-xl">
-			Perfect for writers who want to publish and sync document instantly.
+			Perfect for writers who want to publish and sync note instantly.
 		</p>
 
 		<!-- Code Example -->
@@ -412,7 +412,7 @@ https://neonote.sshawn.com/[id]
 					<h2 class="card-title justify-center text-white">Markdown Native</h2>
 					<p class="text-gray-300">
 						Write in plain markdown. We render it beautifully with syntax highlighting, tables, and
-						more.
+						more. Inline images and videos are supported.
 					</p>
 				</div>
 			</div>

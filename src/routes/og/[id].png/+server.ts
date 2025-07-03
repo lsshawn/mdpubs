@@ -7,17 +7,18 @@ export const GET: RequestHandler = async ({ params, fetch }) => {
 		let note;
 		if (params.id !== 'page') {
 			// Fetch the note data
-			const res = await fetch(`${app.apiUrl}/notes/${params.id}?parse=markdown`);
+			const res = await fetch(`${app.apiUrl}/notes/${params.id}?parse=markdown&only=frontmatter`);
 
 			if (!res.ok) {
 				throw error(404, 'Note not found');
 			}
 			note = await res.json();
+			console.log('[LS] -> src/routes/og/[id].png/+server.ts:15 -> note: ', note);
 		}
 
 		// Extract text content for preview (first 150 characters)
-		const title = note?.frontmatter?.title || app.name;
-		const description = note?.frontmatter?.description || app.description;
+		const title = note?.title || app.name;
+		const description = note?.description || app.description;
 
 		// Create a simple SVG-based OG image
 		const header =
