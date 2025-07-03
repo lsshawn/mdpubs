@@ -4,19 +4,23 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params, fetch }) => {
 	try {
-		// Fetch the note data
-		const res = await fetch(`${app.apiUrl}/public/notes/${params.id}?parse=markdown`);
-		
-		if (!res.ok) {
-			throw error(404, 'Note not found');
+		let note = null;
+
+		if (params.id) {
+			// Fetch the note data
+			const res = await fetch(`${app.apiUrl}/public/notes/${params.id}?parse=markdown`);
+
+			if (!res.ok) {
+				throw error(404, 'Note not found');
+			}
+
+			note = await res.json();
 		}
 
-		const note = await res.json();
-		
 		// Extract text content for preview (first 150 characters)
-		const title = note?.frontmatter?.title || 'Untitled Note';
+		const title = note?.frontmatter?.title || 'NeoNote';
 		const description = note?.frontmatter?.description || '';
-		
+
 		// Create a simple SVG-based OG image
 		const svg = `
 			<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
@@ -39,30 +43,40 @@ export const GET: RequestHandler = async ({ params, fetch }) => {
 				<text x="160" y="125" font-family="Arial, sans-serif" font-size="16" fill="#9ca3af">Publish Markdown from Neovim</text>
 				
 				<!-- Title -->
-				<text x="60" y="220" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="white" textLength="${Math.min(title.length * 25, 1080)}" lengthAdjust="spacingAndGlyphs">${title.replace(/[<>&"']/g, (match) => {
-					const escapeMap: Record<string, string> = {
-						'<': '&lt;',
-						'>': '&gt;',
-						'&': '&amp;',
-						'"': '&quot;',
-						"'": '&#39;'
-					};
-					return escapeMap[match];
-				})}</text>
+				<text x="60" y="220" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="white" textLength="${Math.min(title.length * 25, 1080)}" lengthAdjust="spacingAndGlyphs">${title.replace(
+					/[<>&"']/g,
+					(match) => {
+						const escapeMap: Record<string, string> = {
+							'<': '&lt;',
+							'>': '&gt;',
+							'&': '&amp;',
+							'"': '&quot;',
+							"'": '&#39;'
+						};
+						return escapeMap[match];
+					}
+				)}</text>
 				
-				${description ? `
+				${
+					description
+						? `
 				<!-- Description -->
-				<text x="60" y="280" font-family="Arial, sans-serif" font-size="24" fill="#d1d5db" textLength="${Math.min(description.length * 12, 1080)}" lengthAdjust="spacingAndGlyphs">${description.replace(/[<>&"']/g, (match) => {
-					const escapeMap: Record<string, string> = {
-						'<': '&lt;',
-						'>': '&gt;',
-						'&': '&amp;',
-						'"': '&quot;',
-						"'": '&#39;'
-					};
-					return escapeMap[match];
-				})}</text>
-				` : ''}
+				<text x="60" y="280" font-family="Arial, sans-serif" font-size="24" fill="#d1d5db" textLength="${Math.min(description.length * 12, 1080)}" lengthAdjust="spacingAndGlyphs">${description.replace(
+					/[<>&"']/g,
+					(match) => {
+						const escapeMap: Record<string, string> = {
+							'<': '&lt;',
+							'>': '&gt;',
+							'&': '&amp;',
+							'"': '&quot;',
+							"'": '&#39;'
+						};
+						return escapeMap[match];
+					}
+				)}</text>
+				`
+						: ''
+				}
 				
 				<!-- Bottom decoration -->
 				<rect x="60" y="520" width="1080" height="4" fill="#3b82f6"/>
@@ -78,11 +92,11 @@ export const GET: RequestHandler = async ({ params, fetch }) => {
 				'Cache-Control': 'public, max-age=3600'
 			}
 		});
-		
 	} catch (e) {
 		if (e.status) {
 			throw e;
 		}
 		throw error(500, 'Failed to generate OG image');
 	}
-}; 
+};
+

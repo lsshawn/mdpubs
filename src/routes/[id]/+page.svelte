@@ -463,7 +463,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.meta.title} - NeoNote</title>
+	<title>{data.meta.title} | NeoNote</title>
 	<meta name="description" content={data.meta.description} />
 
 	<!-- Search engine indexing control -->
