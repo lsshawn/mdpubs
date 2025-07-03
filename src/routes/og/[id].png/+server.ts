@@ -4,21 +4,17 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params, fetch }) => {
 	try {
-		let note = null;
+		// Fetch the note data
+		const res = await fetch(`${app.apiUrl}/public/notes/${params.id}?parse=markdown`);
 
-		if (params.id) {
-			// Fetch the note data
-			const res = await fetch(`${app.apiUrl}/public/notes/${params.id}?parse=markdown`);
-
-			if (!res.ok) {
-				throw error(404, 'Note not found');
-			}
-
-			note = await res.json();
+		if (!res.ok) {
+			throw error(404, 'Note not found');
 		}
 
+		const note = await res.json();
+
 		// Extract text content for preview (first 150 characters)
-		const title = note?.frontmatter?.title || 'NeoNote';
+		const title = note?.frontmatter?.title || 'Untitled Note';
 		const description = note?.frontmatter?.description || '';
 
 		// Create a simple SVG-based OG image
@@ -99,4 +95,3 @@ export const GET: RequestHandler = async ({ params, fetch }) => {
 		throw error(500, 'Failed to generate OG image');
 	}
 };
-
