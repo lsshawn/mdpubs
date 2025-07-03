@@ -386,16 +386,34 @@
 						{/if}
 					{/if}
 
+					<!-- Hero Image -->
+					{#if note.frontmatter['neonote-hero-image'] && note.frontmatter['neonote-hero-title']}
+						<div
+							class="relative flex h-80 items-end bg-cover bg-center"
+							style="background-image: url('{note.frontmatter['neonote-hero-image']}')"
+						>
+							<div
+								class="w-full bg-gradient-to-t from-black/80 to-transparent px-6 pb-6 pt-24 lg:px-8 lg:pb-8 lg:pt-32"
+							>
+								<h1
+									class="m-auto max-w-4xl text-3xl font-extrabold text-white [text-shadow:0_2px_8px_rgba(0,0,0,0.8)] lg:text-5xl"
+								>
+									{note.frontmatter['neonote-hero-title']}
+								</h1>
+							</div>
+						</div>
+					{/if}
+
 					<div class="mx-auto max-w-4xl px-6 py-6 lg:py-12">
 						<!-- Header -->
 						<header class="mb-8">
-							{#if note?.frontmatter?.title}
+							{#if !(note.frontmatter['neonote-hero-image'] && note.frontmatter['neonote-hero-title']) && note?.frontmatter?.title}
 								<h1 class="text-2xl leading-tight font-bold text-gray-900 lg:text-4xl">
 									{note.frontmatter.title}
 								</h1>
 							{/if}
 
-							{#if note?.frontmatter?.description}
+							{#if !(note.frontmatter['neonote-hero-image'] && note.frontmatter['neonote-hero-title']) && note?.frontmatter?.description}
 								<p class="leading-relaxed text-gray-600 lg:text-xl">
 									{note?.frontmatter?.description}
 								</p>
