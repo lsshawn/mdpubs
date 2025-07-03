@@ -393,10 +393,10 @@
 							style="background-image: url('{note.frontmatter['neonote-hero-image']}')"
 						>
 							<div
-								class="w-full bg-gradient-to-t from-black/80 to-transparent px-6 pb-6 pt-24 lg:px-8 lg:pb-8 lg:pt-32"
+								class="w-full bg-gradient-to-t from-black/80 to-transparent px-6 pt-24 pb-6 lg:px-8 lg:pt-32 lg:pb-8"
 							>
 								<h1
-									class="m-auto max-w-4xl text-3xl font-extrabold text-white [text-shadow:0_2px_8px_rgba(0,0,0,0.8)] lg:text-5xl"
+									class="m-auto line-clamp-2 max-w-4xl text-3xl leading-snug font-extrabold text-white [text-shadow:0_2px_8px_rgba(0,0,0,0.8)] lg:text-5xl lg:leading-tight"
 								>
 									{note.frontmatter['neonote-hero-title']}
 								</h1>
@@ -413,27 +413,28 @@
 								</h1>
 							{/if}
 
-							{#if !(note.frontmatter['neonote-hero-image'] && note.frontmatter['neonote-hero-title']) && note?.frontmatter?.description}
-								<p class="leading-relaxed text-gray-600 lg:text-xl">
-									{note?.frontmatter?.description}
-								</p>
-							{/if}
+							{#if !note.frontmatter?.['neonote-hide-meta']}
+								{#if !(note.frontmatter['neonote-hero-image'] && note.frontmatter['neonote-hero-title']) && note?.frontmatter?.description}
+									<p class="leading-relaxed text-gray-600 lg:text-xl">
+										{note?.frontmatter?.description}
+									</p>
+								{/if}
 
-							{#if note.updatedAt}
-								<div class="mt-2 flex items-center text-xs text-gray-500 md:text-sm">
-									<time datetime={note.updatedAt}>
-										{new Date(note.updatedAt).toLocaleDateString('en-US', {
-											year: 'numeric',
-											month: 'long',
-											day: 'numeric'
-										})}
-									</time>
-								</div>
+								{#if note.updatedAt}
+									<div class="mt-2 flex items-center text-xs text-gray-500 md:text-sm">
+										<time datetime={note.updatedAt}>
+											{new Date(note.updatedAt).toLocaleDateString('en-US', {
+												year: 'numeric',
+												month: 'long',
+												day: 'numeric'
+											})}
+										</time>
+									</div>
+								{/if}
+								<!-- Divider -->
+								<div class="mb-8 border-t border-gray-200"></div>
 							{/if}
 						</header>
-
-						<!-- Divider -->
-						<div class="mb-8 border-t border-gray-200"></div>
 
 						<!-- Content -->
 						<article class="prose prose-sm prose-gray max-w-none">
