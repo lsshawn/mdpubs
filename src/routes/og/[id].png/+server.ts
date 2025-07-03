@@ -15,7 +15,6 @@ export const GET: RequestHandler = async ({ params, fetch }) => {
 
 		// Extract text content for preview (first 150 characters)
 		const title = note?.frontmatter?.title || 'Untitled Note';
-		console.log('[LS] -> src/routes/og/[id].png/+server.ts:17 -> title: ', title);
 		const description = note?.frontmatter?.description || '';
 
 		// Create a simple SVG-based OG image
@@ -77,7 +76,7 @@ export const GET: RequestHandler = async ({ params, fetch }) => {
 				
 				<!-- Bottom decoration -->
 				<rect x="60" y="520" width="1080" height="4" fill="#3b82f6"/>
-				<text x="60" y="560" font-family="Arial, sans-serif" font-size="18" fill="#6b7280">${app.domain}</text>
+				<text x="60" y="560" font-family="Arial, sans-serif" font-size="18" fill="#6b7280">neonote.sshawn.com</text>
 			</svg>
 		`;
 
