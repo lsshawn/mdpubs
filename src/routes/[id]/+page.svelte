@@ -4,6 +4,7 @@
 	import { fade } from 'svelte/transition';
 	import type { PageData } from './$types';
 	import DiffView from '$lib/components/DiffView.svelte';
+	import { featureFlags } from '$lib/config';
 
 	let { data }: { data: PageData } = $props();
 
@@ -13,6 +14,55 @@
 	let activeSection = $state('');
 	let scrollCleanup: (() => void) | null = null;
 	let clickOutsideCleanup: (() => void) | null = null;
+
+	// State for quoting
+	let quoteButtonVisible = $state(false);
+	let quoteButtonPosition = $state({ top: 0, left: 0 });
+	let articleElement: HTMLElement | null = null;
+	let quoteListenersCleanup: (() => void) | null = null;
+	let activeQuote: {
+		text: string;
+		elementId: string;
+		startPath: number[];
+		startOffset: number;
+		endPath: number[];
+		endOffset: number;
+	} | null = $state(null);
+
+	// State for discussion sidebar
+	type Comment = {
+		id: number;
+		author: string;
+		avatar: string;
+		text: string;
+		timestamp: string;
+		quote?: {
+			text: string;
+			elementId: string;
+			startPath: number[];
+			startOffset: number;
+			endPath: number[];
+			endOffset: number;
+		};
+	};
+
+	let newCommentText = $state('');
+	let comments = $state<Comment[]>([
+		{
+			id: 1,
+			author: 'Shawn',
+			avatar: 'https://avatars.githubusercontent.com/u/5532271?v=4',
+			text: 'This is a great starting point. I think we should explore adding more detailed examples in the next section.',
+			timestamp: '2 hours ago'
+		},
+		{
+			id: 2,
+			author: 'Jane Doe',
+			avatar: 'https://i.pravatar.cc/40?u=jane',
+			text: 'I agree. What about a section on deployment strategies?',
+			timestamp: '1 hour ago'
+		}
+	]);
 
 	// Get note from server-loaded data
 	let note = $derived(data.note);
@@ -41,11 +91,36 @@
 			setupSectionLinks();
 			setupScrollSpy();
 			setupClickOutside();
+
 			// Set initial active section if none is set
 			if (!activeSection && note?.toc?.length > 0) {
 				activeSection = note.toc[0].link;
 			}
 		}, 200);
+	});
+
+	$effect(() => {
+		if (showDiffs || !note?.html || !articleElement) {
+			// Cleanup listeners if we are in diff view or note is gone
+			if (quoteListenersCleanup) {
+				quoteListenersCleanup();
+				quoteListenersCleanup = null;
+			}
+			return;
+		}
+
+		if (featureFlags.discussionSidebar) {
+			// After DOM updates from note.html change, re-apply highlights
+			tick().then(reapplyHighlights);
+
+			// Setup quoting functionality if not already present
+			if (!quoteListenersCleanup) {
+				document.addEventListener('mouseup', handleTextSelection);
+				quoteListenersCleanup = () => {
+					document.removeEventListener('mouseup', handleTextSelection);
+				};
+			}
+		}
 	});
 
 	function setupScrollSpy() {
@@ -137,6 +212,9 @@
 		if (clickOutsideCleanup) {
 			clickOutsideCleanup();
 		}
+		if (quoteListenersCleanup) {
+			quoteListenersCleanup();
+		}
 	});
 
 	function setupSectionLinks() {
@@ -214,6 +292,174 @@
 			}, 150);
 		}
 	}
+
+	function addComment() {
+		if (!newCommentText.trim() && !activeQuote) return;
+
+		const newComment: Comment = {
+			id: comments.length + 1,
+			author: 'You', // Or a logged-in user's name
+			avatar: 'https://i.pravatar.cc/40?u=you',
+			text: newCommentText,
+			timestamp: 'Just now',
+			...(activeQuote && { quote: activeQuote }) // Add quote if it exists
+		};
+
+		comments = [...comments, newComment];
+		newCommentText = '';
+		activeQuote = null; // Clear the active quote
+	}
+
+	function handleTextSelection(event: MouseEvent) {
+		// Don't trigger if clicking on the quote button itself
+		if ((event.target as HTMLElement).closest('[data-quote-button]')) {
+			return;
+		}
+
+		// Use a small timeout to allow the selection to clear on simple clicks
+		setTimeout(() => {
+			const selection = window.getSelection();
+			// Check if there is a selection, it's not collapsed, and it's within our article
+			if (
+				selection &&
+				!selection.isCollapsed &&
+				selection.rangeCount > 0 &&
+				articleElement?.contains(selection.anchorNode)
+			) {
+				const range = selection.getRangeAt(0);
+				const rect = range.getBoundingClientRect();
+
+				quoteButtonPosition = {
+					top: window.scrollY + rect.top - 45, // Position above selection
+					left: window.scrollX + rect.left + rect.width / 2 - 25 // Center button
+				};
+				quoteButtonVisible = true;
+			} else {
+				quoteButtonVisible = false;
+			}
+		}, 10);
+	}
+
+	function getPathTo(node: Node, root: Node): number[] | null {
+		if (node === root) return [];
+		if (!root.contains(node)) return null;
+		const path = [];
+		let current = node;
+		while (current !== root) {
+			const parent = current.parentNode;
+			if (!parent) return null;
+			const siblings = Array.from(parent.childNodes);
+			const index = siblings.indexOf(current as ChildNode);
+			path.unshift(index);
+			current = parent;
+		}
+		return path;
+	}
+
+	function getNodeByPath(path: number[], root: Node): Node | null {
+		let current = root;
+		for (const index of path) {
+			if (!current.childNodes[index]) return null;
+			current = current.childNodes[index];
+		}
+		return current;
+	}
+
+	function reapplyHighlights() {
+		if (!articleElement) return;
+		comments.forEach((comment) => {
+			if (comment.quote && !document.getElementById(comment.quote.elementId)) {
+				const { elementId, startPath, startOffset, endPath, endOffset } = comment.quote;
+
+				const startNode = getNodeByPath(startPath, articleElement);
+				const endNode = getNodeByPath(endPath, articleElement);
+
+				if (startNode && endNode) {
+					const range = document.createRange();
+					range.setStart(startNode, startOffset);
+					range.setEnd(endNode, endOffset);
+
+					if (range.collapsed) return;
+
+					const markElement = document.createElement('mark');
+					markElement.id = elementId;
+					markElement.className = 'bg-blue-200 rounded-sm px-0.5';
+
+					try {
+						const selectedContent = range.extractContents();
+						markElement.appendChild(selectedContent);
+						range.insertNode(markElement);
+					} catch (e) {
+						console.error('Failed to re-apply highlight:', e);
+					}
+				}
+			}
+		});
+	}
+
+	function quoteSelection() {
+		const selection = window.getSelection();
+		if (!selection || selection.isCollapsed) return;
+
+		const range = selection.getRangeAt(0);
+		if (!articleElement?.contains(range.commonAncestorContainer)) return;
+
+		const selectedText = selection.toString();
+		const highlightId = `quote-highlight-${Date.now()}`;
+
+		const startPath = getPathTo(range.startContainer, articleElement);
+		const endPath = getPathTo(range.endContainer, articleElement);
+
+		if (!startPath || !endPath) {
+			console.error('Could not determine path for selection.');
+			return;
+		}
+
+		// Create a <mark> element to wrap the selection
+		const markElement = document.createElement('mark');
+		markElement.id = highlightId;
+		markElement.className = 'bg-blue-200 rounded-sm px-0.5'; // style the highlight
+
+		try {
+			const selectedContent = range.extractContents();
+			markElement.appendChild(selectedContent);
+			range.insertNode(markElement);
+
+			// Store the quote info with its structural path
+			activeQuote = {
+				text: selectedText,
+				elementId: highlightId,
+				startPath: startPath,
+				startOffset: range.startOffset,
+				endPath: endPath,
+				endOffset: range.endOffset
+			};
+
+			// Focus the comment box
+			const commentBox = document.querySelector('textarea');
+			if (commentBox) commentBox.focus();
+		} catch (e) {
+			console.error('Could not wrap selection.', e);
+			alert('Sorry, an error occurred while quoting the text. Please try again.');
+		} finally {
+			// Clean up
+			selection.removeAllRanges();
+			quoteButtonVisible = false;
+		}
+	}
+
+	function scrollToQuote(elementId: string) {
+		const element = document.getElementById(elementId);
+		if (element) {
+			element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+			// Add a temporary animation to make it flash
+			element.classList.add('flash-animation');
+			setTimeout(() => {
+				element.classList.remove('flash-animation');
+			}, 1500); // duration of the animation
+		}
+	}
 </script>
 
 <svelte:head>
@@ -283,6 +529,23 @@
 	{:else}
 		<!-- Main Content -->
 		{#if note}
+			<!-- Quote Button Popover -->
+			{#if quoteButtonVisible}
+				<div
+					style="top: {quoteButtonPosition.top}px; left: {quoteButtonPosition.left}px;"
+					class="absolute z-50"
+					data-quote-button
+					transition:fade={{ duration: 150 }}
+				>
+					<button
+						class="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 shadow-lg hover:bg-gray-100"
+						onclick={quoteSelection}
+					>
+						Quote
+					</button>
+				</div>
+			{/if}
+
 			<div class="flex min-h-screen">
 				<!-- TOC Sidebar for Desktop -->
 				{#if note?.toc?.length > 0}
@@ -437,7 +700,7 @@
 						</header>
 
 						<!-- Content -->
-						<article class="prose prose-sm prose-gray max-w-none">
+						<article class="prose prose-sm prose-gray max-w-none" bind:this={articleElement}>
 							{@html note.html}
 						</article>
 
@@ -456,7 +719,115 @@
 						</footer>
 					</div>
 				</div>
+
+				<!-- Discussion Sidebar -->
+				{#if featureFlags.discussionSidebar}
+					<aside class="hidden w-80 flex-shrink-0 border-l border-gray-200 lg:block">
+						<div class="sticky top-0 flex h-screen flex-col">
+							<div class="flex-shrink-0 border-b border-gray-200 p-4">
+								<h3 class="text-lg font-semibold text-gray-900">Discussion</h3>
+							</div>
+
+							<!-- Comments List -->
+							<div class="flex-1 overflow-y-auto p-4">
+								<div class="space-y-6">
+									{#each comments as comment (comment.id)}
+										<div class="flex items-start gap-3">
+											<img src={comment.avatar} alt={comment.author} class="h-8 w-8 rounded-full" />
+											<div class="flex-1">
+												<p class="text-sm font-medium text-gray-900">{comment.author}</p>
+
+												{#if comment.quote}
+													<button
+														onclick={() => scrollToQuote(comment.quote.elementId)}
+														class="my-2 block w-full rounded-md border-l-4 border-gray-300 bg-gray-50 p-2 text-left text-sm text-gray-600 hover:bg-gray-100"
+													>
+														<blockquote class="line-clamp-3 italic">
+															"{comment.quote.text}"
+														</blockquote>
+													</button>
+												{/if}
+
+												{#if comment.text}
+													<p class="text-sm text-gray-600">{comment.text}</p>
+												{/if}
+
+												<p class="mt-1 text-xs text-gray-400">{comment.timestamp}</p>
+											</div>
+										</div>
+									{/each}
+								</div>
+							</div>
+
+							<!-- New Comment Form -->
+							<div class="flex-shrink-0 border-t border-gray-200 p-4">
+								<div class="flex items-start gap-3">
+									<img
+										src="https://i.pravatar.cc/40?u=you"
+										alt="You"
+										class="h-8 w-8 rounded-full"
+									/>
+									<div class="flex-1">
+										{#if activeQuote}
+											<div
+												class="mb-2 rounded-md border-l-4 border-blue-400 bg-blue-50 p-2 text-sm text-blue-800"
+											>
+												<div class="flex items-center justify-between">
+													<p class="line-clamp-2 italic">Quoting: "{activeQuote.text}"</p>
+													<button
+														onclick={() => (activeQuote = null)}
+														class="rounded-full p-1 hover:bg-blue-200"
+														title="Cancel quote"
+													>
+														<X class="h-4 w-4" />
+													</button>
+												</div>
+											</div>
+										{/if}
+										<textarea
+											bind:value={newCommentText}
+											rows="3"
+											class="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+											placeholder="Add to the discussion..."
+											onkeydown={(e) => {
+												if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+													e.preventDefault();
+													addComment();
+												}
+											}}
+										></textarea>
+										<div class="mt-2 flex items-center justify-between">
+											<p class="text-xs text-gray-500">Cmd+Enter to send</p>
+											<button
+												onclick={addComment}
+												disabled={!newCommentText.trim() && !activeQuote}
+												class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 disabled:opacity-50"
+											>
+												Comment
+											</button>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</aside>
+				{/if}
 			</div>
 		{/if}
 	{/if}
 </div>
+
+<style>
+	@keyframes flash-it {
+		0%,
+		100% {
+			background-color: #bfdbfe; /* Tailwind blue-200, the base color */
+		}
+		50% {
+			background-color: #60a5fa; /* Tailwind blue-400, the flash color */
+		}
+	}
+	.flash-animation {
+		animation: flash-it 1.5s ease-in-out;
+	}
+</style>

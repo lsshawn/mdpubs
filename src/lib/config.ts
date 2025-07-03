@@ -6,4 +6,6 @@ export const app = {
 	apiUrl: dev ? 'http://localhost:1323' : 'https://api-neonote.sshawn.com'
 };
 
-export const featureFlags = {};
+export const featureFlags = {
+	discussionSidebar: false
+};
