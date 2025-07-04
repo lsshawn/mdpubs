@@ -49,6 +49,7 @@
 	"dependencies": {
 		"@libsql/client": "^0.14.0",
 		"@types/mailgun-js": "^0.22.18",
+		"arctic": "^3.7.0",
 		"dayjs": "^1.11.13",
 		"drizzle-orm": "^0.40.0",
 		"lucide-svelte": "^0.522.0",

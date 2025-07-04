@@ -53,7 +53,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 		});
 	}
 
-	const user = await createUser(googleId, email, name, picture);
+	const user = await createUser({ googleId, email, name, picture });
 	const session = await createSession(user.id);
 	setSessionTokenCookie(event, session.id, session.expiresAt);
 	return new Response(null, {

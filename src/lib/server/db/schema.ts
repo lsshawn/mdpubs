@@ -14,6 +14,8 @@ export const user = sqliteTable(
 			.primaryKey()
 			.$defaultFn(() => nanoid()),
 		email: text('email').notNull().unique(),
+		name: text('name'),
+		picture: text('picture'),
 		apiKey: text('api_key').unique(),
 		readOnlyApiKey: text('read_only_api_key').unique(),
 		plan: text('plan').default('free'),
@@ -25,14 +27,16 @@ export const user = sqliteTable(
 		isVerified: integer('is_verified', { mode: 'boolean' }).default(false),
 		otpAttempts: integer('otp_attempts').default(0),
 		otpExpiry: integer('otp_expiry', { mode: 'timestamp' }),
-		googleId: text('google_id')
+		googleId: text('google_id').unique(),
+		githubId: text('github_id').unique()
 	},
 	(users) => ({
 		emailIdx: index('idx_users_email').on(users.email),
 		apiKeyIdx: index('idx_users_api_key').on(users.apiKey),
 		readOnlyApiKeyIdx: index('idx_users_read_only_api_key').on(users.readOnlyApiKey),
 		deletedAtIdx: index('idx_users_deleted_at').on(users.deletedAt),
-		stripeCustomerIdIdx: index('idx_users_stripe_customer_id').on(users.stripeCustomerId)
+		stripeCustomerIdIdx: index('idx_users_stripe_customer_id').on(users.stripeCustomerId),
+		githubIdIdx: index('idx_users_github_id').on(users.githubId)
 	})
 );
 

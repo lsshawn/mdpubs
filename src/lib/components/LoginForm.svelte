@@ -197,9 +197,13 @@
 					<div class="mt-4 text-red-500">{errorMessage}</div>
 					<div class="text-center">
 						<div class="my-4">or</div>
-						<a class="btn btn-outline btn-block" href="/login/google">
+						<a class="btn btn-outline btn-block mb-2" href="/login/google">
 							<Icon icon="ph:google-logo-bold" />
 							Sign in with Google</a
+						>
+						<a class="btn btn-outline btn-block" href="/login/github">
+							<Icon icon="mdi:github" />
+							Sign in with GitHub</a
 						>
 					</div>
 				</form>
