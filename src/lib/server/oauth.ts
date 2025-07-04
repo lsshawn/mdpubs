@@ -1,5 +1,5 @@
 import { Google, GitHub } from 'arctic';
-import { dev } from '$app/environment';
+import { app } from '$lib/config';
 import {
 	GOOGLE_CLIENT_ID,
 	GOOGLE_CLIENT_SECRET,
@@ -10,7 +10,9 @@ import {
 export const google = new Google(
 	GOOGLE_CLIENT_ID,
 	GOOGLE_CLIENT_SECRET,
-	`${dev ? 'http://localhost:5173' : 'https://bunchofaitools.com'}/login/google/callback`
+	`https://${app.domain}/login/google/callback`
 );
 
-export const github = new GitHub(GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET);
+export const githubRedirectURL = `http://${app.domain}/login/github/callback`;
+
+export const github = new GitHub(GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, githubRedirectURL);

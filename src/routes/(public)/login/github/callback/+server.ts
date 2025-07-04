@@ -1,4 +1,4 @@
-import { github } from '$lib/server/oauth';
+import { github, githubRedirectURL } from '$lib/server/oauth';
 import { createUser, getUserFromGithubId, getUserByEmail } from '$lib/server/user';
 import { createSession, setSessionTokenCookie } from '$lib/server/auth';
 
@@ -59,9 +59,12 @@ export async function GET(event: RequestEvent): Promise<Response> {
 
 		const existingUserByEmail = await getUserByEmail(primaryEmail.email);
 		if (existingUserByEmail) {
-			return new Response('User with this email already exists. Please log in with your original method.', {
-				status: 409
-			});
+			return new Response(
+				'User with this email already exists. Please log in with your original method.',
+				{
+					status: 409
+				}
+			);
 		}
 
 		const user = await createUser({
