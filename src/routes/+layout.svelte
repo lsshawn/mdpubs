@@ -44,7 +44,9 @@
 		<a
 			href="/account"
 			role="button"
-			class={page.url.pathname.startsWith('/account') ? 'text-gray-600' : 'text-white'}
+			class={page.url.pathname.startsWith('/account') || page.url.pathname.startsWith('/login')
+				? 'text-gray-600'
+				: 'text-white'}
 		>
 			<CircleUser class="h-8 w-8" />
 		</a>
