@@ -3,14 +3,6 @@ import { dev } from '$app/environment';
 import * as auth from '$lib/server/auth.js';
 
 const handleAuth: Handle = async ({ event, resolve }) => {
-	const skipAuthCheckPaths = [
-		'/auth/login',
-		'/api/auth/request-otp',
-		'/api/auth/login-with-otp',
-		'/api/health-check'
-	];
-	const isPublicPath = skipAuthCheckPaths.some((path) => event.url.pathname.startsWith(path));
-
 	const sessionId = event.cookies.get(auth.sessionCookieName);
 	if (!sessionId) {
 		event.locals.user = null;

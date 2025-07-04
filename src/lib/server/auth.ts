@@ -46,7 +46,7 @@ export async function invalidateSession(sessionId: string): Promise<void> {
 export async function validateSession(sessionId: string) {
 	const [result] = await db
 		.select({
-			user: { id: table.user.id, email: table.user.email },
+			user: { id: table.user.id, email: table.user.email, plan: table.user.plan },
 			session: table.session
 		})
 		.from(table.session)
