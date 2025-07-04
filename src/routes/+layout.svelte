@@ -33,23 +33,27 @@
 	<meta name="twitter:image" content={ogImage} />
 </svelte:head>
 
-<div class="navbar shadow-sm md:px-8">
-	<div class="flex flex-1">
-		<a href="/" role="button" class="flex gap-2">
-			<Pencil class="h-8 w-8 text-blue-400" />
-			<span class="text-2xl font-bold text-white">NeoNote</span>
-		</a>
-	</div>
-	<div class="flex-none">
-		<a
-			href="/account"
-			role="button"
-			class={page.url.pathname.startsWith('/account') || page.url.pathname.startsWith('/login')
-				? 'text-gray-600'
-				: 'text-white'}
-		>
-			<CircleUser class="h-8 w-8" />
-		</a>
-	</div>
+<div class="flex min-h-screen flex-col">
+	<header class="navbar shadow-sm md:px-8">
+		<div class="flex flex-1">
+			<a href="/" role="button" class="flex gap-2">
+				<Pencil class="h-8 w-8 text-blue-400" />
+				<span class="text-2xl font-bold text-white">NeoNote</span>
+			</a>
+		</div>
+		<div class="flex-none">
+			<a
+				href="/account"
+				role="button"
+				class={page.url.pathname.startsWith('/account') || page.url.pathname.startsWith('/login')
+					? 'text-gray-600'
+					: 'text-white'}
+			>
+				<CircleUser class="h-8 w-8" />
+			</a>
+		</div>
+	</header>
+	<main class="flex-1">
+		{@render children()}
+	</main>
 </div>
-{@render children()}
