@@ -52,7 +52,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 export const actions: Actions = {
 	delete: async ({ request, locals }) => {
-		if (!locals.user) {
+		if (!locals.user || !locals?.session?.id) {
 			return fail(401, { message: 'Unauthorized' });
 		}
 		const formData = await request.formData();
@@ -68,19 +68,10 @@ export const actions: Actions = {
 		}
 
 		try {
-			const [user] = await db
-				.select({ apiKey: table.user.apiKey })
-				.from(table.user)
-				.where(eq(table.user.id, locals.user.id));
-
-			if (!user || !user.apiKey) {
-				return fail(500, { message: 'API Key not found for user.' });
-			}
-
 			const response = await fetch(`${app.apiUrl}/notes/${noteId}`, {
 				method: 'DELETE',
 				headers: {
-					Authorization: `Bearer ${user.apiKey}`
+					Authorization: `Bearer ${locals.session.id}`
 				}
 			});
 
