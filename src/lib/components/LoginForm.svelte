@@ -15,6 +15,22 @@
 	let isLoading = $state(false);
 	let success = $state(false);
 
+	let redirectingToSocialLogin = $state('');
+	function socialLogin(provider: string) {
+		redirectingToSocialLogin = provider;
+		switch (provider) {
+			case 'github':
+				goto('/login/github');
+				break;
+			case 'google':
+				goto('/login/google');
+				break;
+			default:
+				console.error('Unknown provider:', provider);
+				redirectingToSocialLogin = '';
+		}
+	}
+
 	onMount(() => {
 		const urlParams = new URLSearchParams(window.location.search);
 		const step = urlParams.get('step');
@@ -189,21 +205,35 @@
 						class="btn-primary btn btn-block btn-md mt-6 rounded-md"
 						onclick={requestOtp}
 					>
-						{#if isLoading}
-							<span class="loading loading-spinner loading-md" />
+						{#if isLoading && !redirectingToSocialLogin}
+							<span class="loading loading-spinner loading-md"></span>
 						{/if}
 						Request OTP
 					</button>
 					<div class="mt-4 text-red-500">{errorMessage}</div>
 					<div class="text-center">
 						<div class="my-4">or</div>
-						<a class="btn btn-outline btn-block mb-2" href="/login/google">
-							<Icon icon="ph:google-logo-bold" />
-							Sign in with Google</a
+						<button
+							class="btn btn-outline btn-block"
+							onclick={() => socialLogin('google')}
+							class:btn-disabled={redirectingToSocialLogin}
 						>
-						<a class="btn btn-outline btn-block" href="/login/github">
+							{#if redirectingToSocialLogin === 'google'}
+								<span class="loading loading-spinner loading-md"></span>
+							{/if}
+							<Icon icon="ph:google-logo-bold" />
+							Sign in with Google</button
+						>
+						<button
+							class="btn btn-outline btn-block mt-4"
+							onclick={() => socialLogin('github')}
+							class:btn-disabled={redirectingToSocialLogin}
+						>
+							{#if redirectingToSocialLogin === 'github'}
+								<span class="loading loading-spinner loading-md"></span>
+							{/if}
 							<Icon icon="mdi:github" />
-							Sign in with GitHub</a
+							Sign in with GitHub</button
 						>
 					</div>
 				</form>

@@ -41,7 +41,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 			return new Response(null, {
 				status: 302,
 				headers: {
-					Location: '/'
+					Location: '/account'
 				}
 			});
 		}
@@ -65,6 +65,10 @@ export async function GET(event: RequestEvent): Promise<Response> {
 		}
 
 		const existingUserByEmail = await getUserByEmail(primaryEmail.email);
+		console.log(
+			'[LS] -> src/routes/(public)/login/github/callback/+server.ts:67 -> existingUserByEmail: ',
+			existingUserByEmail
+		);
 		if (existingUserByEmail) {
 			// user already exists, link github id
 			await db
@@ -73,11 +77,15 @@ export async function GET(event: RequestEvent): Promise<Response> {
 				.where(eq(table.user.id, existingUserByEmail.id));
 
 			const session = await createSession(existingUserByEmail.id);
+			console.log(
+				'[LS] -> src/routes/(public)/login/github/callback/+server.ts:79 -> session: ',
+				session
+			);
 			setSessionTokenCookie(event, session.id, session.expiresAt);
 			return new Response(null, {
 				status: 302,
 				headers: {
-					Location: '/'
+					Location: '/account'
 				}
 			});
 		}
@@ -93,7 +101,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 		return new Response(null, {
 			status: 302,
 			headers: {
-				Location: '/'
+				Location: '/account'
 			}
 		});
 	} catch (e) {
