@@ -1,6 +1,19 @@
 import { db } from './db';
+import { createHash, randomBytes } from 'crypto';
 import { eq } from 'drizzle-orm';
 import * as table from '$lib/server/db/schema';
+
+function generateAPIKey(): string {
+	return randomBytes(32).toString('hex');
+}
+
+function generateReadOnlyAPIKey(): string {
+	return 'ro_' + randomBytes(32).toString('hex');
+}
+
+function hashAPIKey(apiKey: string): string {
+	return createHash('sha256').update(apiKey).digest('hex');
+}
 
 export async function createUser(values: {
 	googleId?: string;
@@ -9,7 +22,16 @@ export async function createUser(values: {
 	name: string | null;
 	picture: string | null;
 }): Promise<{ id: string }> {
-	const [user] = await db.insert(table.user).values(values).returning({ id: table.user.id });
+	// Generate new API keys for the activated user
+	const plainAPIKey = generateAPIKey();
+	const plainReadOnlyAPIKey = generateReadOnlyAPIKey();
+	const hashedAPIKey = hashAPIKey(plainAPIKey);
+	const hashedReadOnlyAPIKey = hashAPIKey(plainReadOnlyAPIKey);
+
+	const [user] = await db
+		.insert(table.user)
+		.values({ ...values, apiKey: hashedAPIKey, readOnlyApiKey: hashedReadOnlyAPIKey })
+		.returning({ id: table.user.id });
 	return user;
 }
 

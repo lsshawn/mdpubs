@@ -1,4 +1,5 @@
-import { github, githubRedirectURL } from '$lib/server/oauth';
+import { app } from '$lib/config';
+import { github } from '$lib/server/oauth';
 import { createUser, getUserFromGithubId, getUserByEmail } from '$lib/server/user';
 import { createSession, setSessionTokenCookie } from '$lib/server/auth';
 
@@ -24,15 +25,11 @@ export async function GET(event: RequestEvent): Promise<Response> {
 		const tokens = await github.validateAuthorizationCode(code);
 		const githubUserResponse = await fetch('https://api.github.com/user', {
 			headers: {
-				Authorization: `Bearer ${tokens.accessToken}`
+				Authorization: `Bearer ${tokens.accessToken()}`,
+				'User-Agent': app.name
 			}
 		});
 		const githubUser: GitHubUser = await githubUserResponse.json();
-		console.log(
-			'[LS] -> src/routes/(public)/login/github/callback/+server.ts:30 -> githubUser: ',
-			githubUser
-		);
-
 		const existingUser = await getUserFromGithubId(String(githubUser.id));
 
 		if (existingUser) {
@@ -48,7 +45,10 @@ export async function GET(event: RequestEvent): Promise<Response> {
 
 		const githubUserEmailsResponse = await fetch('https://api.github.com/user/emails', {
 			headers: {
-				Authorization: `Bearer ${tokens.accessToken}`
+				Authorization: `Bearer ${tokens.accessToken()}`,
+				'X-GitHub-Api-Version': '2022-11-28',
+				Accept: 'application/vnd.github+json',
+				'User-Agent': app.name
 			}
 		});
 		const githubEmails: GitHubEmail[] = await githubUserEmailsResponse.json();
@@ -63,6 +63,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 
 		const existingUserByEmail = await getUserByEmail(primaryEmail.email);
 		if (existingUserByEmail) {
+			// TODO: update user, add github id to allow user to login via otp or github
 			return new Response(
 				'User with this email already exists. Please log in with your original method.',
 				{
