@@ -211,32 +211,32 @@
 						Request OTP
 					</button>
 					<div class="mt-4 text-red-500">{errorMessage}</div>
-					<div class="text-center">
-						<div class="my-4">or</div>
-						<button
-							class="btn btn-outline btn-block"
-							onclick={() => socialLogin('google')}
-							class:btn-disabled={redirectingToSocialLogin}
-						>
-							{#if redirectingToSocialLogin === 'google'}
-								<span class="loading loading-spinner loading-md"></span>
-							{/if}
-							<Icon icon="ph:google-logo-bold" />
-							Sign in with Google</button
-						>
-						<button
-							class="btn btn-outline btn-block mt-4"
-							onclick={() => socialLogin('github')}
-							class:btn-disabled={redirectingToSocialLogin}
-						>
-							{#if redirectingToSocialLogin === 'github'}
-								<span class="loading loading-spinner loading-md"></span>
-							{/if}
-							<Icon icon="mdi:github" />
-							Sign in with GitHub</button
-						>
-					</div>
 				</form>
+				<div class="text-center">
+					<div class="my-4">or</div>
+					<button
+						class="btn btn-outline btn-block"
+						onclick={() => socialLogin('google')}
+						class:btn-disabled={redirectingToSocialLogin}
+					>
+						{#if redirectingToSocialLogin === 'google'}
+							<span class="loading loading-spinner loading-md"></span>
+						{/if}
+						<Icon icon="ph:google-logo-bold" />
+						Sign in with Google</button
+					>
+					<button
+						class="btn btn-outline btn-block mt-4"
+						onclick={() => socialLogin('github')}
+						class:btn-disabled={redirectingToSocialLogin}
+					>
+						{#if redirectingToSocialLogin === 'github'}
+							<span class="loading loading-spinner loading-md"></span>
+						{/if}
+						<Icon icon="mdi:github" />
+						Sign in with GitHub</button
+					>
+				</div>
 			{/if}
 
 			{#if isOtpStep}

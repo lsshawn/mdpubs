@@ -46,29 +46,35 @@ export async function GET(event: RequestEvent): Promise<Response> {
 			});
 		}
 
-		const githubUserEmailsResponse = await fetch('https://api.github.com/user/emails', {
-			headers: {
-				Authorization: `Bearer ${tokens.accessToken()}`,
-				'X-GitHub-Api-Version': '2022-11-28',
-				Accept: 'application/vnd.github+json',
-				'User-Agent': app.name
+		let userEmail: string | null = githubUser.email;
+
+		// if user has no public email, we try to get it from the emails endpoint
+		if (!userEmail) {
+			const githubUserEmailsResponse = await fetch('https://api.github.com/user/emails', {
+				headers: {
+					Authorization: `Bearer ${tokens.accessToken()}`,
+					'X-GitHub-Api-Version': '2022-11-28',
+					Accept: 'application/vnd.github+json',
+					'User-Agent': app.name
+				}
+			});
+
+			if (githubUserEmailsResponse.ok) {
+				const githubEmails: GitHubEmail[] = await githubUserEmailsResponse.json();
+				const primaryEmail = githubEmails.find((email) => email.primary && email.verified);
+				if (primaryEmail) {
+					userEmail = primaryEmail.email;
+				}
 			}
-		});
-		const githubEmails: GitHubEmail[] = await githubUserEmailsResponse.json();
+		}
 
-		const primaryEmail = githubEmails.find((email) => email.primary && email.verified);
-
-		if (!primaryEmail) {
-			return new Response('No primary verified email found on GitHub account.', {
+		if (!userEmail) {
+			return new Response('No verified email found on GitHub account.', {
 				status: 400
 			});
 		}
 
-		const existingUserByEmail = await getUserByEmail(primaryEmail.email);
-		console.log(
-			'[LS] -> src/routes/(public)/login/github/callback/+server.ts:67 -> existingUserByEmail: ',
-			existingUserByEmail
-		);
+		const existingUserByEmail = await getUserByEmail(userEmail);
 		if (existingUserByEmail) {
 			// user already exists, link github id
 			await db
@@ -77,10 +83,6 @@ export async function GET(event: RequestEvent): Promise<Response> {
 				.where(eq(table.user.id, existingUserByEmail.id));
 
 			const session = await createSession(existingUserByEmail.id);
-			console.log(
-				'[LS] -> src/routes/(public)/login/github/callback/+server.ts:79 -> session: ',
-				session
-			);
 			setSessionTokenCookie(event, session.id, session.expiresAt);
 			return new Response(null, {
 				status: 302,
@@ -92,7 +94,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 
 		const user = await createUser({
 			githubId: String(githubUser.id),
-			email: primaryEmail.email,
+			email: userEmail,
 			name: githubUser.name,
 			picture: githubUser.avatar_url
 		});
@@ -117,6 +119,7 @@ interface GitHubUser {
 	id: number;
 	name: string;
 	avatar_url: string;
+	email: string | null;
 }
 
 interface GitHubEmail {
