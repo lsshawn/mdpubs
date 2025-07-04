@@ -161,7 +161,7 @@
 		{/if}
 
 		<div class="flex-1 text-center text-2xl">
-			{isOtpStep ? 'Enter OTP' : 'Login/Sign-up'}
+			{isOtpStep ? 'Enter OTP' : 'Sign In'}
 		</div>
 
 		<!-- This empty div is a spacer for balancing the layout -->
@@ -214,17 +214,17 @@
 				</form>
 				<div class="text-center">
 					<div class="my-4">or</div>
-					<button
-						class="btn btn-outline btn-block"
-						onclick={() => socialLogin('google')}
-						class:btn-disabled={redirectingToSocialLogin}
-					>
-						{#if redirectingToSocialLogin === 'google'}
-							<span class="loading loading-spinner loading-md"></span>
-						{/if}
-						<Icon icon="ph:google-logo-bold" />
-						Sign in with Google</button
-					>
+					<!-- <button -->
+					<!-- 	class="btn btn-outline btn-block" -->
+					<!-- 	onclick={() => socialLogin('google')} -->
+					<!-- 	class:btn-disabled={redirectingToSocialLogin} -->
+					<!-- > -->
+					<!-- 	{#if redirectingToSocialLogin === 'google'} -->
+					<!-- 		<span class="loading loading-spinner loading-md"></span> -->
+					<!-- 	{/if} -->
+					<!-- 	<Icon icon="ph:google-logo-bold" /> -->
+					<!-- 	Sign in with Google</button -->
+					<!-- > -->
 					<button
 						class="btn btn-outline btn-block mt-4"
 						onclick={() => socialLogin('github')}
