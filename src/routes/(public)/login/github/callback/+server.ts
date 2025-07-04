@@ -28,6 +28,10 @@ export async function GET(event: RequestEvent): Promise<Response> {
 			}
 		});
 		const githubUser: GitHubUser = await githubUserResponse.json();
+		console.log(
+			'[LS] -> src/routes/(public)/login/github/callback/+server.ts:30 -> githubUser: ',
+			githubUser
+		);
 
 		const existingUser = await getUserFromGithubId(String(githubUser.id));
 
@@ -82,6 +86,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 			}
 		});
 	} catch (e) {
+		console.log('[LS] -> src/routes/(public)/login/github/callback/+server.ts:85 -> e: ', e);
 		// the specific error can be logged here
 		return new Response('Authentication failed.', {
 			status: 500
