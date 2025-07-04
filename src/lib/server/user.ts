@@ -35,6 +35,21 @@ export async function createUser(values: {
 	return user;
 }
 
+export async function regenerateApiKeys(
+	userId: string
+): Promise<{ apiKey: string; readOnlyApiKey: string }> {
+	const plainAPIKey = generateAPIKey();
+	const plainReadOnlyAPIKey = generateReadOnlyAPIKey();
+	const hashedAPIKey = hashAPIKey(plainAPIKey);
+	const hashedReadOnlyAPIKey = hashAPIKey(plainReadOnlyAPIKey);
+	await db
+		.update(table.user)
+		.set({ apiKey: hashedAPIKey, readOnlyApiKey: hashedReadOnlyAPIKey })
+		.where(eq(table.user.id, userId));
+
+	return { apiKey: plainAPIKey, readOnlyApiKey: plainReadOnlyAPIKey };
+}
+
 export async function getUserFromGoogleId(googleId: string): Promise<User | null> {
 	const rows = await db.select().from(table.user).where(eq(table.user.googleId, googleId));
 	console.log('LS -> src/lib/server/user.ts:26 -> rows: ', rows);

@@ -3,13 +3,12 @@
 	import { goto } from '$app/navigation';
 	import CopyableText from '$lib/components/CopyableText.svelte';
 	import { app } from '$lib/config';
-	let apiKey: string | null = $state('****************************************');
-	let readOnlyApiKey: string | null = $state('****************************************');
+	let apiKey: string | null = $state(null);
+	let readOnlyApiKey: string | null = $state(null);
 
 	let { data } = $props();
 	let loggingOut = $state(false);
-	let keysRevealed = $state(false);
-	let revealing = $state(false);
+	let regenerating = $state(false);
 	let managingSubscription = $state(false);
 	async function logout() {
 		loggingOut = true;
@@ -19,21 +18,20 @@
 		}
 	}
 
-	async function getApiKeys() {
-		if (revealing) return;
-		revealing = true;
+	async function regenerateApiKeys() {
+		if (regenerating) return;
+		regenerating = true;
 		try {
-			const res = await fetch('/api/users/get-api-key');
+			const res = await fetch('/api/users/regenerate-api-key', { method: 'POST' });
 			if (res.ok) {
 				const result = await res.json();
 				if (result.success) {
 					apiKey = result.data.apiKey;
 					readOnlyApiKey = result.data.readOnlyApiKey;
-					keysRevealed = true;
 				}
 			}
 		} finally {
-			revealing = false;
+			regenerating = false;
 		}
 	}
 
@@ -86,63 +84,38 @@
 			<a href={app.git} class="text-gray-400 underline">Documentation and Plugin Install Guide</a>
 		</p>
 		<div class="my-4 space-y-4">
-			{#if !keysRevealed}
-				<div class="relative">
-					<div class="space-y-4 blur-sm">
-						<div>
-							<label class="text-sm font-bold text-gray-400">API Key (read/write)</label>
-							<div class="relative mt-1 rounded-lg bg-gray-900 p-4 font-mono text-green-400">
-								<span class="break-all">{apiKey}</span>
-							</div>
-						</div>
-						<div>
-							<label class="text-sm font-bold text-gray-400">Read-Only API Key</label>
-							<div class="relative mt-1 rounded-lg bg-gray-900 p-4 font-mono text-green-400">
-								<span class="break-all">{readOnlyApiKey}</span>
-							</div>
-							<p class="mt-1 text-xs text-gray-500">
-								Read-only API key can only be used for GET requests.
-							</p>
-						</div>
-					</div>
-					<div class="absolute inset-0 flex items-center justify-center">
-						<button class="btn btn-primary" onclick={getApiKeys} disabled={revealing}>
-							{#if revealing}
-								<span class="loading loading-spinner"></span>
-							{/if}
-							Reveal Keys
-						</button>
-					</div>
-				</div>
-			{:else}
+			<div class="rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-4">
+				<p class="text-sm text-yellow-200">
+					For security, API keys are only shown once. If you've lost your keys, you can
+					regenerate them. This action will invalidate your old keys.
+				</p>
+			</div>
+
+			{#if apiKey && readOnlyApiKey}
 				<div>
 					<label class="text-sm font-bold text-gray-400">API Key (read/write)</label>
 					<div class="relative mt-1 rounded-lg bg-gray-900 p-4 font-mono text-green-400">
-						{#if apiKey}
-							<span class="break-all">{apiKey.slice(0, 12)}...{apiKey.slice(-12)}</span>
-							<CopyableText text={apiKey} />
-						{:else}
-							<span class="text-gray-500">No API Key present for this account.</span>
-						{/if}
+						<span class="break-all">{apiKey}</span>
+						<CopyableText text={apiKey} />
 					</div>
 				</div>
 				<div>
 					<label class="text-sm font-bold text-gray-400">Read-Only API Key</label>
 					<div class="relative mt-1 rounded-lg bg-gray-900 p-4 font-mono text-green-400">
-						{#if readOnlyApiKey}
-							<span class="break-all"
-								>{readOnlyApiKey.slice(0, 12)}...{readOnlyApiKey.slice(-12)}</span
-							>
-							<CopyableText text={readOnlyApiKey} />
-						{:else}
-							<span class="text-gray-500">No Read-Only API Key present for this account.</span>
-						{/if}
+						<span class="break-all">{readOnlyApiKey}</span>
+						<CopyableText text={readOnlyApiKey} />
 					</div>
 					<p class="mt-1 text-xs text-gray-500">
 						Read-only API key can only be used for GET requests.
 					</p>
 				</div>
 			{/if}
+			<button class="btn btn-primary" onclick={regenerateApiKeys} disabled={regenerating}>
+				{#if regenerating}
+					<span class="loading loading-spinner"></span>
+				{/if}
+				Regenerate API Keys
+			</button>
 		</div>
 
 		{#if data.user.plan !== 'paid'}
