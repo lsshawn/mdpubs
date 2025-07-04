@@ -1,5 +1,8 @@
+import { eq } from 'drizzle-orm';
 import { app } from '$lib/config';
 import { github } from '$lib/server/oauth';
+import { db } from '$lib/server/db';
+import * as table from '$lib/server/db/schema';
 import { createUser, getUserFromGithubId, getUserByEmail } from '$lib/server/user';
 import { createSession, setSessionTokenCookie } from '$lib/server/auth';
 
@@ -63,13 +66,20 @@ export async function GET(event: RequestEvent): Promise<Response> {
 
 		const existingUserByEmail = await getUserByEmail(primaryEmail.email);
 		if (existingUserByEmail) {
-			// TODO: update user, add github id to allow user to login via otp or github
-			return new Response(
-				'User with this email already exists. Please log in with your original method.',
-				{
-					status: 409
+			// user already exists, link github id
+			await db
+				.update(table.user)
+				.set({ githubId: String(githubUser.id) })
+				.where(eq(table.user.id, existingUserByEmail.id));
+
+			const session = await createSession(existingUserByEmail.id);
+			setSessionTokenCookie(event, session.id, session.expiresAt);
+			return new Response(null, {
+				status: 302,
+				headers: {
+					Location: '/'
 				}
-			);
+			});
 		}
 
 		const user = await createUser({
