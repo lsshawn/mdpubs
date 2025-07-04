@@ -2,7 +2,6 @@ import { eq } from 'drizzle-orm';
 import { sha256 } from '@oslojs/crypto/sha2';
 import { encodeBase32LowerCaseNoPadding, encodeHexLowerCase } from '@oslojs/encoding';
 import { db } from '$lib/server/db';
-import { sql } from 'drizzle-orm';
 import * as table from '$lib/server/db/schema';
 import type { Session } from '$lib/server/db/schema';
 import type { RequestEvent } from '@sveltejs/kit';
@@ -20,7 +19,7 @@ function generateSessionToken(): string {
 export async function createSession(userId: string): Promise<Session> {
 	const token = generateSessionToken();
 	const sessionId = encodeHexLowerCase(sha256(new TextEncoder().encode(token)));
-	const expiresAt = Math.floor((Date.now() + DAY_IN_MS * 30) / 1000);
+	const expiresAt = new Date(Date.now() + DAY_IN_MS * 30);
 	const session = {
 		id: sessionId,
 		userId,
@@ -28,10 +27,7 @@ export async function createSession(userId: string): Promise<Session> {
 	};
 
 	try {
-		await db.insert(table.session).values({
-			...session,
-			expiresAt: sql`${expiresAt}`
-		});
+		await db.insert(table.session).values(session);
 		return session;
 	} catch (error) {
 		console.error('Session creation error:', error);
@@ -58,18 +54,18 @@ export async function validateSession(sessionId: string) {
 	}
 	const { session, user } = result;
 
-	const sessionExpired = Date.now() / 1000 >= session.expiresAt;
+	const sessionExpired = Date.now() >= session.expiresAt.getTime();
 	if (sessionExpired) {
 		await db.delete(table.session).where(eq(table.session.id, session.id));
 		return { session: null, user: null };
 	}
 
-	const renewSession = Date.now() / 1000 >= session.expiresAt - (DAY_IN_MS / 1000) * 15;
+	const renewSession = Date.now() >= session.expiresAt.getTime() - DAY_IN_MS * 15;
 	if (renewSession) {
-		const newExpiresAt = Math.floor(Date.now() / 1000 + (DAY_IN_MS / 1000) * 30);
+		const newExpiresAt = new Date(Date.now() + DAY_IN_MS * 30);
 		await db
 			.update(table.session)
-			.set({ expiresAt: sql`${newExpiresAt}` })
+			.set({ expiresAt: newExpiresAt })
 			.where(eq(table.session.id, session.id));
 		session.expiresAt = newExpiresAt;
 	}
@@ -77,14 +73,13 @@ export async function validateSession(sessionId: string) {
 	return { session, user };
 }
 
-export function setSessionTokenCookie(event: RequestEvent, token: string, expiresAt: number): void {
+export function setSessionTokenCookie(event: RequestEvent, token: string, expiresAt: Date): void {
 	event.cookies.set(sessionCookieName, token, {
 		httpOnly: true,
 		path: '/',
 		secure: import.meta.env.PROD,
 		sameSite: 'lax',
-		// convert back to date for cookie
-		expires: new Date(expiresAt * 1000)
+		expires: expiresAt
 	});
 }
 
