@@ -13,6 +13,6 @@ export const google = new Google(
 	`https://${app.domain}/login/google/callback`
 );
 
-export const githubRedirectURL = `http://${app.domain}/login/github/callback`;
+export const githubRedirectURL = `https://${app.domain}/login/github/callback`;
 
 export const github = new GitHub(GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, githubRedirectURL);
