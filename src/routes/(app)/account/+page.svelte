@@ -3,13 +3,14 @@
 	import { goto } from '$app/navigation';
 	import CopyableText from '$lib/components/CopyableText.svelte';
 	import { app } from '$lib/config';
-	let apiKey: string | null = '****************************************';
-	let readOnlyApiKey: string | null = '****************************************';
+	let apiKey: string | null = $state('****************************************');
+	let readOnlyApiKey: string | null = $state('****************************************');
 
 	let { data } = $props();
 	let loggingOut = $state(false);
 	let keysRevealed = $state(false);
 	let revealing = $state(false);
+	let managingSubscription = $state(false);
 	async function logout() {
 		loggingOut = true;
 		const res = await fetch('/api/auth/logout', { method: 'POST' });
@@ -35,6 +36,26 @@
 			revealing = false;
 		}
 	}
+
+	async function manageSubscription() {
+		if (managingSubscription) return;
+		managingSubscription = true;
+		try {
+			const res = await fetch('/api/stripe/create-portal-session', { method: 'POST' });
+			const result = await res.json();
+
+			if (result.success && result.url) {
+				window.location.href = result.url;
+			} else {
+				console.error(result.message || 'Could not create Stripe portal session.');
+				// TODO: You can add a user-facing error message here.
+			}
+		} catch (err) {
+			console.error('Error managing subscription:', err);
+		} finally {
+			managingSubscription = false;
+		}
+	}
 </script>
 
 <div class=" mx-auto min-h-screen max-w-lg text-white">
@@ -43,12 +64,22 @@
 	</section>
 
 	<section class="container mx-auto px-4" id="apikey">
-		{#if data.user.plan !== 'free'}
-			<div class="mb-10">
-				<div>You're on {data.user.plan} plan.</div>
-				<button class="btn btn-primary mt-4">Manage your subscription</button>
-			</div>
-		{/if}
+		<div class="mb-10">
+			<div>You're on <strong>{data.user.plan}</strong> plan.</div>
+			<div>You can publish {app.plans[data.user.plan].maxNotes} markdown notes.</div>
+			{#if data.user.plan !== 'free'}
+				<button
+					class="btn btn-primary mt-4"
+					onclick={manageSubscription}
+					disabled={managingSubscription}
+				>
+					{#if managingSubscription}
+						<span class="loading loading-spinner"></span>
+					{/if}
+					Manage your subscription
+				</button>
+			{/if}
+		</div>
 		<h3 class="text-2xl font-bold text-white">Your API Keys</h3>
 		<p class="py-4 text-gray-300">
 			Save these keys securely. You'll need them to use the NeoNote plugin.
@@ -117,8 +148,15 @@
 		{#if data.user.plan !== 'paid'}
 			<div class="mt-8 rounded-lg border border-blue-500/50 bg-blue-500/10 p-6 text-center">
 				<h4 class="text-xl font-bold text-white">Upgrade to Pro</h4>
-				<p class="my-2 text-gray-300">Publish unlimited notes for just $10/month</p>
-				<button class="btn btn-primary">Upgrade Now</button>
+				<p class="my-2 text-gray-300">
+					Publish <strong>unlimited notes</strong> for just $10/month
+				</p>
+				<a
+					role="button"
+					class="btn btn-primary"
+					href={app.stripePaymentLinks.monthly.link + `?prefilled_email=${data.user.email}`}
+					>Upgrade Now</a
+				>
 			</div>
 		{/if}
 		<div class="mt-4 text-center">
