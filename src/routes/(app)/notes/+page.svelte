@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import { page } from '$app/stores';
 
 	let { data, form } = $props();
@@ -8,20 +8,29 @@
 	let noteToDelete: (typeof data.notes)[0] | null = $state(null);
 	let deleteModal: HTMLDialogElement;
 
-	$effect(() => {
-		if (form?.success) {
-			toast = { message: 'Note deleted successfully.', type: 'success' };
-			deleteModal?.close();
-		} else if (form?.message) {
-			toast = { message: form.message as string, type: 'error' };
-		}
-		if (toast) {
-			const timer = setTimeout(() => {
-				toast = null;
-			}, 3000);
-			return () => clearTimeout(timer);
-		}
-	});
+	function showToast(message: string, type: 'success' | 'error') {
+		toast = { message, type };
+		setTimeout(() => {
+			toast = null;
+		}, 3000);
+	}
+
+	let deleting = $state(false);
+	const handleDelete: SubmitFunction = () => {
+		deleting = true;
+		return ({ result, update }) => {
+			if (result.type === 'success' || result.type === 'failure') {
+				if (result.data?.success) {
+					showToast('Note deleted successfully.', 'success');
+					deleteModal?.close();
+				} else if (result.data?.message) {
+					showToast(result.data.message as string, 'error');
+				}
+			}
+			update();
+			deleting = false;
+		};
+	};
 
 	function getSearchURL(p: number) {
 		const url = new URL($page.url);
@@ -136,9 +145,14 @@
 				<button class="btn">Cancel</button>
 			</form>
 			{#if noteToDelete}
-				<form method="POST" action="?/delete" use:enhance>
+				<form method="POST" action="?/delete" use:enhance={handleDelete}>
 					<input type="hidden" name="id" value={noteToDelete.id} />
-					<button type="submit" class="btn btn-error">Confirm Delete</button>
+					<button type="submit" class="btn btn-error" class:btn-disabled={deleting}>
+						{#if deleting}
+							<span class="loading loading-spinner"></span>
+						{/if}
+						Confirm Delete</button
+					>
 				</form>
 			{/if}
 		</div>
