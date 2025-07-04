@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../app.css';
+	import { CircleUser, Pencil } from 'lucide-svelte';
 	import type { LayoutData } from './$types';
 	import { app } from '$lib/config';
 	import { page } from '$app/state';
@@ -32,4 +33,17 @@
 	<meta name="twitter:image" content={ogImage} />
 </svelte:head>
 
+<div class="navbar shadow-sm md:px-8">
+	<div class="flex flex-1">
+		<a href="/" role="button" class="flex gap-2">
+			<Pencil class="h-8 w-8 text-blue-400" />
+			<span class="text-2xl font-bold text-white">NeoNote</span>
+		</a>
+	</div>
+	<div class="flex-none">
+		<a href="/account" role="button">
+			<CircleUser class="text-white-8 w-8" />
+		</a>
+	</div>
+</div>
 {@render children()}

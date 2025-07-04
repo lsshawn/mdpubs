@@ -3,5 +3,5 @@
 @plugin '@tailwindcss/typography';
 
 @plugin "daisyui" {
-  themes: mostlyraccoon --default, dracula;
+  themes: night --default, dracula;
 }
