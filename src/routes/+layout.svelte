@@ -41,7 +41,16 @@
 				<span class="text-2xl font-bold text-white">NeoNote</span>
 			</a>
 		</div>
-		<div class="flex-none">
+		<div class="flex items-center gap-2">
+			<a
+				href="/notes"
+				role="button"
+				class={page.url.pathname.startsWith('/notes')
+					? 'btn btn-ghost text-gray-600'
+					: 'btn btn-ghost text-white'}
+			>
+				Notes
+			</a>
 			<a
 				href="/account"
 				role="button"

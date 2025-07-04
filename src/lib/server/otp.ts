@@ -6,8 +6,8 @@ import { dev } from '$app/environment';
 
 const OTP_EXPIRY = 1000 * 60 * 15; // 15mins
 
-function generateRandomNumber(): number {
-	return Math.floor(100000 + Math.random() * 900000);
+function generateRandomNumber(): string {
+	return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 export const generateOTP = async (email: string) => {
@@ -27,7 +27,7 @@ export const generateOTP = async (email: string) => {
 	return updateObj;
 };
 
-export const validateOtp = async (otp: number, email: string): Promise<boolean | undefined> => {
+export const validateOtp = async (otp: string, email: string): Promise<boolean | undefined> => {
 	const user = (
 		await db
 			.select({
