@@ -1,7 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { validateOtp } from '$lib/server/otp';
 import { db } from '$lib/server/db';
-import { users } from '$lib/server/db/schema';
+import * as table from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { createSession, setSessionTokenCookie } from '$lib/server/auth';
 
@@ -16,9 +16,9 @@ export async function POST(event: RequestEvent) {
 
 		// reset all otp
 		await db
-			.update(users)
+			.update(table.user)
 			.set({ otp: null, otpExpiry: null, otpAttempts: 0 })
-			.where(eq(users.id, user.id));
+			.where(eq(table.user.id, user.id));
 
 		// TODO: if is a new month for tier user, reset AI chat credit
 

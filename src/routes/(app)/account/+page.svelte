@@ -1,11 +1,15 @@
 <script lang="ts">
+	import { dev } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import CopyableText from '$lib/components/CopyableText.svelte';
 	import { app } from '$lib/config';
 	let apiKey = '123';
 	let readOnlyApiKey = '123';
 
+	let { data } = $props();
+	let loggingOut = $state(false);
 	async function logout() {
+		loggingOut = true;
 		const res = await fetch('/api/auth/logout', { method: 'POST' });
 		if (res.ok) {
 			goto('/', { replaceState: true, invalidateAll: true });
@@ -50,7 +54,17 @@
 			<button class="btn btn-primary">Upgrade Now</button>
 		</div>
 		<div class="mt-4 text-center">
-			<button class="btn text-error btn-ghost" onclick={() => logout()}>Logout</button>
+			<button class="btn text-error btn-ghost" onclick={() => logout()}>
+				{#if loggingOut}
+					<span class="loading loading-spinner text-error"></span>
+				{/if}
+				Logout</button
+			>
 		</div>
+		{#if dev}
+			<pre class="text-wrap text-gray-600">
+        {JSON.stringify(data, null, 2)}
+      </pre>
+		{/if}
 	</section>
 </div>

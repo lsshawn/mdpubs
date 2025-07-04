@@ -41,8 +41,12 @@
 		</a>
 	</div>
 	<div class="flex-none">
-		<a href="/account" role="button">
-			<CircleUser class="text-white-8 w-8" />
+		<a
+			href="/account"
+			role="button"
+			class={page.url.pathname.startsWith('/account') ? 'text-gray-600' : 'text-white'}
+		>
+			<CircleUser class="h-8 w-8" />
 		</a>
 	</div>
 </div>
