@@ -9,6 +9,7 @@
 	let name = $state('');
 	let status: 'idle' | 'submitting' | 'success' | 'error' = $state('idle');
 	let errorMessage = $state('');
+	let fieldErrors = $state<{ [key: string]: string[] | undefined }>({});
 
 	function toggle() {
 		isOpen = !isOpen;
@@ -19,34 +20,17 @@
 
 	function resetForm() {
 		message = '';
-		email = '';
+		email = page.data.user?.email ?? '';
 		name = '';
 		status = 'idle';
 		errorMessage = '';
+		fieldErrors = {};
 	}
 
 	async function handleSubmit() {
-		if (message.trim() === '') {
-			errorMessage = 'Please enter a message.';
-			status = 'error';
-			return;
-		}
-
-		if (!email.trim()) {
-			errorMessage = 'Please enter your email.';
-			status = 'error';
-			return;
-		}
-
-		// basic email validation
-		if (!/^\S+@\S+\.\S+$/.test(email)) {
-			errorMessage = 'Please enter a valid email address.';
-			status = 'error';
-			return;
-		}
-
 		status = 'submitting';
 		errorMessage = '';
+		fieldErrors = {};
 
 		try {
 			const res = await fetch('/api/feedback', {
@@ -70,7 +54,10 @@
 				}, 2000);
 			} else {
 				const data = await res.json();
-				errorMessage = data.message || 'An unexpected error occurred.';
+				errorMessage = data.error || data.message || 'An unexpected error occurred.';
+				if (data.details?.fieldErrors) {
+					fieldErrors = data.details.fieldErrors;
+				}
 				status = 'error';
 			}
 		} catch (e) {
@@ -97,30 +84,42 @@
 					<textarea
 						bind:value={message}
 						class="textarea textarea-bordered w-full"
+						class:textarea-error={fieldErrors.message}
 						rows="4"
 						placeholder="Your message..."
 						disabled={status === 'submitting'}
 						aria-label="Your message"
 					></textarea>
+					{#if fieldErrors.message}
+						<p class="text-error mt-1 text-sm">{fieldErrors.message[0]}</p>
+					{/if}
 
 					<input
 						type="email"
 						bind:value={email}
 						placeholder="Your email"
 						class="input input-bordered mt-2 w-full"
+						class:input-error={fieldErrors.email}
 						disabled={status === 'submitting'}
 						aria-label="Your email"
 					/>
+					{#if fieldErrors.email}
+						<p class="text-error mt-1 text-sm">{fieldErrors.email[0]}</p>
+					{/if}
 					<input
 						type="text"
 						bind:value={name}
 						placeholder="Your name (optional)"
 						class="input input-bordered mt-2 w-full"
+						class:input-error={name && fieldErrors.name}
 						disabled={status === 'submitting'}
 						aria-label="Your name (optional)"
 					/>
+					{#if name && fieldErrors.name}
+						<p class="text-error mt-1 text-sm">{fieldErrors.name[0]}</p>
+					{/if}
 
-					{#if status === 'error' && errorMessage}
+					{#if name && status === 'error' && errorMessage}
 						<p class="text-error mt-2 text-sm">{errorMessage}</p>
 					{/if}
 
