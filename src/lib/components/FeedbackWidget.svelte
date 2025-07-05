@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { Send, X } from 'lucide-svelte';
-	import { scale } from 'svelte/transition';
+	import { fade, scale } from 'svelte/transition';
 
 	let {
 		message,
@@ -14,6 +14,20 @@
 	} = $props();
 
 	let isOpen = $state(false);
+
+	const texts = ['Feedback', 'Bugs', 'Ideas'];
+	let textIndex = $state(0);
+
+	$effect(() => {
+		if (isOpen) return;
+
+		const interval = setInterval(() => {
+			textIndex = (textIndex + 1) % texts.length;
+		}, 2500);
+
+		return () => clearInterval(interval);
+	});
+
 	let status: 'idle' | 'submitting' | 'success' | 'error' = $state('idle');
 	let errorMessage = $state('');
 	let fieldErrors = $state<{ [key: string]: string[] | undefined }>({});
@@ -146,14 +160,18 @@
 	{/if}
 
 	<button
-		class="btn btn-primary btn-sm shadow-lg"
+		class="btn btn-primary btn-sm inline-grid w-24 place-items-center shadow-lg"
 		onclick={toggle}
 		aria-label={isOpen ? 'Close feedback form' : 'Open feedback form'}
 	>
 		{#if isOpen}
-			<X class="h-4 w-4" />
+			<X class="col-start-1 row-start-1 h-4 w-4" />
 		{:else}
-			Feedback
+			{#key texts[textIndex]}
+				<span class="col-start-1 row-start-1 text-xs" transition:fade={{ duration: 500 }}
+					>{texts[textIndex]}?</span
+				>
+			{/key}
 		{/if}
 	</button>
 </div>
