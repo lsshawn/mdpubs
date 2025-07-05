@@ -4,6 +4,7 @@
 	import type { LayoutData } from './$types';
 	import { app } from '$lib/config';
 	import { page } from '$app/state';
+	import FeedbackWidget from '$lib/components/FeedbackWidget.svelte';
 	let { data, children }: { data: LayoutData; children: any } = $props();
 
 	let ogImage = $state(
@@ -65,4 +66,5 @@
 	<main class="flex-1">
 		{@render children()}
 	</main>
+	<FeedbackWidget />
 </div>
