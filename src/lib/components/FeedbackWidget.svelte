@@ -3,22 +3,20 @@
 	import { Send, X } from 'lucide-svelte';
 	import { scale } from 'svelte/transition';
 
+	let {
+		message,
+		email,
+		name
+	}: {
+		message: string;
+		email: string;
+		name: string;
+	} = $props();
+
 	let isOpen = $state(false);
-	let message = $state('');
-	let email = $state(page.data.user?.email ?? '');
-	let name = $state('');
 	let status: 'idle' | 'submitting' | 'success' | 'error' = $state('idle');
 	let errorMessage = $state('');
 	let fieldErrors = $state<{ [key: string]: string[] | undefined }>({});
-
-	export const snapshot = {
-		capture: () => ({ message, email, name }),
-		restore: (value: { message: string; email: string; name: string }) => {
-			message = value.message;
-			email = value.email;
-			name = value.name;
-		}
-	};
 
 	function toggle() {
 		isOpen = !isOpen;
@@ -80,13 +78,13 @@
 			transition:scale={{ duration: 150, start: 0.95 }}
 		>
 			{#if status === 'success'}
-				<div class="flex h-full flex-col items-center justify-center py-10">
+				<div class="flex h-full flex-col items-center justify-center py-10 text-center">
 					<h3 class="text-lg font-semibold">Thank you!</h3>
-					<p>Your feedback has been received.</p>
+					<p>We've received your message. We'll reply within 24 hours.</p>
 				</div>
 			{:else}
 				<div>
-					<h3 class="mb-2 text-lg font-semibold">Give us your feedback</h3>
+					<h3 class="mb-2 text-lg font-semibold">Feedback, bugs, or ideas?</h3>
 					<textarea
 						bind:value={message}
 						class="textarea textarea-bordered w-full"

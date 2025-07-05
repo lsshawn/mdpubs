@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { CircleUser, Pencil } from 'lucide-svelte';
-	import type { LayoutData } from './$types';
+	import type { LayoutData, Snapshot } from './$types';
 	import { app } from '$lib/config';
 	import { page } from '$app/state';
 	import FeedbackWidget from '$lib/components/FeedbackWidget.svelte';
@@ -10,6 +10,21 @@
 	let ogImage = $state(
 		data.meta?.ogImage ? `${page.url.origin}${data.meta.ogImage}` : `${page.url.origin}/og/page.png`
 	);
+
+	let message = $state('');
+	let email = $state(data.user?.email ?? '');
+	let name = $state('');
+
+	export const snapshot: Snapshot<{ message: string; email: string; name: string }> = {
+		capture: () => ({ message, email, name }),
+		restore: (value) => {
+			if (value) {
+				message = value.message;
+				email = value.email;
+				name = value.name;
+			}
+		}
+	};
 </script>
 
 <svelte:head>
@@ -66,5 +81,5 @@
 	<main class="flex-1">
 		{@render children()}
 	</main>
-	<FeedbackWidget />
+	<FeedbackWidget bind:message bind:email bind:name />
 </div>
