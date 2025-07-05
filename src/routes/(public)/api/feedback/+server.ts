@@ -20,6 +20,7 @@ export async function POST(event: RequestEvent) {
 	}
 
 	const { message, email, page, metadata } = validation.data;
+	console.log('[LS] -> src/routes/(public)/api/feedback/+server.ts:22 -> metadata: ', metadata);
 	const origin = event.request.headers.get('origin');
 
 	// Insert feedback

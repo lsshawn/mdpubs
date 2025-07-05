@@ -11,11 +11,17 @@
 	let errorMessage = $state('');
 	let fieldErrors = $state<{ [key: string]: string[] | undefined }>({});
 
+	export const snapshot = {
+		capture: () => ({ message, email, name }),
+		restore: (value: { message: string; email: string; name: string }) => {
+			message = value.message;
+			email = value.email;
+			name = value.name;
+		}
+	};
+
 	function toggle() {
 		isOpen = !isOpen;
-		if (!isOpen) {
-			resetForm();
-		}
 	}
 
 	function resetForm() {
@@ -42,7 +48,7 @@
 					message,
 					email,
 					page: page.url.pathname,
-					metadata: name ? { id: page.data?.user?.id, name } : undefined
+					metadata: { id: page.data?.user?.id, name }
 				})
 			});
 
