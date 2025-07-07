@@ -4,7 +4,7 @@
 	import { fade } from 'svelte/transition';
 	import type { PageData } from './$types';
 	import DiffView from '$lib/components/DiffView.svelte';
-	import { featureFlags } from '$lib/config';
+	import { featureFlags, app } from '$lib/config';
 
 	let { data }: { data: PageData } = $props();
 
@@ -484,7 +484,7 @@
 	<meta name="twitter:image" content={data.meta.ogImage} />
 </svelte:head>
 
-<div class="min-h-screen bg-white">
+<div class="min-h-screen" data-theme="light">
 	{#if showDiffs}
 		<div class="mx-auto max-w-4xl px-6 py-6 lg:py-12">
 			<header class="mb-8">
@@ -700,7 +700,7 @@
 						</header>
 
 						<!-- Content -->
-						<article class="prose prose-sm prose-gray max-w-none" bind:this={articleElement}>
+						<article class="prose prose-sm min-h-[80vh] max-w-none" bind:this={articleElement}>
 							{@html note.html}
 						</article>
 
@@ -712,9 +712,9 @@
 									class="inline-flex items-center text-sm text-gray-500 underline transition-colors hover:text-gray-700"
 								>
 									<span class="mr-2">📝</span>
-									Powered by NeoNote
+									Powered by {app.name}
 								</a>
-								<div class="mt-1 text-xs">The Easiest Way to Publish Markdown from Neovim</div>
+								<div class="mt-1 text-xs">{app.description}</div>
 							</div>
 						</footer>
 					</div>
