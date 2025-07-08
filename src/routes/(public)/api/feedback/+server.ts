@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestEvent } from './$types';
 import { feedbackDb } from '$lib/server/db';
 import { feedback } from '$lib/server/db/feedback.schema';
+import { app } from '$lib/config';
 import { z } from 'zod';
 
 const feedbackSchema = z.object({
@@ -26,6 +27,7 @@ export async function POST(event: RequestEvent) {
 	// Insert feedback
 	await feedbackDb.insert(feedback).values({
 		userId: event.locals.user?.id,
+		projectId: app.feedbackProjectId,
 		message,
 		email,
 		page,

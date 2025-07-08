@@ -21,7 +21,8 @@ export const app = {
 	plans: {
 		free: { maxNotes: '5' },
 		paid: { maxNotes: 'unlimited' }
-	}
+	},
+	feedbackProjectId: 1
 };
 
 export const featureFlags = {

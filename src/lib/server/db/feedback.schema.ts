@@ -6,6 +6,14 @@ const UpdatedAt = integer('updated_at', { mode: 'timestamp' }).default(sql`(curr
 const DeletedAt = integer('deleted_at', { mode: 'timestamp' });
 const Id = integer('id').primaryKey({ autoIncrement: true });
 
+export const project = sqliteTable('projects', {
+	id: Id,
+	name: text('name').notNull(),
+	createdAt: CreatedAt,
+	updatedAt: UpdatedAt,
+	deletedAt: DeletedAt
+});
+
 // Feedback table - stores all feedback submissions
 export const feedback = sqliteTable(
 	'feedback',
@@ -20,7 +28,10 @@ export const feedback = sqliteTable(
 		metadata: text('metadata', { mode: 'json' }), // JSON for additional data
 		createdAt: CreatedAt,
 		updatedAt: UpdatedAt,
-		deletedAt: DeletedAt
+		deletedAt: DeletedAt,
+		projectId: integer('project_id')
+			.notNull()
+			.references(() => project.id)
 	},
 	(table) => ({
 		userIdIdx: index('user_id_idx').on(table.userId),
@@ -28,5 +39,6 @@ export const feedback = sqliteTable(
 	})
 );
 
+export type Project = typeof project.$inferSelect;
 export type Feedback = typeof feedback.$inferSelect;
 export type NewFeedback = typeof feedback.$inferInsert;
