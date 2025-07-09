@@ -18,9 +18,9 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 		const note = await res.json();
 
 		let versions = null;
-		if (showDiffs && note?.frontmatter?.neonote) {
+		if (showDiffs && note?.frontmatter?.mdpubs) {
 			const versionsRes = await fetch(
-				`${app.apiUrl}/notes/${note.frontmatter.neonote}/versions?diffs=true`
+				`${app.apiUrl}/notes/${note.frontmatter.mdpubs}/versions?diffs=true`
 			);
 			if (versionsRes.ok) {
 				const versionsData = await versionsRes.json();
@@ -38,7 +38,7 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 		const ogImage = `https://mdpubs.com/og/${params.id}.png`; // We'll create this endpoint
 
 		// Check if note should be indexed (default: false for privacy)
-		const allowIndexing = note?.frontmatter?.['neonote-allow-indexing'] === true;
+		const allowIndexing = note?.frontmatter?.['mdpubs-allow-indexing'] === true;
 
 		return {
 			note,

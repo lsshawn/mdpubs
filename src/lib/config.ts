@@ -5,7 +5,7 @@ export const app = {
 	description: 'Fastest way to publish markdown from Neovim',
 	domain: dev ? 'localhost:5173' : 'mdpubs.com',
 	apiUrl: dev ? 'http://localhost:1323' : 'https://api.mdpubs.com',
-	git: 'https://github.com/lsshawn/neonote.nvim',
+	git: 'https://github.com/lsshawn/mdpubs.nvim',
 	stripePaymentLinks: {
 		monthly: {
 			link: dev

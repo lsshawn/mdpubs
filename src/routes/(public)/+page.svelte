@@ -32,8 +32,8 @@
 							>---
 title: "My Note"
 // 👇 just add these 2 lines 
-neonote:  
-neonote-is-public: true
+mdpubs:  
+mdpubs-is-public: true
 ---
 
 This markdown file will be instantly available at:
@@ -66,7 +66,7 @@ https://mdpubs.com/[id]
 					<Code class="mx-auto mb-4 h-12 w-12 text-blue-400" />
 					<h2 class="card-title justify-center text-white">Simple API</h2>
 					<p class="text-gray-300">
-						<a href="https://github.com/lsshawn/neonote.nvim" class="underline"
+						<a href="https://github.com/lsshawn/mdpubs.nvim" class="underline"
 							>Install the plugin</a
 						> and add frontmatter to your markdown files.
 					</p>
