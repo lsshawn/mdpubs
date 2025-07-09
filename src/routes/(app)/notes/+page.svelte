@@ -2,7 +2,7 @@
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import { page } from '$app/stores';
 	import { formatDateTime } from '$lib/helpers';
-	import { Note } from '$lib/server/db/schema';
+	import type { Note } from '$lib/server/db/schema';
 
 	let { data, form } = $props();
 
