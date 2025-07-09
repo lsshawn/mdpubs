@@ -63,6 +63,7 @@
 
 	<section class="container mx-auto px-4" id="apikey">
 		<div class="mb-10">
+			<div>{data.user.email}</div>
 			<div>You're on <strong>{data.user.plan}</strong> plan.</div>
 			<div>You can publish {config.plans[data.user.plan].maxNotes} markdown notes.</div>
 			{#if data.user.plan !== 'free'}
@@ -81,13 +82,14 @@
 		<h3 class="text-2xl font-bold text-white">Your API Keys</h3>
 		<p class="py-4 text-gray-300">
 			Save these keys securely. You'll need them to use the MdPubs plugin.
-			<a href={config.git} class="text-gray-400 underline">Documentation and Plugin Install Guide</a>
+			<a href={config.git} class="text-gray-400 underline">Documentation and Plugin Install Guide</a
+			>
 		</p>
 		<div class="my-4 space-y-4">
 			<div class="rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-4">
 				<p class="text-sm text-yellow-200">
-					For security, API keys are only shown once. If you've lost your keys, you can
-					regenerate them. This action will invalidate your old keys.
+					For security, API keys are only shown once. If you've lost your keys, you can regenerate
+					them. This action will invalidate your old keys.
 				</p>
 			</div>
 

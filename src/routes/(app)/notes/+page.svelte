@@ -105,7 +105,7 @@
 						<th>ID</th>
 						<th>Title</th>
 						<th>Updated At</th>
-						<th>Is Public?</th>
+						<th>Is Private?</th>
 						<th class="text-right">Actions</th>
 					</tr>
 				</thead>
@@ -267,7 +267,7 @@
 </dialog>
 
 {#snippet visibilityBadge(note: Note)}
-	<div class="badge badge-success badge-outline" class:badge-error={note?.isPrivate}>
+	<div class={`badge ${note?.isPrivate ? 'badge-neutral' : 'badge-primary'}  badge-outline`}>
 		{note?.isPrivate ? 'private' : 'public'}
 	</div>
 {/snippet}

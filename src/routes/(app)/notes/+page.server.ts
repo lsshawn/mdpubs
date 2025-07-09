@@ -29,7 +29,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		.where(and(...whereClauses))
 		.limit(PAGE_SIZE)
 		.offset((page - 1) * PAGE_SIZE)
-		.orderBy(desc(table.note.createdAt));
+		.orderBy(desc(table.note.updatedAt));
 
 	const countQuery = db
 		.select({ count: sql<number>`count(*)` })
