@@ -9,11 +9,44 @@
 	let noteToDelete: (typeof data.notes)[0] | null = $state(null);
 	let deleteModal: HTMLDialogElement;
 
+	let noteToView: (typeof data.notes)[0] | null = $state(null);
+	let viewModal: HTMLDialogElement;
+	type NoteContent = { html: string; content: string | null };
+	let noteContent = $state<NoteContent | null>(null);
+	let loadingNote = $state(false);
+	let viewMode: 'html' | 'markdown' = $state('html');
+
 	function showToast(message: string, type: 'success' | 'error') {
 		toast = { message, type };
 		setTimeout(() => {
 			toast = null;
 		}, 3000);
+	}
+
+	async function showViewModal(note: (typeof data.notes)[0]) {
+		noteToView = note;
+		viewModal?.showModal();
+		loadingNote = true;
+		noteContent = null;
+		viewMode = 'html';
+
+		try {
+			// Assuming an API endpoint exists to fetch a single note for the authenticated user
+			const res = await fetch(`/api/notes/${note.id}?parse=markdown`);
+			if (res.ok) {
+				const data = await res.json();
+				noteContent = { html: data.html, content: data.content };
+			} else {
+				const errorText = `Failed to load note. Status: ${res.status}`;
+				noteContent = { html: `<p class="text-error">${errorText}</p>`, content: errorText };
+			}
+		} catch (e) {
+			const errorText = 'An error occurred while fetching the note.';
+			noteContent = { html: `<p class="text-error">${errorText}</p>`, content: errorText };
+			console.error(e);
+		} finally {
+			loadingNote = false;
+		}
 	}
 
 	let deleting = $state(false);
@@ -80,9 +113,17 @@
 						<tr>
 							<td>{note.id}</td>
 							<td>
-								<a href="/{note.id}" class="link" target="_blank" rel="noopener noreferrer"
-									>{note.title || 'Untitled'}</a
-								>
+								{#if note.isPublic}
+									<a href="/{note.id}" class="link" target="_blank" rel="noopener noreferrer"
+										>{note.title || 'Untitled'}</a
+									>
+								{:else}
+									<button
+										type="button"
+										class="link p-0 text-left"
+										onclick={() => showViewModal(note)}>{note.title || 'Untitled'}</button
+									>
+								{/if}
 							</td>
 							<td>{formatDateTime(note.updatedAt)}</td>
 							<td>
@@ -166,5 +207,62 @@
 	</div>
 	<form method="dialog" class="modal-backdrop">
 		<button></button>
+	</form>
+</dialog>
+
+<dialog
+	id="view_note_modal"
+	class="modal"
+	bind:this={viewModal}
+	onclose={() => {
+		noteToView = null;
+		noteContent = null;
+	}}
+>
+	<div class="modal-box w-11/12 max-w-5xl">
+		<div class="flex items-center gap-2">
+			<h3 class="text-lg font-bold">{noteToView?.title || 'Untitled'}</h3>
+			<div class="badge badge-error badge-outline" class:badge-success={noteToView?.isPublic}>
+				{noteToView?.isPublic ? 'public' : 'private'}
+			</div>
+		</div>
+
+		{#if loadingNote}
+			<div class="flex justify-center py-8">
+				<span class="loading loading-spinner loading-lg"></span>
+			</div>
+		{:else if noteContent}
+			<div class="tabs-boxed tabs my-4">
+				<button
+					class="tab"
+					class:tab-active={viewMode === 'html'}
+					onclick={() => (viewMode = 'html')}>Preview</button
+				>
+				<button
+					class="tab"
+					class:tab-active={viewMode === 'markdown'}
+					onclick={() => (viewMode = 'markdown')}>Markdown</button
+				>
+			</div>
+			<div class="max-h-[60vh] overflow-y-auto">
+				{#if viewMode === 'html'}
+					<div class="prose dark:prose-invert max-w-none">
+						{@html noteContent.html}
+					</div>
+				{:else}
+					<pre class="rounded-box bg-base-200 p-4 whitespace-pre-wrap"><code
+							>{noteContent.content ?? ''}</code
+						></pre>
+				{/if}
+			</div>
+		{/if}
+		<div class="modal-action">
+			<form method="dialog">
+				<button class="btn">Close</button>
+			</form>
+		</div>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button>close</button>
 	</form>
 </dialog>

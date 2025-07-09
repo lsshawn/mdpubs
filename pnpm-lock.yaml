@@ -72,6 +72,9 @@ importers:
       '@tailwindcss/vite':
         specifier: ^4.0.0
         version: 4.1.10(vite@6.3.5(@types/node@20.19.1)(jiti@2.4.2)(lightningcss@1.30.1)(stylus@0.51.1))
+      '@types/marked':
+        specifier: ^6.0.0
+        version: 6.0.0
       '@types/node':
         specifier: ^20
         version: 20.19.1
@@ -93,6 +96,9 @@ importers:
       globals:
         specifier: ^16.0.0
         version: 16.2.0
+      marked:
+        specifier: ^16.0.0
+        version: 16.0.0
       prettier:
         specifier: ^3.4.2
         version: 3.6.0
@@ -1018,6 +1024,10 @@ packages:
   '@types/mailgun-js@0.22.18':
     resolution: {integrity: sha512-xp1QwOjlgvbV9MmKEEmmXN0PkfDxkVQjq0IU1c9DL7VBIQCPxnrqLTaCVm40Ig+YxUnt6e2dT/dNUhaKGQ+V6A==}
 
+  '@types/marked@6.0.0':
+    resolution: {integrity: sha512-jmjpa4BwUsmhxcfsgUit/7A9KbrC48Q0q8KvnY107ogcjGgTFDlIL3RpihNpx2Mu1hM4mdFQjoVc4O6JoGKHsA==}
+    deprecated: This is a stub types definition. marked provides its own type definitions, so you do not need this installed.
+
   '@types/node@20.19.1':
     resolution: {integrity: sha512-jJD50LtlD2dodAEO653i3YF04NWak6jN3ky+Ri3Em3mGR39/glWiboM/IePaRbgwSfqM1TpGXfAg8ohn/4dTgA==}
 
@@ -1922,6 +1932,11 @@ packages:
   mailgun.js@12.0.3:
     resolution: {integrity: sha512-ki4+xNDA/MjIQAWHB2TK5t5lJN99l45iIRU4SmTqhkY2RCfwQD04s59R3I5YCKdkY/Y5598XRKdkQOj29+eydw==}
     engines: {node: '>=18.0.0'}
+
+  marked@16.0.0:
+    resolution: {integrity: sha512-MUKMXDjsD/eptB7GPzxo4xcnLS6oo7/RHimUMHEDRhUooPwmN9BEpMl7AEOJv3bmso169wHI2wUF9VQgL7zfmA==}
+    engines: {node: '>= 20'}
+    hasBin: true
 
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
@@ -3241,6 +3256,10 @@ snapshots:
       '@types/node': 20.19.1
       form-data: 2.5.3
 
+  '@types/marked@6.0.0':
+    dependencies:
+      marked: 16.0.0
+
   '@types/node@20.19.1':
     dependencies:
       undici-types: 6.21.0
@@ -4181,6 +4200,8 @@ snapshots:
       url-join: 4.0.1
     transitivePeerDependencies:
       - debug
+
+  marked@16.0.0: {}
 
   math-intrinsics@1.1.0: {}
 
