@@ -5,8 +5,10 @@ import {
 	PUBLIC_STRIPE_YEARLY_LINK
 } from '$env/static/public';
 
+const APP_NAME = 'MdPubs';
+
 export const config = {
-	name: 'MdPubs',
+	name: APP_NAME,
 	description: 'Fastest way to publish markdown from Neovim',
 	domain: PUBLIC_DOMAIN,
 	apiUrl: PUBLIC_API_URL,

@@ -2,6 +2,7 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { generateOTP } from '$lib/server/otp';
 import { sendEmail } from '$lib/server/email';
 import { config } from '$lib/config';
+import { serverConfig } from '$lib/server/config';
 import { dev } from '$app/environment';
 
 const testEmails = ['l@sshawn.com'];
@@ -9,6 +10,7 @@ const testEmails = ['l@sshawn.com'];
 export async function POST({ locals, request }: RequestEvent) {
 	const title = config.name;
 	const { email } = await request.json();
+	const otpConfig = serverConfig.email.otp;
 
 	const otpObj = await generateOTP(email);
 	// don't send email to test emails
@@ -34,7 +36,7 @@ export async function POST({ locals, request }: RequestEvent) {
           <div style="color: #666; font-size: 14px; line-height: 1.5;">
             <p><strong>Important:</strong></p>
             <ul style="margin: 10px 0; padding-left: 20px;">
-              <li>This code will expire in <strong>5 minutes</strong></li>
+              <li>This code will expire in <strong>${otpConfig.expirationMinutes} minutes</strong></li>
               <li>Use this code only on the ${title} website</li>
               <li>If you didn't request this code, please ignore this email</li>
             </ul>
@@ -46,7 +48,7 @@ export async function POST({ locals, request }: RequestEvent) {
         </body>
       </html>`;
 
-	const res = await sendEmail(email, `OTP Login for ${title}`, text, true, title);
+	const res = await sendEmail(email, otpConfig.subject, text, true);
 	if (res.status === 200) {
 		return json({ success: true });
 	} else {

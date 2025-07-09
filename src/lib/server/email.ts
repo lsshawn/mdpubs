@@ -1,6 +1,6 @@
 import Mailgun from 'mailgun.js';
-import { MAILGUN_API_KEY, MAILGUN_DOMAIN } from '$env/static/private';
-import { config } from '$lib/config';
+import { MAILGUN_API_KEY } from '$env/static/private';
+import { serverConfig } from '$lib/server/config';
 
 const mailgun = new Mailgun(FormData);
 const mg = mailgun.client({
@@ -8,23 +8,13 @@ const mg = mailgun.client({
 	key: MAILGUN_API_KEY
 });
 
-export async function sendEmail(
-	to: string,
-	subject: string,
-	text: string,
-	isHtml = false,
-	from = config.name
-) {
+export async function sendEmail(to: string, subject: string, text: string, isHtml = false) {
 	const data = {
-		from: `${from}<do-not-reply@${MAILGUN_DOMAIN}>`,
+		from: serverConfig.email.from,
 		to,
-		subject
+		subject,
+		...(isHtml ? { html: text } : { text })
 	};
-	if (isHtml) {
-		data.html = text;
-	} else {
-		data.text = text;
-	}
 
-	return await mg.messages.create(MAILGUN_DOMAIN, data);
+	return await mg.messages.create(serverConfig.email.domain, data);
 }
