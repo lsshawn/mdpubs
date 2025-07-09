@@ -2,7 +2,7 @@ import { error, json, type RequestEvent } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import * as table from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
-import { app } from '$lib/config';
+import { config } from '$lib/config';
 import { stripe } from '$lib/server/stripe';
 
 export async function POST({ locals }: RequestEvent) {
@@ -23,7 +23,7 @@ export async function POST({ locals }: RequestEvent) {
 			return json({ success: false, message: 'Stripe customer not found.' }, { status: 404 });
 		}
 
-		const returnUrl = `https://${app.domain}/account`;
+		const returnUrl = `${config.domain}/account`;
 
 		const portalSession = await stripe.billingPortal.sessions.create({
 			customer: user.stripeCustomerId,

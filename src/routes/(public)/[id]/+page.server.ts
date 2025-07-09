@@ -1,12 +1,12 @@
 import { error } from '@sveltejs/kit';
-import { app } from '$lib/config';
+import { config } from '$lib/config';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, fetch, url }) => {
 	try {
 		const showDiffs = url.searchParams.get('diffs') === 'true';
 
-		const res = await fetch(`${app.apiUrl}/notes/${params.id}?parse=markdown`);
+		const res = await fetch(`${config.apiUrl}/notes/${params.id}?parse=markdown`);
 
 		if (!res.ok) {
 			if (res.status === 404) {
@@ -20,7 +20,7 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 		let versions = null;
 		if (showDiffs && note?.frontmatter?.mdpubs) {
 			const versionsRes = await fetch(
-				`${app.apiUrl}/notes/${note.frontmatter.mdpubs}/versions?diffs=true`
+				`${config.apiUrl}/notes/${note.frontmatter.mdpubs}/versions?diffs=true`
 			);
 			if (versionsRes.ok) {
 				const versionsData = await versionsRes.json();

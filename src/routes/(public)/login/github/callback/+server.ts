@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { app } from '$lib/config';
+import { config } from '$lib/config';
 import { github } from '$lib/server/oauth';
 import { db } from '$lib/server/db';
 import * as table from '$lib/server/db/schema';
@@ -29,7 +29,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 		const githubUserResponse = await fetch('https://api.github.com/user', {
 			headers: {
 				Authorization: `Bearer ${tokens.accessToken()}`,
-				'User-Agent': app.name
+				'User-Agent': config.name
 			}
 		});
 		const githubUser: GitHubUser = await githubUserResponse.json();
@@ -55,7 +55,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 					Authorization: `Bearer ${tokens.accessToken()}`,
 					'X-GitHub-Api-Version': '2022-11-28',
 					Accept: 'application/vnd.github+json',
-					'User-Agent': app.name
+					'User-Agent': config.name
 				}
 			});
 

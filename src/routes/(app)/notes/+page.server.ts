@@ -1,7 +1,7 @@
 import { db } from '$lib/server/db';
 import * as table from '$lib/server/db/schema';
 import { fail, redirect } from '@sveltejs/kit';
-import { app } from '$lib/config';
+import { config } from '$lib/config';
 import { and, eq, sql, isNull, desc } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -68,7 +68,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			const response = await fetch(`${app.apiUrl}/notes/${noteId}`, {
+			const response = await fetch(`${config.apiUrl}/notes/${noteId}`, {
 				method: 'DELETE',
 				headers: {
 					Authorization: `Bearer ${locals.session.id}`
