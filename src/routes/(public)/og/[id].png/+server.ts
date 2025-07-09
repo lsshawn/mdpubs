@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { app } from '$lib/config';
+import { config } from '$lib/config';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params, fetch }) => {
@@ -7,7 +7,7 @@ export const GET: RequestHandler = async ({ params, fetch }) => {
 		let note;
 		if (params.id !== 'page') {
 			// Fetch the note data
-			const res = await fetch(`${app.apiUrl}/notes/${params.id}?parse=markdown&only=frontmatter`);
+			const res = await fetch(`${config.apiUrl}/notes/${params.id}?parse=markdown&only=frontmatter`);
 
 			if (!res.ok) {
 				throw error(404, 'Note not found');
@@ -17,8 +17,8 @@ export const GET: RequestHandler = async ({ params, fetch }) => {
 		}
 
 		// Extract text content for preview (first 150 characters)
-		const title = note?.title || app.name;
-		const description = note?.description || app.description;
+		const title = note?.title || config.name;
+		const description = note?.description || config.description;
 
 		// Create a simple SVG-based OG image
 		const header =
@@ -33,8 +33,8 @@ export const GET: RequestHandler = async ({ params, fetch }) => {
 				<text x="100" y="110" font-family="Arial, sans-serif" font-size="36" font-weight="bold" fill="white" text-anchor="middle">📝</text>
 				
 				<!-- Brand -->
-				<text x="160" y="95" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="white">${app.name}</text>
-				<text x="160" y="125" font-family="Arial, sans-serif" font-size="16" fill="#9ca3af">${app.description}</text>
+				<text x="160" y="95" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="white">${config.name}</text>
+				<text x="160" y="125" font-family="Arial, sans-serif" font-size="16" fill="#9ca3af">${config.description}</text>
 `;
 		const svg = `
 			<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
@@ -89,7 +89,7 @@ export const GET: RequestHandler = async ({ params, fetch }) => {
 				
 				<!-- Bottom decoration -->
 				<rect x="60" y="520" width="1080" height="4" fill="#3b82f6"/>
-				<text x="60" y="560" font-family="Arial, sans-serif" font-size="18" fill="#6b7280">${app.domain}</text>
+				<text x="60" y="560" font-family="Arial, sans-serif" font-size="18" fill="#6b7280">${config.domain}</text>
 			</svg>
 		`;
 

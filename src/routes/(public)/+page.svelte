@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { app } from '$lib/config';
+	import { config } from '$lib/config';
 
 	import { Code, FileText, Globe } from 'lucide-svelte';
 </script>
@@ -53,7 +53,7 @@ https://mdpubs.com/[id]
 
 			{@render ctaFootnote()}
 
-			<a href={app.git} class="text-gray-400 underline">Documentation and Plugin Install Guide</a>
+			<a href={config.git} class="text-gray-400 underline">Documentation and Plugin Install Guide</a>
 		</div>
 	</section>
 

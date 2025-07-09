@@ -2,7 +2,7 @@
 	import '../app.css';
 	import { CircleUser, Pencil } from 'lucide-svelte';
 	import type { LayoutData, Snapshot } from './$types';
-	import { app } from '$lib/config';
+	import { config } from '$lib/config';
 	import { page } from '$app/state';
 	import FeedbackWidget from '$lib/components/FeedbackWidget.svelte';
 	let { data, children }: { data: LayoutData; children: any } = $props();
@@ -28,8 +28,8 @@
 </script>
 
 <svelte:head>
-	<title>{app.name} - {app.description}</title>
-	<meta name="description" content={app.description} />
+	<title>{config.name} - {config.description}</title>
+	<meta name="description" content={config.description} />
 
 	<!-- Search engine indexing control -->
 	<meta name="robots" content="index, follow" />
@@ -37,15 +37,15 @@
 	<!-- Open Graph / Facebook -->
 	<meta property="og:type" content="article" />
 	<meta property="og:url" content={page.url.href} />
-	<meta property="og:title" content={app.name} />
-	<meta property="og:description" content={app.description} />
+	<meta property="og:title" content={config.name} />
+	<meta property="og:description" content={config.description} />
 	<meta property="og:image" content={ogImage} />
 
 	<!-- Twitter -->
 	<meta name="twitter:card" content="summary_large_image" />
 	<meta name="twitter:url" content={page.url.href} />
-	<meta name="twitter:title" content={app.name} />
-	<meta name="twitter:description" content={app.description} />
+	<meta name="twitter:title" content={config.name} />
+	<meta name="twitter:description" content={config.description} />
 	<meta name="twitter:image" content={ogImage} />
 </svelte:head>
 

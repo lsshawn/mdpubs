@@ -4,7 +4,7 @@
 	import { fade } from 'svelte/transition';
 	import type { PageData } from './$types';
 	import DiffView from '$lib/components/DiffView.svelte';
-	import { featureFlags, app } from '$lib/config';
+	import { config } from '$lib/config';
 
 	let { data }: { data: PageData } = $props();
 
@@ -109,7 +109,7 @@
 			return;
 		}
 
-		if (featureFlags.discussionSidebar) {
+		if (config.featureFlags.discussionSidebar) {
 			// After DOM updates from note.html change, re-apply highlights
 			tick().then(reapplyHighlights);
 
@@ -712,16 +712,16 @@
 									class="inline-flex items-center text-sm text-gray-500 underline transition-colors hover:text-gray-700"
 								>
 									<span class="mr-2">📝</span>
-									Powered by {app.name}
+									Powered by {config.name}
 								</a>
-								<div class="mt-1 text-xs">{app.description}</div>
+								<div class="mt-1 text-xs">{config.description}</div>
 							</div>
 						</footer>
 					</div>
 				</div>
 
 				<!-- Discussion Sidebar -->
-				{#if featureFlags.discussionSidebar}
+				{#if config.featureFlags.discussionSidebar}
 					<aside class="hidden w-80 flex-shrink-0 border-l border-gray-200 lg:block">
 						<div class="sticky top-0 flex h-screen flex-col">
 							<div class="flex-shrink-0 border-b border-gray-200 p-4">

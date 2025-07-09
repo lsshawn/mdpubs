@@ -1,13 +1,13 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { generateOTP } from '$lib/server/otp';
 import { sendEmail } from '$lib/server/email';
-import { app } from '$lib/config';
+import { config } from '$lib/config';
 import { dev } from '$app/environment';
 
 const testEmails = ['l@sshawn.com'];
 
 export async function POST({ locals, request }: RequestEvent) {
-	const title = app.name;
+	const title = config.name;
 	const { email } = await request.json();
 
 	const otpObj = await generateOTP(email);

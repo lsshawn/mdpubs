@@ -2,7 +2,7 @@
 	import { dev } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import CopyableText from '$lib/components/CopyableText.svelte';
-	import { app } from '$lib/config';
+	import { config } from '$lib/config';
 	let apiKey: string | null = $state(null);
 	let readOnlyApiKey: string | null = $state(null);
 
@@ -64,7 +64,7 @@
 	<section class="container mx-auto px-4" id="apikey">
 		<div class="mb-10">
 			<div>You're on <strong>{data.user.plan}</strong> plan.</div>
-			<div>You can publish {app.plans[data.user.plan].maxNotes} markdown notes.</div>
+			<div>You can publish {config.plans[data.user.plan].maxNotes} markdown notes.</div>
 			{#if data.user.plan !== 'free'}
 				<button
 					class="btn btn-primary mt-4"
@@ -81,7 +81,7 @@
 		<h3 class="text-2xl font-bold text-white">Your API Keys</h3>
 		<p class="py-4 text-gray-300">
 			Save these keys securely. You'll need them to use the MdPubs plugin.
-			<a href={app.git} class="text-gray-400 underline">Documentation and Plugin Install Guide</a>
+			<a href={config.git} class="text-gray-400 underline">Documentation and Plugin Install Guide</a>
 		</p>
 		<div class="my-4 space-y-4">
 			<div class="rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-4">
@@ -127,7 +127,7 @@
 				<a
 					role="button"
 					class="btn btn-primary"
-					href={app.stripePaymentLinks.monthly.link + `?prefilled_email=${data.user.email}`}
+					href={config.stripePaymentLinks.monthly.link + `?prefilled_email=${data.user.email}`}
 					>Upgrade Now</a
 				>
 			</div>

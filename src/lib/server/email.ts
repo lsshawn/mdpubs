@@ -1,6 +1,6 @@
 import Mailgun from 'mailgun.js';
 import { MAILGUN_API_KEY, MAILGUN_DOMAIN } from '$env/static/private';
-import { app } from '$lib/config';
+import { config } from '$lib/config';
 
 const mailgun = new Mailgun(FormData);
 const mg = mailgun.client({
@@ -13,7 +13,7 @@ export async function sendEmail(
 	subject: string,
 	text: string,
 	isHtml = false,
-	from = app.name
+	from = config.name
 ) {
 	const data = {
 		from: `${from}<do-not-reply@${MAILGUN_DOMAIN}>`,
