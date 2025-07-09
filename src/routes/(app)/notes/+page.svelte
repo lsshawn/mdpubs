@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import { page } from '$app/stores';
+	import { formatDateTime } from '$lib/helpers';
 
 	let { data, form } = $props();
 
@@ -69,7 +70,8 @@
 					<tr>
 						<th>ID</th>
 						<th>Title</th>
-						<th>Created At</th>
+						<th>Updated At</th>
+						<th>Is Public?</th>
 						<th class="text-right">Actions</th>
 					</tr>
 				</thead>
@@ -82,7 +84,12 @@
 									>{note.title || 'Untitled'}</a
 								>
 							</td>
-							<td>{new Date(note.createdAt).toLocaleString()}</td>
+							<td>{formatDateTime(note.updatedAt)}</td>
+							<td>
+								<div class="badge badge-neutral badge-outline" class:badge-success={note.isPublic}>
+									{note.isPublic ? 'public' : 'private'}
+								</div>
+							</td>
 							<td class="text-right">
 								<button
 									type="button"
