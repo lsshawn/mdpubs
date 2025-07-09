@@ -10,7 +10,7 @@ const testEmails = ['l@sshawn.com'];
 export async function POST({ locals, request }: RequestEvent) {
 	const title = config.name;
 	const { email } = await request.json();
-	const otpConfig = serverConfig.email.otp;
+	const otpConfig = serverConfig.otp;
 
 	const otpObj = await generateOTP(email);
 	// don't send email to test emails

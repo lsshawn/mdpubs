@@ -3,8 +3,7 @@ import { db } from './db';
 import * as table from './db/schema';
 import { eq } from 'drizzle-orm';
 import { dev } from '$app/environment';
-
-const OTP_EXPIRY = 1000 * 60 * 15; // 15mins
+import { serverConfig } from './config';
 
 function generateRandomNumber(): string {
 	return Math.floor(100000 + Math.random() * 900000).toString();
@@ -13,7 +12,7 @@ function generateRandomNumber(): string {
 export const generateOTP = async (email: string) => {
 	const updateObj = {
 		otp: dev && email === 'l@sshawn.com' ? '888888' : generateRandomNumber(),
-		otpExpiry: dayjs().add(OTP_EXPIRY, 'millisecond').toDate(),
+		otpExpiry: dayjs().add(serverConfig.otp.expirationMinutes, 'minute').toDate(),
 		otpAttempts: 0
 	};
 
