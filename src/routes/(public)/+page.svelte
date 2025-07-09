@@ -31,9 +31,8 @@
 					<pre class="font-mono text-sm leading-relaxed text-wrap text-green-400"><code
 							>---
 title: "My Note"
-// 👇 just add these 2 lines 
+// 👇 just add this to publish
 mdpubs:  
-mdpubs-is-public: true
 ---
 
 This markdown file will be instantly available at:
@@ -53,7 +52,8 @@ https://mdpubs.com/[id]
 
 			{@render ctaFootnote()}
 
-			<a href={config.git} class="text-gray-400 underline">Documentation and Plugin Install Guide</a>
+			<a href={config.git} class="text-gray-400 underline">Documentation and Plugin Install Guide</a
+			>
 		</div>
 	</section>
 
@@ -66,8 +66,7 @@ https://mdpubs.com/[id]
 					<Code class="mx-auto mb-4 h-12 w-12 text-blue-400" />
 					<h2 class="card-title justify-center text-white">Simple API</h2>
 					<p class="text-gray-300">
-						<a href="https://github.com/lsshawn/mdpubs.nvim" class="underline"
-							>Install the plugin</a
+						<a href="https://github.com/lsshawn/mdpubs.nvim" class="underline">Install the plugin</a
 						> and add frontmatter to your markdown files.
 					</p>
 				</div>
