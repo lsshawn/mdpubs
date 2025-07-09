@@ -2,6 +2,7 @@
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import { page } from '$app/stores';
 	import { formatDateTime } from '$lib/helpers';
+	import { Note } from '$lib/server/db/schema';
 
 	let { data, form } = $props();
 
@@ -9,7 +10,7 @@
 	let noteToDelete: (typeof data.notes)[0] | null = $state(null);
 	let deleteModal: HTMLDialogElement;
 
-	let noteToView: (typeof data.notes)[0] | null = $state(null);
+	let noteToView: Note | null = $state(null);
 	let viewModal: HTMLDialogElement;
 	type NoteContent = { html: string; content: string | null };
 	let noteContent = $state<NoteContent | null>(null);
@@ -113,23 +114,21 @@
 						<tr>
 							<td>{note.id}</td>
 							<td>
-								{#if note.isPublic}
-									<a href="/{note.id}" class="link" target="_blank" rel="noopener noreferrer"
-										>{note.title || 'Untitled'}</a
-									>
-								{:else}
+								{#if note.isPrivate}
 									<button
 										type="button"
 										class="link p-0 text-left"
 										onclick={() => showViewModal(note)}>{note.title || 'Untitled'}</button
 									>
+								{:else}
+									<a href="/{note.id}" class="link" target="_blank" rel="noopener noreferrer"
+										>{note.title || 'Untitled'}</a
+									>
 								{/if}
 							</td>
 							<td>{formatDateTime(note.updatedAt)}</td>
 							<td>
-								<div class="badge badge-neutral badge-outline" class:badge-success={note.isPublic}>
-									{note.isPublic ? 'public' : 'private'}
-								</div>
+								{@render visibilityBadge(note)}
 							</td>
 							<td class="text-right">
 								<button
@@ -219,50 +218,56 @@
 		noteContent = null;
 	}}
 >
-	<div class="modal-box w-11/12 max-w-5xl">
-		<div class="flex items-center gap-2">
-			<h3 class="text-lg font-bold">{noteToView?.title || 'Untitled'}</h3>
-			<div class="badge badge-error badge-outline" class:badge-success={noteToView?.isPublic}>
-				{noteToView?.isPublic ? 'public' : 'private'}
+	{#if noteToView}
+		<div class="modal-box w-11/12 max-w-5xl">
+			<div class="flex items-center gap-2">
+				<h3 class="text-lg font-bold">{noteToView?.title || 'Untitled'}</h3>
+				{@render visibilityBadge(noteToView)}
 			</div>
-		</div>
 
-		{#if loadingNote}
-			<div class="flex justify-center py-8">
-				<span class="loading loading-spinner loading-lg"></span>
+			{#if loadingNote}
+				<div class="flex justify-center py-8">
+					<span class="loading loading-spinner loading-lg"></span>
+				</div>
+			{:else if noteContent}
+				<div class="tabs-boxed tabs my-4">
+					<button
+						class="tab"
+						class:tab-active={viewMode === 'html'}
+						onclick={() => (viewMode = 'html')}>Preview</button
+					>
+					<button
+						class="tab"
+						class:tab-active={viewMode === 'markdown'}
+						onclick={() => (viewMode = 'markdown')}>Markdown</button
+					>
+				</div>
+				<div class="max-h-[60vh] overflow-y-auto">
+					{#if viewMode === 'html'}
+						<div class="prose dark:prose-invert max-w-none">
+							{@html noteContent.html}
+						</div>
+					{:else}
+						<pre class="rounded-box bg-base-200 p-4 whitespace-pre-wrap"><code
+								>{noteContent.content ?? ''}</code
+							></pre>
+					{/if}
+				</div>
+			{/if}
+			<div class="modal-action">
+				<form method="dialog">
+					<button class="btn">Close</button>
+				</form>
 			</div>
-		{:else if noteContent}
-			<div class="tabs-boxed tabs my-4">
-				<button
-					class="tab"
-					class:tab-active={viewMode === 'html'}
-					onclick={() => (viewMode = 'html')}>Preview</button
-				>
-				<button
-					class="tab"
-					class:tab-active={viewMode === 'markdown'}
-					onclick={() => (viewMode = 'markdown')}>Markdown</button
-				>
-			</div>
-			<div class="max-h-[60vh] overflow-y-auto">
-				{#if viewMode === 'html'}
-					<div class="prose dark:prose-invert max-w-none">
-						{@html noteContent.html}
-					</div>
-				{:else}
-					<pre class="rounded-box bg-base-200 p-4 whitespace-pre-wrap"><code
-							>{noteContent.content ?? ''}</code
-						></pre>
-				{/if}
-			</div>
-		{/if}
-		<div class="modal-action">
-			<form method="dialog">
-				<button class="btn">Close</button>
-			</form>
 		</div>
-	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button>close</button>
-	</form>
+		<form method="dialog" class="modal-backdrop">
+			<button>close</button>
+		</form>
+	{/if}
 </dialog>
+
+{#snippet visibilityBadge(note: Note)}
+	<div class="badge badge-success badge-outline" class:badge-error={note?.isPrivate}>
+		{note?.isPrivate ? 'private' : 'public'}
+	</div>
+{/snippet}

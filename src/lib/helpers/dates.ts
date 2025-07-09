@@ -1,4 +1,4 @@
-export function formatDate(date: Date): string {
+export function formatDate(date: Date | null): string {
 	if (!date) return '';
 	return date.toLocaleDateString(undefined, {
 		year: 'numeric',
@@ -7,7 +7,7 @@ export function formatDate(date: Date): string {
 	});
 }
 
-export function formatDateTime(date: Date): string {
+export function formatDateTime(date: Date | null): string {
 	if (!date) return '';
 	return date.toLocaleDateString(undefined, {
 		year: 'numeric',

@@ -66,7 +66,7 @@ export const note = sqliteTable(
 			.notNull()
 			.$type<string[]>()
 			.default(sql`'[]'`),
-		isPublic: integer('is_public', { mode: 'boolean' }).default(false),
+		isPrivate: integer('is_private', { mode: 'boolean' }).default(false),
 		imageMap: text('image_map', { mode: 'json' }).$type<Record<string, string>>()
 	},
 	(notes) => ({
