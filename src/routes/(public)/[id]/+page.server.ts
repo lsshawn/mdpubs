@@ -35,7 +35,7 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 		// Generate meta tags for social sharing
 		const title = note?.frontmatter?.title || 'Note';
 		const description = note?.frontmatter?.description || 'A published note from MdPubs';
-		const ogImage = `https://neonote.sshawn.com/og/${params.id}.png`; // We'll create this endpoint
+		const ogImage = `https://mdpubs.com/og/${params.id}.png`; // We'll create this endpoint
 
 		// Check if note should be indexed (default: false for privacy)
 		const allowIndexing = note?.frontmatter?.['neonote-allow-indexing'] === true;
@@ -47,7 +47,7 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 				title,
 				description,
 				ogImage,
-				url: `https://neonote.sshawn.com/${params.id}`,
+				url: `https://mdpubs.com/${params.id}`,
 				allowIndexing
 			}
 		};

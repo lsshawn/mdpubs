@@ -708,7 +708,7 @@
 						<footer class="mt-32 border-t border-gray-200 pt-8">
 							<div class="flex flex-col items-center justify-center text-gray-500">
 								<a
-									href="http://neonote.sshawn.com"
+									href="http://mdpubs.com"
 									class="inline-flex items-center text-sm text-gray-500 underline transition-colors hover:text-gray-700"
 								>
 									<span class="mr-2">📝</span>

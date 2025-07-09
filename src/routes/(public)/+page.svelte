@@ -37,7 +37,7 @@ neonote-is-public: true
 ---
 
 This markdown file will be instantly available at:
-https://neonote.sshawn.com/[id]
+https://mdpubs.com/[id]
 
 </code></pre>
 				</div>

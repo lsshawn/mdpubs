@@ -19,4 +19,4 @@ Allow: /
 Allow: /*/
 Allow: /og/
 
-Sitemap: https://neonote.sshawn.com/sitemap.xml 
+Sitemap: https://mdpubs.com/sitemap.xml 
