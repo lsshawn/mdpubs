@@ -1,7 +1,7 @@
 import { dev } from '$app/environment';
 
 export const app = {
-	name: 'NeoNote',
+	name: 'MdPubs',
 	description: 'Fastest way to publish markdown from Neovim',
 	domain: dev ? 'localhost:5173' : 'neonote.sshawn.com',
 	apiUrl: dev ? 'http://localhost:1323' : 'https://api-neonote.sshawn.com',

@@ -1,6 +1,6 @@
-# NeoNote Web
+# MdPubs Web
 
-This is the web interface for **NeoNote**, a service that syncs your markdown notes from Neovim to the cloud so your thoughts are always safe, organized, and accessible.
+This is the web interface for **MdPubs**, a service that syncs your markdown notes from Neovim to the cloud so your thoughts are always safe, organized, and accessible.
 
 This project is built with SvelteKit, Tailwind CSS, and daisyUI.
 

@@ -34,7 +34,7 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 
 		// Generate meta tags for social sharing
 		const title = note?.frontmatter?.title || 'Note';
-		const description = note?.frontmatter?.description || 'A published note from NeoNote';
+		const description = note?.frontmatter?.description || 'A published note from MdPubs';
 		const ogImage = `https://neonote.sshawn.com/og/${params.id}.png`; // We'll create this endpoint
 
 		// Check if note should be indexed (default: false for privacy)

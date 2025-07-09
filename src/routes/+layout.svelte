@@ -55,7 +55,7 @@
 			<div class="flex flex-1">
 				<a href="/" role="button" class="flex gap-2">
 					<Pencil class="h-8 w-8 text-blue-400" />
-					<span class="text-2xl font-bold text-white">NeoNote</span>
+					<span class="text-2xl font-bold text-white">MdPubs</span>
 				</a>
 			</div>
 			<div class="flex items-center gap-2">

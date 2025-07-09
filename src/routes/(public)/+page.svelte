@@ -102,7 +102,7 @@ https://neonote.sshawn.com/[id]
 		<div class="container mx-auto flex justify-between px-4">
 			<div class="text-sm text-gray-400">
 				<p>
-					&copy; {new Date().getFullYear()} NeoNote, built by
+					&copy; {new Date().getFullYear()} MdPubs, built by
 					<a
 						href="https://x.com/me_sshawn"
 						target="_blank"

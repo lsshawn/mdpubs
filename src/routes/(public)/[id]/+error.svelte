@@ -3,7 +3,7 @@
 </script>
 
 <svelte:head>
-	<title>Error - NeoNote</title>
+	<title>Error - MdPubs</title>
 </svelte:head>
 
 <div class="min-h-screen bg-white">

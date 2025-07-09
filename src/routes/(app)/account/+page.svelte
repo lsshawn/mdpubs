@@ -80,7 +80,7 @@
 		</div>
 		<h3 class="text-2xl font-bold text-white">Your API Keys</h3>
 		<p class="py-4 text-gray-300">
-			Save these keys securely. You'll need them to use the NeoNote plugin.
+			Save these keys securely. You'll need them to use the MdPubs plugin.
 			<a href={app.git} class="text-gray-400 underline">Documentation and Plugin Install Guide</a>
 		</p>
 		<div class="my-4 space-y-4">
