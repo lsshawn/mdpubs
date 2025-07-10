@@ -6,13 +6,9 @@
 
 <div class="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
 	<section class="container mx-auto px-4 py-4 text-center md:py-16">
-		<h1 class="mb-6 text-3xl leading-tight font-bold text-white md:text-5xl">
-			Publish Markdown From Neovim
+		<h1 class="mx-auto mb-6 text-3xl leading-tight font-bold text-white md:max-w-4xl md:text-5xl">
+			{config.description}
 		</h1>
-
-		<p class="mx-auto mb-2 max-w-3xl text-lg text-gray-300 md:mb-12 md:text-xl">
-			Perfect for writers who want to publish and sync note instantly.
-		</p>
 
 		<!-- Code Example -->
 		<div class="mx-auto mb-12 max-w-2xl">
@@ -61,35 +57,52 @@ https://mdpubs.com/[id]
 	<section class="container min-w-full bg-gray-800/50 px-10 py-16">
 		<h2 class="text-center text-3xl font-bold text-white">Built for Neovim Users</h2>
 		<div class="mt-12 grid gap-8 md:grid-cols-3">
-			<div class="card border border-gray-700 bg-gray-800/50 text-center shadow-lg">
-				<div class="card-body items-center">
+			<div class="card justify-start border border-gray-700 bg-gray-800/50 text-center shadow-lg">
+				<div class="card-body grow-0 items-center">
 					<Code class="mx-auto mb-4 h-12 w-12 text-blue-400" />
-					<h2 class="card-title justify-center text-white">Simple API</h2>
-					<p class="text-gray-300">
-						<a href="https://github.com/lsshawn/mdpubs.nvim" class="underline">Install the plugin</a
-						> and add frontmatter to your markdown files.
+					<h2 class="card-title justify-center text-white">Install Plugin in Neovim</h2>
+					<p class="mt-2 text-gray-300">
+						<a href="https://github.com/lsshawn/mdpubs.nvim" class="underline">Github Repo</a>
 					</p>
+					<pre
+						class="w-full overflow-x-auto rounded-md bg-gray-900 p-4 text-left font-mono text-sm text-green-400"><code
+							>{`  {
+    "lsshawn/mdpubs.nvim",
+    config = function()
+      require("mdpubs").setup({
+        api_key = "your_key",
+      })
+    end,
+  }`}</code
+						></pre>
 				</div>
 			</div>
 
-			<div class="card border border-gray-700 bg-gray-800/50 text-center shadow-lg">
-				<div class="card-body items-center">
+			<div class="card justify-start border border-gray-700 bg-gray-800/50 text-center shadow-lg">
+				<div class="card-body grow-0 items-center">
 					<FileText class="mx-auto mb-4 h-12 w-12 text-blue-400" />
-					<h2 class="card-title justify-center text-white">Markdown Native</h2>
-					<p class="text-gray-300">
-						Write in plain markdown. We render it beautifully with syntax highlighting, tables, and
-						more. Inline images and videos are supported.
+					<h2 class="card-title justify-center text-white">Add to Frontmatter</h2>
+					<p class="mt-2 text-gray-300">
+						Add <code class="text-green-400">mdpubs:</code> to the frontmatter of your markdown.
 					</p>
+					<pre
+						class="w-full overflow-x-auto rounded-md bg-gray-900 p-4 text-left font-mono text-sm text-white"><code
+							>{`---
+title: "My Note"
+mdpubs:  
+---`}</code
+						></pre>
 				</div>
 			</div>
 
-			<div class="card border border-gray-700 bg-gray-800/50 text-center shadow-lg">
-				<div class="card-body items-center">
+			<div class="card justify-start border border-gray-700 bg-gray-800/50 text-center shadow-lg">
+				<div class="card-body grow-0 items-center">
 					<Globe class="mx-auto mb-4 h-12 w-12 text-blue-400" />
 					<h2 class="card-title justify-center text-white">Instant Publishing</h2>
-					<p class="text-gray-300">
-						Your content is live immediately. You can also get the content via our API.
+					<p class="mt-2 text-gray-300">
+						Your content is live immediately at https://mdpubs.com/[note_id].
 					</p>
+					<img src="/sample-published-page.webp" />
 				</div>
 			</div>
 		</div>
