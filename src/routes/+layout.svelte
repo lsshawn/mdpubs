@@ -8,7 +8,7 @@
 	let { data, children }: { data: LayoutData; children: any } = $props();
 
 	let ogImage = $state(
-		data.meta?.ogImage ? `${page.url.origin}${data.meta.ogImage}` : `${page.url.origin}/og/page.png`
+		data.meta?.ogImage ? `${page.url.origin}${data.meta.ogImage}` : `${page.url.origin}/ogimage.webp`
 	);
 
 	let message = $state('');

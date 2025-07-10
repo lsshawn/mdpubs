@@ -4,30 +4,24 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params, fetch }) => {
 	try {
-		let note;
-		if (params.id !== 'page') {
-			// Fetch the note data
-			const res = await fetch(`${config.apiUrl}/notes/${params.id}?parse=markdown&only=frontmatter`);
-
-			if (!res.ok) {
-				throw error(404, 'Note not found');
-			}
-			note = await res.json();
-			console.log('[LS] -> src/routes/og/[id].png/+server.ts:15 -> note: ', note);
+		if (!params.id) {
+			error(404, 'No id in params');
 		}
+		// Fetch the note data
+		const res = await fetch(`${config.apiUrl}/notes/${params.id}?parse=markdown&only=frontmatter`);
+
+		if (!res.ok) {
+			error(404, 'Note not found');
+		}
+		const note = await res.json();
+		console.log('[LS] -> src/routes/og/[id].png/+server.ts:15 -> note: ', note);
 
 		// Extract text content for preview (first 150 characters)
-		const title = note?.title || config.name;
-		const description = note?.description || config.description;
+		const title = note.title || config.name;
+		const description = note.description || config.description;
 
 		// Create a simple SVG-based OG image
-		const header =
-			params.id === 'page'
-				? `
-				<rect x="60" y="60" width="80" height="80" rx="12" fill="#3b82f6"/>
-				<text x="100" y="110" font-family="Arial, sans-serif" font-size="36" font-weight="bold" fill="white" text-anchor="middle">📝</text>
-        `
-				: `
+		const header = `
 				<!-- Logo area -->
 				<rect x="60" y="60" width="80" height="80" rx="12" fill="#3b82f6"/>
 				<text x="100" y="110" font-family="Arial, sans-serif" font-size="36" font-weight="bold" fill="white" text-anchor="middle">📝</text>
@@ -54,7 +48,6 @@ export const GET: RequestHandler = async ({ params, fetch }) => {
 				<text x="60" y="220" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="white" textLength="${Math.min(title.length * 25, 1080)}" lengthAdjust="spacingAndGlyphs">${title.replace(
 					/[<>&"']/g,
 					(match) => {
-						te;
 						const escapeMap: Record<string, string> = {
 							'<': '&lt;',
 							'>': '&gt;',
@@ -105,6 +98,6 @@ export const GET: RequestHandler = async ({ params, fetch }) => {
 		if (e.status) {
 			throw e;
 		}
-		throw error(500, 'Failed to generate OG image');
+		error(500, 'Failed to generate OG image');
 	}
 };
