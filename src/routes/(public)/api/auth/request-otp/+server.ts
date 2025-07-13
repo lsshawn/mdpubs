@@ -18,6 +18,8 @@ export async function POST({ locals, request }: RequestEvent) {
 		return json({ success: true });
 	}
 
+	const subject = `Your ${config.name} Login OTP is ${otpObj.otp}`;
+
 	const text = `<html>
         <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="text-align: center; margin-bottom: 30px;">
@@ -48,7 +50,7 @@ export async function POST({ locals, request }: RequestEvent) {
         </body>
       </html>`;
 
-	const res = await sendEmail(email, otpConfig.subject, text, true);
+	const res = await sendEmail(email, subject, text, true);
 	if (res.status === 200) {
 		return json({ success: true });
 	} else {

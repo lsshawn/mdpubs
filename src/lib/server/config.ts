@@ -10,7 +10,6 @@ export const serverConfig = {
 		domain: env.MAILGUN_DOMAIN
 	},
 	otp: {
-		subject: `Your ${APP_NAME} Login OTP`,
 		expirationMinutes: OTP_EXPIRATION_MINS,
 		expirationMs: 1000 * 60 * OTP_EXPIRATION_MINS
 	}
