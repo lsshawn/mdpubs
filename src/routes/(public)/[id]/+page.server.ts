@@ -2,6 +2,16 @@ import { error } from '@sveltejs/kit';
 import { config } from '$lib/config';
 import type { PageServerLoad } from './$types';
 
+interface Heading {
+	level: number;
+	text: string;
+	id: string;
+}
+
+interface TocNode extends Heading {
+	children: TocNode[];
+}
+
 export const load: PageServerLoad = async ({ params, fetch, url }) => {
 	try {
 		const showDiffs = url.searchParams.get('diffs') === 'true';
@@ -16,6 +26,10 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 		}
 
 		const note = await res.json();
+		console.log(
+			'[LS] -> src/routes/(public)/[id]/+page.server.ts:52 -> note: ',
+			JSON.stringify(note.toc)
+		);
 
 		let versions = null;
 		if (showDiffs && note?.frontmatter?.mdpubs) {

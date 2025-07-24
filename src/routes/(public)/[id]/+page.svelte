@@ -6,6 +6,12 @@
 	import DiffView from '$lib/components/DiffView.svelte';
 	import { config } from '$lib/config';
 
+	type TocItem = {
+		title: string;
+		link: string;
+		children: TocItem[];
+	};
+
 	let { data }: { data: PageData } = $props();
 
 	let tocOpen = $state(false);
@@ -123,6 +129,22 @@
 		}
 	});
 
+	function flattenToc(toc: TocItem[] | undefined): TocItem[] {
+		const flattened: TocItem[] = [];
+		function recurse(items: TocItem[]) {
+			for (const item of items) {
+				flattened.push(item);
+				if (item.children && item.children.length > 0) {
+					recurse(item.children);
+				}
+			}
+		}
+		if (toc) {
+			recurse(toc);
+		}
+		return flattened;
+	}
+
 	function setupScrollSpy() {
 		if (!note?.toc?.length) return;
 
@@ -135,8 +157,10 @@
 			let activeId = null;
 			let minDistance = Infinity;
 
+			const allTocItems = flattenToc(note.toc as TocItem[] | undefined);
+
 			// Check each TOC section
-			note.toc.forEach((item) => {
+			allTocItems.forEach((item) => {
 				const id = item.link.substring(1); // Remove #
 				const element = safeQueryById(id);
 
@@ -484,6 +508,27 @@
 	<meta name="twitter:image" content={data.meta.ogImage} />
 </svelte:head>
 
+{#snippet tocItems(items: TocItem[], level = 0, isMobile = false)}
+	{#each items as item}
+		<button
+			onclick={() => handleTocClick(item.link)}
+			class="block w-full px-3 py-2 text-left text-sm transition-colors duration-200 hover:bg-gray-100 {isMobile
+				? 'rounded-md'
+				: 'rounded-none'} {activeSection === item.link
+				? 'bg-blue-50 text-blue-700'
+				: 'text-gray-600 hover:text-gray-900'} {activeSection === item.link && !isMobile
+				? 'border-r-2 border-blue-600'
+				: ''}"
+			style="padding-left: {0.75 + level * 0.75}rem"
+		>
+			{item.title}
+		</button>
+		{#if item.children?.length > 0}
+			{@render tocItems(item.children, level + 1, isMobile)}
+		{/if}
+	{/each}
+{/snippet}
+
 <div class="min-h-screen" data-theme="light">
 	{#if showDiffs}
 		<div class="mx-auto max-w-4xl px-6 py-6 lg:py-12">
@@ -580,17 +625,7 @@
 									<div class="max-h-[calc(100vh-8rem)] overflow-y-auto p-4">
 										{#if tocContentVisible}
 											<nav class="space-y-1" transition:fade={{ duration: 200 }}>
-												{#each note.toc as item}
-													<button
-														onclick={() => handleTocClick(item.link)}
-														class="block w-full rounded-none px-3 py-2 text-left text-sm transition-colors duration-200 hover:bg-gray-100 {activeSection ===
-														item.link
-															? 'border-r-2 border-blue-600 bg-blue-50 text-blue-700'
-															: 'text-gray-600 hover:text-gray-900'}"
-													>
-														{item.title}
-													</button>
-												{/each}
+												{@render tocItems(note.toc as TocItem[], 0, false)}
 											</nav>
 										{/if}
 									</div>
@@ -633,17 +668,7 @@
 								data-mobile-toc
 							>
 								<nav class="max-h-64 overflow-y-auto px-6 py-4">
-									{#each note.toc as item}
-										<button
-											onclick={() => handleTocClick(item.link)}
-											class="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors duration-200 hover:bg-gray-100 {activeSection ===
-											item.link
-												? 'bg-blue-50 text-blue-700'
-												: 'text-gray-600 hover:text-gray-900'}"
-										>
-											{item.title}
-										</button>
-									{/each}
+									{@render tocItems(note.toc as TocItem[], 0, true)}
 								</nav>
 							</div>
 						{/if}
