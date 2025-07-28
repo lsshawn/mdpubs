@@ -114,8 +114,10 @@
 		<div class="mb-10">
 			<div class="flex items-center gap-2">
 				<h3 class="text-xl font-bold text-white">Username</h3>
-				<div class="badge badge-warning badge-sm">
-					<Icon icon="mdi:lock" style="font-size: 1rem;" />
+				<div class="badge badge-ghost badge-sm" class:badge-info={data.user.plan === 'free'}>
+					{#if data.user?.plan === 'free'}
+						<Icon icon="mdi:lock" style="font-size: 1rem;" />
+					{/if}
 					Paid plan
 				</div>
 			</div>
@@ -143,7 +145,7 @@
 					{#if updatingUsername}
 						<span class="loading loading-spinner"></span>
 					{/if}
-					Save
+					Save username
 				</button>
 			</form>
 			{#if usernameMessage}
