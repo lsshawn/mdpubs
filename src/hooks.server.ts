@@ -7,6 +7,25 @@ import { user as userTable } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 
 const handleAuth: Handle = async ({ event, resolve }) => {
+	// Handle custom domains that map directly to a user's public note pages
+	const host = event.request.headers.get('host') ?? '';
+	const isDefaultHost = dev || host.endsWith('mdpubs.com') || host.startsWith('localhost');
+
+	if (!isDefaultHost) {
+		const [domainUser] = await db
+			.select({ username: userTable.username })
+			.from(userTable)
+			.where(eq(userTable.customDomain, host));
+
+		if (domainUser) {
+			if (event.url.pathname === '/') {
+				throw redirect(307, `/u/${domainUser.username}`);
+			}
+			const originalPath = event.url.pathname === '/' ? '' : event.url.pathname;
+			event.url.pathname = `/u/${domainUser.username}${originalPath}`;
+		}
+	}
+
 	const sessionId = event.cookies.get(auth.sessionCookieName);
 	if (!sessionId) {
 		event.locals.user = null;
@@ -29,28 +48,6 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 
 	event.locals.user = user;
 	event.locals.session = session;
-
-	// Handle custom domains that map directly to a user's public note pages
-	const host = event.request.headers.get('host') ?? '';
-	console.log('[LS] -> src/hooks.server.ts:34 -> host: ', host);
-	const isDefaultHost = dev || host.endsWith('mdpubs.com') || host.startsWith('localhost');
-
-	if (!isDefaultHost) {
-		const [domainUser] = await db
-			.select({ username: userTable.username })
-			.from(userTable)
-			.where(eq(userTable.customDomain, host));
-
-		console.log('[LS] -> src/hooks.server.ts:43 -> domainUser: ', domainUser);
-		if (domainUser) {
-			if (event.url.pathname === '/') {
-				console.log('[LS] -> src/hooks.server.ts:45 -> event.url.pathname: ', event.url.pathname);
-				throw redirect(307, `/u/${domainUser.username}`);
-			}
-			const originalPath = event.url.pathname === '/' ? '' : event.url.pathname;
-			event.url.pathname = `/u/${domainUser.username}${originalPath}`;
-		}
-	}
 
 	return resolve(event);
 };
