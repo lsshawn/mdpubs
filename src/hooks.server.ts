@@ -1,4 +1,5 @@
 import type { Handle } from '@sveltejs/kit';
+import { redirect } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import * as auth from '$lib/server/auth.js';
 import { db } from '$lib/server/db';
@@ -40,6 +41,9 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 			.where(eq(userTable.customDomain, host));
 
 		if (domainUser) {
+			if (event.url.pathname === '/') {
+				throw redirect(307, `/u/${domainUser.username}`);
+			}
 			const originalPath = event.url.pathname === '/' ? '' : event.url.pathname;
 			event.url.pathname = `/u/${domainUser.username}${originalPath}`;
 		}
