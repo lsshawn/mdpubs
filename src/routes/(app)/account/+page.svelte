@@ -3,13 +3,44 @@
 	import { goto } from '$app/navigation';
 	import CopyableText from '$lib/components/CopyableText.svelte';
 	import { config } from '$lib/config';
+	import Icon from '@iconify/svelte';
 	let apiKey: string | null = $state(null);
 	let readOnlyApiKey: string | null = $state(null);
 
 	let { data } = $props();
+
+	let username = $state(data.user.username ?? '');
+	let updatingUsername = $state(false);
+	let usernameMessage: { type: 'success' | 'error'; text: string } | null = $state(null);
+
 	let loggingOut = $state(false);
 	let regenerating = $state(false);
 	let managingSubscription = $state(false);
+
+	async function updateUsername() {
+		if (updatingUsername) return;
+		updatingUsername = true;
+		usernameMessage = null;
+		try {
+			const res = await fetch('/api/account/username', {
+				method: 'POST',
+				body: JSON.stringify({ username }),
+				headers: { 'Content-Type': 'application/json' }
+			});
+			const result = await res.json();
+			if (res.ok) {
+				usernameMessage = { type: 'success', text: result.message };
+			} else {
+				usernameMessage = { type: 'error', text: result.message };
+			}
+		} catch (err) {
+			console.error('Error updating username:', err);
+			usernameMessage = { type: 'error', text: 'An unexpected error occurred.' };
+		} finally {
+			updatingUsername = false;
+		}
+	}
+
 	async function logout() {
 		loggingOut = true;
 		const res = await fetch('/api/auth/logout', { method: 'POST' });
@@ -79,6 +110,53 @@
 				</button>
 			{/if}
 		</div>
+
+		<div class="mb-10">
+			<div class="flex items-center gap-2">
+				<h3 class="text-xl font-bold text-white">Username</h3>
+				<div class="badge badge-warning badge-sm">
+					<Icon icon="mdi:lock" style="font-size: 1rem;" />
+					Paid plan
+				</div>
+			</div>
+			<p class="flex items-center py-2 text-gray-300">
+				<span>
+					Set a unique username. It can be used for your public notes index page, e.g.
+					https://mdpubs.com/{username || 'shawn'}
+				</span>
+			</p>
+			<form class="flex items-center gap-2" onsubmit={updateUsername}>
+				<input
+					type="text"
+					bind:value={username}
+					placeholder="your_username"
+					class="input input-bordered w-full max-w-xs"
+					minlength="3"
+					maxlength="20"
+					disabled={data.user.plan === 'free'}
+				/>
+				<button
+					role="submit"
+					class="btn btn-primary"
+					disabled={updatingUsername || data.user.plan === 'free'}
+				>
+					{#if updatingUsername}
+						<span class="loading loading-spinner"></span>
+					{/if}
+					Save
+				</button>
+			</form>
+			{#if usernameMessage}
+				<p
+					class="mt-2 text-sm {usernameMessage.type === 'success'
+						? 'text-green-400'
+						: 'text-red-400'}"
+				>
+					{usernameMessage.text}
+				</p>
+			{/if}
+		</div>
+
 		<h3 class="text-2xl font-bold text-white">Your API Keys</h3>
 		<p class="py-4 text-gray-300">
 			Save these keys securely. You'll need them to use the MdPubs plugin.

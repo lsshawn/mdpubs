@@ -15,6 +15,7 @@ export const user = sqliteTable(
 			.$defaultFn(() => nanoid()),
 		email: text('email').notNull().unique(),
 		name: text('name'),
+		username: text('username').unique(),
 		picture: text('picture'),
 		apiKey: text('api_key').unique(),
 		readOnlyApiKey: text('read_only_api_key').unique(),
@@ -36,7 +37,8 @@ export const user = sqliteTable(
 		readOnlyApiKeyIdx: index('idx_users_read_only_api_key').on(users.readOnlyApiKey),
 		deletedAtIdx: index('idx_users_deleted_at').on(users.deletedAt),
 		stripeCustomerIdIdx: index('idx_users_stripe_customer_id').on(users.stripeCustomerId),
-		githubIdIdx: index('idx_users_github_id').on(users.githubId)
+		githubIdIdx: index('idx_users_github_id').on(users.githubId),
+		usernameIdx: index('idx_users_username').on(users.username)
 	})
 );
 
