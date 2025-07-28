@@ -29,7 +29,8 @@ export const user = sqliteTable(
 		otpAttempts: integer('otp_attempts').default(0),
 		otpExpiry: integer('otp_expiry', { mode: 'timestamp' }),
 		googleId: text('google_id').unique(),
-		githubId: text('github_id').unique()
+		githubId: text('github_id').unique(),
+		customDomain: text('custom_domain').unique()
 	},
 	(users) => ({
 		emailIdx: index('idx_users_email').on(users.email),
@@ -38,7 +39,8 @@ export const user = sqliteTable(
 		deletedAtIdx: index('idx_users_deleted_at').on(users.deletedAt),
 		stripeCustomerIdIdx: index('idx_users_stripe_customer_id').on(users.stripeCustomerId),
 		githubIdIdx: index('idx_users_github_id').on(users.githubId),
-		usernameIdx: index('idx_users_username').on(users.username)
+		usernameIdx: index('idx_users_username').on(users.username),
+		customDomainIdx: index('idx_users_custom_domain').on(users.customDomain)
 	})
 );
 
