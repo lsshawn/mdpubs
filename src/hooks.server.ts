@@ -32,6 +32,7 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 
 	// Handle custom domains that map directly to a user's public note pages
 	const host = event.request.headers.get('host') ?? '';
+	console.log('[LS] -> src/hooks.server.ts:34 -> host: ', host);
 	const isDefaultHost = dev || host.endsWith('mdpubs.com') || host.startsWith('localhost');
 
 	if (!isDefaultHost) {
