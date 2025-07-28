@@ -40,8 +40,10 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 			.from(userTable)
 			.where(eq(userTable.customDomain, host));
 
+		console.log('[LS] -> src/hooks.server.ts:43 -> domainUser: ', domainUser);
 		if (domainUser) {
 			if (event.url.pathname === '/') {
+				console.log('[LS] -> src/hooks.server.ts:45 -> event.url.pathname: ', event.url.pathname);
 				throw redirect(307, `/u/${domainUser.username}`);
 			}
 			const originalPath = event.url.pathname === '/' ? '' : event.url.pathname;
