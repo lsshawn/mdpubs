@@ -1,5 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { config } from '$lib/config';
+import { parseCustomComponentsInHtml } from '$lib/helpers/custom-components-parser';
 import type { PageServerLoad } from './$types';
 
 interface Heading {
@@ -26,6 +27,14 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 		}
 
 		const note = await res.json();
+
+		// Process custom components in the HTML
+		if (note?.html) {
+			console.log('[DEBUG] HTML before parsing:', note.html.substring(0, 500));
+			note.html = parseCustomComponentsInHtml(note.html);
+			console.log('[DEBUG] HTML after parsing:', note.html.substring(0, 500));
+		}
+
 		console.log(
 			'[LS] -> src/routes/(public)/[id]/+page.server.ts:52 -> note: ',
 			JSON.stringify(note.toc)

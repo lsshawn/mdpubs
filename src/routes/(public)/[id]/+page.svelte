@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { onMount, tick, onDestroy } from 'svelte';
+	import { onMount, tick, onDestroy, mount, unmount } from 'svelte';
 	import { Menu, X, List } from 'lucide-svelte';
 	import { fade } from 'svelte/transition';
 	import type { PageData } from './$types';
 	import DiffView from '$lib/components/DiffView.svelte';
+	import LinearProgress from '$lib/components/LinearProgress.svelte';
 	import { config } from '$lib/config';
 
 	type TocItem = {
@@ -34,6 +35,9 @@
 		endPath: number[];
 		endOffset: number;
 	} | null = $state(null);
+
+	// Track mounted custom components for cleanup
+	let mountedComponents: Array<{ unmount: () => void }> = [];
 
 	// State for discussion sidebar
 	type Comment = {
@@ -97,6 +101,7 @@
 			setupSectionLinks();
 			setupScrollSpy();
 			setupClickOutside();
+			hydrateCustomComponents();
 
 			// Set initial active section if none is set
 			if (!activeSection && note?.toc?.length > 0) {
@@ -104,6 +109,51 @@
 			}
 		}, 200);
 	});
+
+	function hydrateCustomComponents() {
+		if (!articleElement) {
+			console.log('[DEBUG] No articleElement found');
+			return;
+		}
+
+		console.log('[DEBUG] Article HTML:', articleElement.innerHTML.substring(0, 500));
+
+		// Cleanup any previously mounted components
+		mountedComponents.forEach((comp) => comp.unmount());
+		mountedComponents = [];
+
+		// Find all custom component placeholders
+		const components = articleElement.querySelectorAll('[data-component="linear-progress"]');
+		console.log('[DEBUG] Found', components.length, 'progress components');
+
+		components.forEach((element, index) => {
+			// Extract data attributes
+			const value = parseFloat(element.getAttribute('data-value') || '0');
+			const max = parseFloat(element.getAttribute('data-max') || '100');
+			const label = element.getAttribute('data-label') || undefined;
+			const color = element.getAttribute('data-color') || 'primary';
+			const showPercentage = element.getAttribute('data-show-percentage') !== 'false';
+			const showFraction = element.getAttribute('data-show-fraction') === 'true';
+
+			console.log(`[DEBUG] Component ${index}:`, { value, max, label, color });
+
+			// Mount Svelte 5 component using mount() API
+			const component = mount(LinearProgress, {
+				target: element,
+				props: {
+					value,
+					max,
+					label,
+					color: color as any,
+					showPercentage,
+					showFraction
+				}
+			});
+
+			// Store component reference for cleanup
+			mountedComponents.push(component);
+		});
+	}
 
 	$effect(() => {
 		if (showDiffs || !note?.html || !articleElement) {
@@ -239,6 +289,9 @@
 		if (quoteListenersCleanup) {
 			quoteListenersCleanup();
 		}
+		// Cleanup mounted components
+		mountedComponents.forEach((comp) => comp.unmount());
+		mountedComponents = [];
 	});
 
 	function setupSectionLinks() {
