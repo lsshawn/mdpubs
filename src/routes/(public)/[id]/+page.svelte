@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, tick, onDestroy, mount, unmount } from 'svelte';
-	import { Menu, X, List } from 'lucide-svelte';
+	import { Menu, X, List, Maximize2, Minimize2, ChevronDown, ChevronUp } from 'lucide-svelte';
 	import { fade } from 'svelte/transition';
 	import type { PageData } from './$types';
 	import DiffView from '$lib/components/DiffView.svelte';
@@ -38,6 +38,63 @@
 
 	// Track mounted custom components for cleanup
 	let mountedComponents: Array<{ unmount: () => void }> = [];
+
+	// YouTube mini-player state
+	let miniPlayerVideoId = $state<string | null>(null);
+	let miniPlayerStartSeconds = $state(0);
+	let miniPlayerMinimized = $state(false);
+	let miniPlayerMaximized = $state(false);
+	let ytLinkCleanup: (() => void) | null = null;
+
+	function extractYoutubeInfo(url: string): { id: string; startSeconds: number } | null {
+		const patterns = [
+			/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+			/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/
+		];
+		for (const pattern of patterns) {
+			const match = url.match(pattern);
+			if (match) {
+				let startSeconds = 0;
+				try {
+					const parsed = new URL(url);
+					const t = parsed.searchParams.get('t');
+					if (t) startSeconds = parseInt(t, 10) || 0;
+				} catch {}
+				return { id: match[1], startSeconds };
+			}
+		}
+		return null;
+	}
+
+	function setupYoutubeLinks() {
+		if (!articleElement) return;
+
+		const handler = (e: MouseEvent) => {
+			const link = (e.target as HTMLElement).closest('a[href]') as HTMLAnchorElement | null;
+			if (!link || !articleElement?.contains(link)) return;
+
+			const href = link.getAttribute('href');
+			if (!href) return;
+
+			const info = extractYoutubeInfo(href);
+			if (info) {
+				e.preventDefault();
+				miniPlayerVideoId = info.id;
+				miniPlayerStartSeconds = info.startSeconds;
+				miniPlayerMinimized = false;
+			}
+		};
+
+		document.addEventListener('click', handler, true);
+		ytLinkCleanup = () => document.removeEventListener('click', handler, true);
+	}
+
+	function closeMiniPlayer() {
+		miniPlayerVideoId = null;
+		miniPlayerStartSeconds = 0;
+		miniPlayerMinimized = false;
+		miniPlayerMaximized = false;
+	}
 
 	// State for discussion sidebar
 	type Comment = {
@@ -102,6 +159,7 @@
 			setupScrollSpy();
 			setupClickOutside();
 			hydrateCustomComponents();
+			setupYoutubeLinks();
 
 			// Set initial active section if none is set
 			if (!activeSection && note?.toc?.length > 0) {
@@ -288,6 +346,9 @@
 		}
 		if (quoteListenersCleanup) {
 			quoteListenersCleanup();
+		}
+		if (ytLinkCleanup) {
+			ytLinkCleanup();
 		}
 		// Cleanup mounted components
 		mountedComponents.forEach((comp) => comp.unmount());
@@ -581,6 +642,70 @@
 		{/if}
 	{/each}
 {/snippet}
+
+<!-- YouTube Mini Player -->
+{#if miniPlayerVideoId}
+	<div
+		class="fixed z-50 overflow-hidden rounded-xl bg-black shadow-2xl transition-all duration-300 {miniPlayerMaximized
+			? 'inset-4'
+			: miniPlayerMinimized
+				? 'bottom-4 right-4 w-64'
+				: 'bottom-4 right-4 w-80'}"
+		transition:fade={{ duration: 150 }}
+	>
+		<!-- Header bar -->
+		<div class="flex items-center justify-between bg-gray-900 px-3 py-2">
+			<span class="truncate text-xs font-medium text-white">YouTube</span>
+			<div class="flex items-center gap-1">
+				<button
+					onclick={() => (miniPlayerMinimized = !miniPlayerMinimized)}
+					class="rounded p-1 text-gray-400 hover:bg-gray-700 hover:text-white"
+					title={miniPlayerMinimized ? 'Expand' : 'Minimize'}
+				>
+					{#if miniPlayerMinimized}
+						<ChevronUp class="h-4 w-4" />
+					{:else}
+						<ChevronDown class="h-4 w-4" />
+					{/if}
+				</button>
+				<button
+					onclick={() => {
+						miniPlayerMaximized = !miniPlayerMaximized;
+						if (miniPlayerMaximized) miniPlayerMinimized = false;
+					}}
+					class="rounded p-1 text-gray-400 hover:bg-gray-700 hover:text-white"
+					title={miniPlayerMaximized ? 'Exit fullscreen' : 'Fullscreen'}
+				>
+					{#if miniPlayerMaximized}
+						<Minimize2 class="h-4 w-4" />
+					{:else}
+						<Maximize2 class="h-4 w-4" />
+					{/if}
+				</button>
+				<button
+					onclick={closeMiniPlayer}
+					class="rounded p-1 text-gray-400 hover:bg-gray-700 hover:text-white"
+					title="Close"
+				>
+					<X class="h-4 w-4" />
+				</button>
+			</div>
+		</div>
+		<!-- Video iframe -->
+		{#if !miniPlayerMinimized}
+			<div class="{miniPlayerMaximized ? 'h-[calc(100%-40px)]' : 'aspect-video'} w-full">
+				<iframe
+					src="https://www.youtube.com/embed/{miniPlayerVideoId}?autoplay=1&rel=0{miniPlayerStartSeconds ? `&start=${miniPlayerStartSeconds}` : ''}"
+					title="YouTube video"
+					frameborder="0"
+					allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+					allowfullscreen
+					class="h-full w-full"
+				></iframe>
+			</div>
+		{/if}
+	</div>
+{/if}
 
 <div class="min-h-screen" data-theme="light">
 	{#if showDiffs}
