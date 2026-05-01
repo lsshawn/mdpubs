@@ -27,6 +27,6 @@ export const config = {
 	},
 	feedbackProjectId: 1,
 	featureFlags: {
-		discussionSidebar: false
+		discussionSidebar: true
 	}
 } as const;

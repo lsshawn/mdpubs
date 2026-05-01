@@ -36,6 +36,14 @@
 		endOffset: number;
 	} | null = $state(null);
 
+	// Restore saved name on mount
+	onMount(() => {
+		try {
+			const saved = localStorage.getItem('mdpubs:commenter-name');
+			if (saved) newAuthorName = saved;
+		} catch {}
+	});
+
 	// Track mounted custom components for cleanup
 	let mountedComponents: Array<{ unmount: () => void }> = [];
 
@@ -97,39 +105,44 @@
 	}
 
 	// State for discussion sidebar
+	type CommentAnchor = {
+		elementId: string;
+		startPath: number[];
+		startOffset: number;
+		endPath: number[];
+		endOffset: number;
+		quotedText: string;
+	};
 	type Comment = {
 		id: number;
-		author: string;
-		avatar: string;
-		text: string;
-		timestamp: string;
-		quote?: {
-			text: string;
-			elementId: string;
-			startPath: number[];
-			startOffset: number;
-			endPath: number[];
-			endOffset: number;
-		};
+		authorName: string;
+		content: string;
+		anchor: CommentAnchor;
+		createdAt: string | number | Date;
 	};
 
 	let newCommentText = $state('');
-	let comments = $state<Comment[]>([
-		{
-			id: 1,
-			author: 'Shawn',
-			avatar: 'https://avatars.githubusercontent.com/u/5532271?v=4',
-			text: 'This is a great starting point. I think we should explore adding more detailed examples in the next section.',
-			timestamp: '2 hours ago'
-		},
-		{
-			id: 2,
-			author: 'Jane Doe',
-			avatar: 'https://i.pravatar.cc/40?u=jane',
-			text: 'I agree. What about a section on deployment strategies?',
-			timestamp: '1 hour ago'
-		}
-	]);
+	let newAuthorName = $state('');
+	let honeypotWebsite = $state('');
+	let submitting = $state(false);
+	let submitError = $state<string | null>(null);
+	let mobileSheetOpen = $state(false);
+	let mobileSheetFocusId = $state<number | null>(null);
+	let comments = $state<Comment[]>((data.comments as Comment[]) || []);
+	let commentsEnabled = $derived(data.commentsEnabled !== false);
+
+	function formatTimestamp(ts: string | number | Date): string {
+		const d = new Date(ts);
+		const diff = Date.now() - d.getTime();
+		const mins = Math.floor(diff / 60_000);
+		if (mins < 1) return 'just now';
+		if (mins < 60) return `${mins}m ago`;
+		const hrs = Math.floor(mins / 60);
+		if (hrs < 24) return `${hrs}h ago`;
+		const days = Math.floor(hrs / 24);
+		if (days < 30) return `${days}d ago`;
+		return d.toLocaleDateString();
+	}
 
 	// Get note from server-loaded data
 	let note = $derived(data.note);
@@ -431,21 +444,60 @@
 		}
 	}
 
-	function addComment() {
-		if (!newCommentText.trim() && !activeQuote) return;
+	async function submitComment() {
+		submitError = null;
+		if (!activeQuote) {
+			submitError = 'Select some text first to anchor your comment.';
+			return;
+		}
+		if (!newCommentText.trim()) {
+			submitError = 'Write something.';
+			return;
+		}
+		if (!newAuthorName.trim()) {
+			submitError = 'Add your name.';
+			return;
+		}
+		if (!note?.id) return;
 
-		const newComment: Comment = {
-			id: comments.length + 1,
-			author: 'You', // Or a logged-in user's name
-			avatar: 'https://i.pravatar.cc/40?u=you',
-			text: newCommentText,
-			timestamp: 'Just now',
-			...(activeQuote && { quote: activeQuote }) // Add quote if it exists
-		};
+		submitting = true;
+		try {
+			const res = await fetch(`${config.apiUrl}/notes/${note.id}/comments`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					authorName: newAuthorName.trim().slice(0, 60),
+					content: newCommentText.trim().slice(0, 2000),
+					website: honeypotWebsite,
+					anchor: {
+						elementId: activeQuote.elementId,
+						startPath: activeQuote.startPath,
+						startOffset: activeQuote.startOffset,
+						endPath: activeQuote.endPath,
+						endOffset: activeQuote.endOffset,
+						quotedText: activeQuote.text
+					}
+				})
+			});
 
-		comments = [...comments, newComment];
-		newCommentText = '';
-		activeQuote = null; // Clear the active quote
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({}));
+				submitError = err?.error || 'Failed to post comment.';
+				return;
+			}
+			const created = (await res.json()) as Comment;
+			comments = [created, ...comments];
+			try {
+				localStorage.setItem('mdpubs:commenter-name', newAuthorName.trim());
+			} catch {}
+			newCommentText = '';
+			activeQuote = null;
+		} catch (e) {
+			console.error(e);
+			submitError = 'Network error.';
+		} finally {
+			submitting = false;
+		}
 	}
 
 	function handleTextSelection(event: MouseEvent) {
@@ -503,36 +555,126 @@
 		return current;
 	}
 
+	function findRangeByText(quotedText: string, root: HTMLElement): Range | null {
+		if (!quotedText) return null;
+		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+		let node: Node | null;
+		while ((node = walker.nextNode())) {
+			const txt = node.nodeValue || '';
+			const idx = txt.indexOf(quotedText);
+			if (idx !== -1) {
+				const range = document.createRange();
+				range.setStart(node, idx);
+				range.setEnd(node, idx + quotedText.length);
+				return range;
+			}
+		}
+		return null;
+	}
+
+	// Wrap every text-node slice that intersects `range` in its own <mark>.
+	// Works across block boundaries (multiple paragraphs, list items, etc.)
+	// where extractContents() would otherwise fail.
+	function wrapRangeWithMarks(
+		range: Range,
+		root: HTMLElement,
+		makeMark: () => HTMLElement
+	): HTMLElement[] {
+		const startContainer = range.startContainer;
+		const endContainer = range.endContainer;
+		const startOffset = range.startOffset;
+		const endOffset = range.endOffset;
+
+		const textNodes: Text[] = [];
+		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+			acceptNode: (n) =>
+				range.intersectsNode(n) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+		});
+		let n: Node | null;
+		while ((n = walker.nextNode())) textNodes.push(n as Text);
+
+		const marks: HTMLElement[] = [];
+		for (const textNode of textNodes) {
+			const text = textNode.nodeValue ?? '';
+			if (!text.length) continue;
+
+			const from = textNode === startContainer ? startOffset : 0;
+			const to = textNode === endContainer ? endOffset : text.length;
+			if (to <= from) continue;
+
+			// Split the text node so the middle chunk is the exact selection.
+			let target: Text = textNode;
+			if (from > 0) target = target.splitText(from);
+			if (to - from < target.nodeValue!.length) target.splitText(to - from);
+
+			const mark = makeMark();
+			target.parentNode?.insertBefore(mark, target);
+			mark.appendChild(target);
+			marks.push(mark);
+		}
+		return marks;
+	}
+
 	function reapplyHighlights() {
 		if (!articleElement) return;
+		const root = articleElement;
 		comments.forEach((comment) => {
-			if (comment.quote && !document.getElementById(comment.quote.elementId)) {
-				const { elementId, startPath, startOffset, endPath, endOffset } = comment.quote;
+			const anchor = comment.anchor;
+			if (!anchor || document.getElementById(anchor.elementId)) return;
 
-				const startNode = getNodeByPath(startPath, articleElement);
-				const endNode = getNodeByPath(endPath, articleElement);
+			let range: Range | null = null;
+			const startNode = getNodeByPath(anchor.startPath, root);
+			const endNode = getNodeByPath(anchor.endPath, root);
 
-				if (startNode && endNode) {
-					const range = document.createRange();
-					range.setStart(startNode, startOffset);
-					range.setEnd(endNode, endOffset);
-
-					if (range.collapsed) return;
-
-					const markElement = document.createElement('mark');
-					markElement.id = elementId;
-					markElement.className = 'bg-blue-200 rounded-sm px-0.5';
-
-					try {
-						const selectedContent = range.extractContents();
-						markElement.appendChild(selectedContent);
-						range.insertNode(markElement);
-					} catch (e) {
-						console.error('Failed to re-apply highlight:', e);
-					}
+			if (startNode && endNode) {
+				try {
+					range = document.createRange();
+					range.setStart(startNode, anchor.startOffset);
+					range.setEnd(endNode, anchor.endOffset);
+					if (range.collapsed) range = null;
+				} catch {
+					range = null;
 				}
 			}
+			if (!range) {
+				range = findRangeByText(anchor.quotedText, root);
+			}
+			if (!range) return;
+
+			try {
+				const marks = wrapRangeWithMarks(range, root, () => {
+					const m = document.createElement('mark');
+					m.dataset.commentId = String(comment.id);
+					m.className = 'mdpubs-comment-mark';
+					m.addEventListener('click', (e) => {
+						e.stopPropagation();
+						openThread(comment.id);
+					});
+					return m;
+				});
+				if (marks.length > 0) {
+					marks[0].id = anchor.elementId;
+				}
+			} catch (e) {
+				console.error('Failed to re-apply highlight:', e);
+			}
 		});
+	}
+
+	function openThread(commentId: number) {
+		mobileSheetFocusId = commentId;
+		const isMobile = window.matchMedia('(max-width: 1023px)').matches;
+		if (isMobile) {
+			mobileSheetOpen = true;
+		} else {
+			// On desktop: scroll the rail card into view + flash
+			const card = document.querySelector(`[data-comment-card="${commentId}"]`);
+			if (card) {
+				card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				card.classList.add('flash-animation');
+				setTimeout(() => card.classList.remove('flash-animation'), 1500);
+			}
+		}
 	}
 
 	function quoteSelection() {
@@ -553,34 +695,33 @@
 			return;
 		}
 
-		// Create a <mark> element to wrap the selection
-		const markElement = document.createElement('mark');
-		markElement.id = highlightId;
-		markElement.className = 'bg-blue-200 rounded-sm px-0.5'; // style the highlight
+		// Capture offsets BEFORE wrapping (DOM mutation invalidates the range)
+		const savedStartOffset = range.startOffset;
+		const savedEndOffset = range.endOffset;
 
 		try {
-			const selectedContent = range.extractContents();
-			markElement.appendChild(selectedContent);
-			range.insertNode(markElement);
+			const marks = wrapRangeWithMarks(range, articleElement, () => {
+				const m = document.createElement('mark');
+				m.className = 'mdpubs-comment-mark';
+				return m;
+			});
+			if (marks.length === 0) return;
+			marks[0].id = highlightId;
 
-			// Store the quote info with its structural path
 			activeQuote = {
 				text: selectedText,
 				elementId: highlightId,
 				startPath: startPath,
-				startOffset: range.startOffset,
+				startOffset: savedStartOffset,
 				endPath: endPath,
-				endOffset: range.endOffset
+				endOffset: savedEndOffset
 			};
 
-			// Focus the comment box
 			const commentBox = document.querySelector('textarea');
-			if (commentBox) commentBox.focus();
+			if (commentBox) (commentBox as HTMLTextAreaElement).focus();
 		} catch (e) {
 			console.error('Could not wrap selection.', e);
-			alert('Sorry, an error occurred while quoting the text. Please try again.');
 		} finally {
-			// Clean up
 			selection.removeAllRanges();
 			quoteButtonVisible = false;
 		}
@@ -926,97 +1067,260 @@
 					</div>
 				</div>
 
-				<!-- Discussion Sidebar -->
-				{#if config.featureFlags.discussionSidebar}
+				<!-- Discussion Sidebar (desktop margin column) -->
+				{#if config.featureFlags.discussionSidebar && commentsEnabled}
 					<aside class="hidden w-80 flex-shrink-0 border-l border-gray-200 lg:block">
 						<div class="sticky top-0 flex h-screen flex-col">
 							<div class="flex-shrink-0 border-b border-gray-200 p-4">
-								<h3 class="text-lg font-semibold text-gray-900">Discussion</h3>
+								<h3 class="text-lg font-semibold text-gray-900">
+									Comments
+									{#if comments.length > 0}
+										<span class="ml-1 text-sm font-normal text-gray-500">({comments.length})</span>
+									{/if}
+								</h3>
+								<p class="mt-1 text-xs text-gray-500">
+									Highlight any text to leave an anchored comment.
+								</p>
 							</div>
 
-							<!-- Comments List -->
 							<div class="flex-1 overflow-y-auto p-4">
-								<div class="space-y-6">
-									{#each comments as comment (comment.id)}
-										<div class="flex items-start gap-3">
-											<img src={comment.avatar} alt={comment.author} class="h-8 w-8 rounded-full" />
-											<div class="flex-1">
-												<p class="text-sm font-medium text-gray-900">{comment.author}</p>
+								{#if comments.length === 0}
+									<p class="text-sm text-gray-400">Be the first to comment.</p>
+								{:else}
+									<div class="space-y-6">
+										{#each comments as comment (comment.id)}
+											<div
+												class="rounded-md border border-gray-100 p-3 transition-colors hover:border-gray-200"
+												data-comment-card={comment.id}
+											>
+												<div class="flex items-baseline justify-between">
+													<p class="text-sm font-medium text-gray-900">{comment.authorName}</p>
+													<p class="text-xs text-gray-400">{formatTimestamp(comment.createdAt)}</p>
+												</div>
 
-												{#if comment.quote}
+												{#if comment.anchor?.quotedText}
 													<button
-														onclick={() => scrollToQuote(comment.quote.elementId)}
-														class="my-2 block w-full rounded-md border-l-4 border-gray-300 bg-gray-50 p-2 text-left text-sm text-gray-600 hover:bg-gray-100"
+														onclick={() => scrollToQuote(comment.anchor.elementId)}
+														class="my-2 block w-full rounded-md border-l-4 border-gray-300 bg-gray-50 p-2 text-left text-xs text-gray-600 hover:bg-gray-100"
 													>
-														<blockquote class="line-clamp-3 italic">
-															"{comment.quote.text}"
+														<blockquote class="line-clamp-2 italic">
+															"{comment.anchor.quotedText}"
 														</blockquote>
 													</button>
 												{/if}
 
-												{#if comment.text}
-													<p class="text-sm text-gray-600">{comment.text}</p>
-												{/if}
-
-												<p class="mt-1 text-xs text-gray-400">{comment.timestamp}</p>
+												<p class="text-sm whitespace-pre-wrap text-gray-700">{comment.content}</p>
 											</div>
-										</div>
-									{/each}
-								</div>
+										{/each}
+									</div>
+								{/if}
 							</div>
 
-							<!-- New Comment Form -->
+							<!-- Compose -->
 							<div class="flex-shrink-0 border-t border-gray-200 p-4">
-								<div class="flex items-start gap-3">
-									<img
-										src="https://i.pravatar.cc/40?u=you"
-										alt="You"
-										class="h-8 w-8 rounded-full"
-									/>
-									<div class="flex-1">
-										{#if activeQuote}
-											<div
-												class="mb-2 rounded-md border-l-4 border-blue-400 bg-blue-50 p-2 text-sm text-blue-800"
-											>
-												<div class="flex items-center justify-between">
-													<p class="line-clamp-2 italic">Quoting: "{activeQuote.text}"</p>
-													<button
-														onclick={() => (activeQuote = null)}
-														class="rounded-full p-1 hover:bg-blue-200"
-														title="Cancel quote"
-													>
-														<X class="h-4 w-4" />
-													</button>
-												</div>
-											</div>
-										{/if}
-										<textarea
-											bind:value={newCommentText}
-											rows="3"
-											class="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-											placeholder="Add to the discussion..."
-											onkeydown={(e) => {
-												if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-													e.preventDefault();
-													addComment();
-												}
-											}}
-										></textarea>
-										<div class="mt-2 flex items-center justify-between">
-											<p class="text-xs text-gray-500">Cmd+Enter to send</p>
+								{#if activeQuote}
+									<div
+										class="mb-2 rounded-md border-l-4 border-blue-400 bg-blue-50 p-2 text-sm text-blue-800"
+									>
+										<div class="flex items-center justify-between gap-2">
+											<p class="line-clamp-2 italic">Quoting: "{activeQuote.text}"</p>
 											<button
-												onclick={addComment}
-												disabled={!newCommentText.trim() && !activeQuote}
-												class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 disabled:opacity-50"
+												onclick={() => (activeQuote = null)}
+												class="rounded-full p-1 hover:bg-blue-200"
+												title="Cancel quote"
 											>
-												Comment
+												<X class="h-4 w-4" />
 											</button>
 										</div>
 									</div>
+								{:else}
+									<p class="mb-2 text-xs text-gray-500">
+										Highlight text in the article to anchor your comment.
+									</p>
+								{/if}
+								<input
+									bind:value={newAuthorName}
+									type="text"
+									maxlength="60"
+									class="mb-2 w-full rounded-md border border-gray-300 px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+									placeholder="Your name"
+								/>
+								<!-- honeypot, hidden from users -->
+								<input
+									bind:value={honeypotWebsite}
+									type="text"
+									tabindex="-1"
+									autocomplete="off"
+									aria-hidden="true"
+									style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0"
+								/>
+								<textarea
+									bind:value={newCommentText}
+									rows="3"
+									maxlength="2000"
+									disabled={!activeQuote}
+									class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+									placeholder={activeQuote ? 'Add your comment…' : 'Select text first'}
+									onkeydown={(e) => {
+										if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+											e.preventDefault();
+											submitComment();
+										}
+									}}
+								></textarea>
+								{#if submitError}
+									<p class="mt-1 text-xs text-red-600">{submitError}</p>
+								{/if}
+								<div class="mt-2 flex items-center justify-between">
+									<p class="text-xs text-gray-500">Cmd+Enter to send</p>
+									<button
+										onclick={submitComment}
+										disabled={submitting || !activeQuote || !newCommentText.trim() || !newAuthorName.trim()}
+										class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 disabled:opacity-50"
+									>
+										{submitting ? 'Posting…' : 'Comment'}
+									</button>
 								</div>
 							</div>
 						</div>
 					</aside>
+				{/if}
+
+				<!-- Mobile: floating button + bottom sheet -->
+				{#if config.featureFlags.discussionSidebar && commentsEnabled}
+					<button
+						onclick={() => {
+							mobileSheetFocusId = null;
+							mobileSheetOpen = true;
+						}}
+						class="fixed right-4 bottom-4 z-40 flex items-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg lg:hidden"
+						aria-label="Open comments"
+					>
+						💬
+						{#if comments.length > 0}
+							<span>{comments.length}</span>
+						{/if}
+					</button>
+
+					{#if mobileSheetOpen}
+						<div
+							class="fixed inset-0 z-50 lg:hidden"
+							role="dialog"
+							aria-modal="true"
+							aria-label="Comments"
+						>
+							<button
+								class="absolute inset-0 bg-black/40"
+								onclick={() => (mobileSheetOpen = false)}
+								aria-label="Close comments"
+							></button>
+							<div
+								class="absolute right-0 bottom-0 left-0 flex max-h-[85vh] flex-col rounded-t-2xl bg-white shadow-2xl"
+								transition:fade={{ duration: 150 }}
+							>
+								<div class="flex flex-shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3">
+									<h3 class="text-base font-semibold text-gray-900">
+										Comments
+										{#if comments.length > 0}
+											<span class="ml-1 text-sm font-normal text-gray-500">({comments.length})</span>
+										{/if}
+									</h3>
+									<button
+										onclick={() => (mobileSheetOpen = false)}
+										class="rounded-full p-1 hover:bg-gray-100"
+										aria-label="Close"
+									>
+										<X class="h-5 w-5" />
+									</button>
+								</div>
+
+								<div class="flex-1 overflow-y-auto px-4 py-3">
+									{#if comments.length === 0}
+										<p class="text-sm text-gray-400">No comments yet. Highlight some text in the article to add one.</p>
+									{:else}
+										<div class="space-y-4">
+											{#each (mobileSheetFocusId ? comments.filter((c) => c.id === mobileSheetFocusId) : comments) as comment (comment.id)}
+												<div class="rounded-md border border-gray-100 p-3">
+													<div class="flex items-baseline justify-between">
+														<p class="text-sm font-medium text-gray-900">{comment.authorName}</p>
+														<p class="text-xs text-gray-400">{formatTimestamp(comment.createdAt)}</p>
+													</div>
+													{#if comment.anchor?.quotedText}
+														<blockquote class="my-2 line-clamp-3 rounded-md border-l-4 border-gray-300 bg-gray-50 p-2 text-xs text-gray-600 italic">
+															"{comment.anchor.quotedText}"
+														</blockquote>
+													{/if}
+													<p class="text-sm whitespace-pre-wrap text-gray-700">{comment.content}</p>
+												</div>
+											{/each}
+											{#if mobileSheetFocusId}
+												<button
+													onclick={() => (mobileSheetFocusId = null)}
+													class="w-full rounded-md border border-gray-200 py-2 text-sm text-gray-600 hover:bg-gray-50"
+												>
+													View all {comments.length} comments
+												</button>
+											{/if}
+										</div>
+									{/if}
+								</div>
+
+								<div class="flex-shrink-0 border-t border-gray-200 p-3">
+									{#if activeQuote}
+										<div class="mb-2 rounded-md border-l-4 border-blue-400 bg-blue-50 p-2 text-xs text-blue-800">
+											<div class="flex items-center justify-between gap-2">
+												<p class="line-clamp-2 italic">Quoting: "{activeQuote.text}"</p>
+												<button
+													onclick={() => (activeQuote = null)}
+													class="rounded-full p-1 hover:bg-blue-200"
+													aria-label="Cancel quote"
+												>
+													<X class="h-4 w-4" />
+												</button>
+											</div>
+										</div>
+									{:else}
+										<p class="mb-2 text-xs text-gray-500">
+											Close this sheet and highlight any text to anchor a new comment.
+										</p>
+									{/if}
+									<input
+										bind:value={newAuthorName}
+										type="text"
+										maxlength="60"
+										class="mb-2 w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:ring-blue-500"
+										placeholder="Your name"
+									/>
+									<input
+										bind:value={honeypotWebsite}
+										type="text"
+										tabindex="-1"
+										autocomplete="off"
+										aria-hidden="true"
+										style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0"
+									/>
+									<textarea
+										bind:value={newCommentText}
+										rows="3"
+										maxlength="2000"
+										disabled={!activeQuote}
+										class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+										placeholder={activeQuote ? 'Add your comment…' : 'Select text first'}
+									></textarea>
+									{#if submitError}
+										<p class="mt-1 text-xs text-red-600">{submitError}</p>
+									{/if}
+									<button
+										onclick={submitComment}
+										disabled={submitting || !activeQuote || !newCommentText.trim() || !newAuthorName.trim()}
+										class="mt-2 w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 disabled:opacity-50"
+									>
+										{submitting ? 'Posting…' : 'Post comment'}
+									</button>
+								</div>
+							</div>
+						</div>
+					{/if}
 				{/if}
 			</div>
 		{/if}
@@ -1035,5 +1339,21 @@
 	}
 	.flash-animation {
 		animation: flash-it 1.5s ease-in-out;
+	}
+
+	/* Anchored comment highlights: invisible by default so reading flow is unaffected.
+	   A subtle marker shows on hover, and the active comment gets a soft tint. */
+	:global(.mdpubs-comment-mark) {
+		background: transparent;
+		color: inherit;
+		cursor: pointer;
+		border-bottom: 1px dotted rgba(59, 130, 246, 0.35);
+		transition: background-color 150ms ease;
+	}
+	:global(.mdpubs-comment-mark:hover) {
+		background-color: rgba(254, 240, 138, 0.5);
+	}
+	:global(.mdpubs-comment-mark.is-active) {
+		background-color: rgba(254, 240, 138, 0.7);
 	}
 </style>

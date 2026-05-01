@@ -71,6 +71,7 @@ export const note = sqliteTable(
 			.$type<string[]>()
 			.default(sql`'[]'`),
 		isPrivate: integer('is_private', { mode: 'boolean' }).default(false),
+		commentsEnabled: integer('comments_enabled', { mode: 'boolean' }).default(true),
 		imageMap: text('image_map', { mode: 'json' }).$type<Record<string, string>>()
 	},
 	(notes) => ({
@@ -102,6 +103,38 @@ export const noteVersion = sqliteTable(
 		versionIdx: index('idx_note_versions_version').on(noteVersions.version)
 	})
 );
+
+export type CommentAnchor = {
+	elementId: string;
+	startPath: number[];
+	startOffset: number;
+	endPath: number[];
+	endOffset: number;
+	quotedText: string;
+};
+
+export const noteComment = sqliteTable(
+	'note_comments',
+	{
+		id: Id,
+		noteId: integer('note_id')
+			.notNull()
+			.references(() => note.id, { onDelete: 'cascade' }),
+		authorName: text('author_name').notNull(),
+		content: text('content').notNull(),
+		anchor: text('anchor', { mode: 'json' }).$type<CommentAnchor>().notNull(),
+		isHidden: integer('is_hidden', { mode: 'boolean' }).default(false),
+		ipHash: text('ip_hash'),
+		createdAt: CreatedAt
+	},
+	(t) => ({
+		noteIdIdx: index('idx_note_comments_note_id').on(t.noteId),
+		createdAtIdx: index('idx_note_comments_created_at').on(t.createdAt)
+	})
+);
+
+export type NoteComment = typeof noteComment.$inferSelect;
+export type NewNoteComment = typeof noteComment.$inferInsert;
 
 export type Session = typeof session.$inferSelect;
 export type User = typeof user.$inferSelect;

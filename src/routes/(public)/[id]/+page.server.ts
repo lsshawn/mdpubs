@@ -55,6 +55,20 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 			}
 		}
 
+		// Load comments (best-effort; don't fail the page if this errors)
+		let comments: any[] = [];
+		let commentsEnabled = true;
+		try {
+			const cRes = await fetch(`${config.apiUrl}/notes/${params.id}/comments`);
+			if (cRes.ok) {
+				const cData = await cRes.json();
+				comments = cData.comments || [];
+				commentsEnabled = cData.commentsEnabled !== false;
+			}
+		} catch (err) {
+			console.error('Failed to load comments:', err);
+		}
+
 		// Generate meta tags for social sharing
 		const title = note?.frontmatter?.title || 'Note';
 		const description = note?.frontmatter?.description || 'A published note from MdPubs';
@@ -66,6 +80,8 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 		return {
 			note,
 			versions,
+			comments,
+			commentsEnabled,
 			meta: {
 				title,
 				description,
