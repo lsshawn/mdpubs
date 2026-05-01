@@ -904,7 +904,7 @@
 
 						<!-- Content -->
 						<article
-								class="prose prose-sm min-h-[80vh] max-w-none overflow-x-hidden break-words [&_pre]:overflow-x-auto [&_table]:block [&_table]:overflow-x-auto [&_img]:max-w-full"
+								class="prose prose-sm min-h-[80vh] max-w-none overflow-x-hidden [overflow-wrap:anywhere] [&_pre]:overflow-x-auto [&_pre]:[overflow-wrap:normal] [&_code]:[overflow-wrap:anywhere] [&_table]:block [&_table]:overflow-x-auto [&_img]:max-w-full"
 								bind:this={articleElement}
 							>
 							{@html note.html}
