@@ -707,7 +707,7 @@
 	</div>
 {/if}
 
-<div class="min-h-screen" data-theme="light">
+<div class="min-h-screen overflow-x-hidden" data-theme="light">
 	{#if showDiffs}
 		<div class="mx-auto max-w-4xl px-6 py-6 lg:py-12">
 			<header class="mb-8">
@@ -903,7 +903,10 @@
 						</header>
 
 						<!-- Content -->
-						<article class="prose prose-sm min-h-[80vh] max-w-none" bind:this={articleElement}>
+						<article
+								class="prose prose-sm min-h-[80vh] max-w-none overflow-x-hidden break-words [&_pre]:overflow-x-auto [&_table]:block [&_table]:overflow-x-auto [&_img]:max-w-full"
+								bind:this={articleElement}
+							>
 							{@html note.html}
 						</article>
 
