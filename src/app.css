@@ -3,5 +3,11 @@
 @plugin '@tailwindcss/typography';
 
 @plugin "daisyui" {
-  themes: night --default, night, light;
+  themes: light --default, night --prefersdark, night, light;
+}
+
+/* Base font size for the whole app (16px). DaisyUI/Tailwind size everything
+   relative to this root value. */
+html {
+  font-size: 16px;
 }
