@@ -13,32 +13,41 @@ import type { PageServerLoad } from './$types';
  * rather than the generic "not found"/"something went wrong" page. We can tell
  * the cases apart because the UI shares the main DB: a direct lookup reveals
  * whether the id is a live private note. Throws 403 (PRIVATE_NOTE) if so.
+ *
+ * The note's owner is never gated: if they hit a non-OK from the API it's a real
+ * error, not a "log in to view" situation (they're already logged in). We only
+ * raise the gate for viewers who don't own the note.
  */
-async function assertNotPrivate(id: string): Promise<void> {
+async function assertNotPrivate(id: string, currentUserId?: string): Promise<void> {
 	const noteId = parseInt(id, 10);
 	if (isNaN(noteId)) return;
 
 	const [row] = await db
-		.select({ isPrivate: noteTable.isPrivate })
+		.select({ isPrivate: noteTable.isPrivate, userId: noteTable.userId })
 		.from(noteTable)
 		.where(and(eq(noteTable.id, noteId), isNull(noteTable.deletedAt)));
 
-	if (row?.isPrivate) {
+	if (row?.isPrivate && row.userId !== currentUserId) {
 		throw error(403, 'PRIVATE_NOTE');
 	}
 }
 
-export const load: PageServerLoad = async ({ params, fetch, url }) => {
+export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
 	try {
 		const showDiffs = url.searchParams.get('diffs') === 'true';
 
-		const res = await fetch(`${config.apiUrl}/notes/${params.id}?parse=markdown`);
+		// Forward the viewer's session to the API so a logged-in owner can load
+		// their own private note (the API hides private notes from anonymous calls).
+		const res = await fetch(`${config.apiUrl}/notes/${params.id}?parse=markdown`, {
+			headers: locals.session ? { Authorization: `Bearer ${locals.session.id}` } : {}
+		});
 
 		if (!res.ok) {
 			// The public API hides a private note's existence, but it may signal that
 			// with any non-OK status (404, 401, 403, …). Whatever it returned, first
-			// check the DB directly: a live private note becomes a 403 "log in" gate.
-			await assertNotPrivate(params.id);
+			// check the DB directly: a live private note becomes a 403 "log in" gate
+			// (unless the viewer owns it).
+			await assertNotPrivate(params.id, locals.user?.id);
 			if (res.status === 404) {
 				throw error(404, 'Note not found');
 			}
@@ -61,7 +70,8 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 		let versions = null;
 		if (showDiffs && note?.frontmatter?.mdpubs) {
 			const versionsRes = await fetch(
-				`${config.apiUrl}/notes/${note.frontmatter.mdpubs}/versions?diffs=true`
+				`${config.apiUrl}/notes/${note.frontmatter.mdpubs}/versions?diffs=true`,
+				{ headers: locals.session ? { Authorization: `Bearer ${locals.session.id}` } : {} }
 			);
 			if (versionsRes.ok) {
 				const versionsData = await versionsRes.json();
