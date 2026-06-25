@@ -13,7 +13,7 @@
 </svelte:head>
 
 <div class="min-h-screen bg-white">
-	{#if $page.error?.status === 403}
+	{#if $page.status === 403}
 		<!-- Private note -->
 		<div class="flex min-h-screen items-center justify-center">
 			<div class="text-center">
@@ -26,7 +26,7 @@
 				<a href={loginHref} class="btn btn-primary">Log in to MdPubs</a>
 			</div>
 		</div>
-	{:else if $page.error?.status === 404}
+	{:else if $page.status === 404}
 		<!-- 404 State -->
 		<div class="flex min-h-screen items-center justify-center">
 			<div class="text-center">
