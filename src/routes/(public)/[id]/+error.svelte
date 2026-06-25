@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { resolve } from '$app/paths';
 
 	// On a private note, send the viewer to login and bring them back here after.
-	const loginHref = $derived(
-		`${resolve('/login')}?redirectTo=${encodeURIComponent($page.url.pathname)}`
-	);
+	// Use a literal path (not resolve() from $app/paths) — resolve expects a route
+	// ID, and our login route is /(public)/login, so resolve('/login') produces a
+	// bad href in the prod build. We're appending a query string here anyway.
+	const loginHref = $derived(`/login?redirectTo=${encodeURIComponent($page.url.pathname)}`);
 </script>
 
 <svelte:head>
@@ -35,7 +35,8 @@
 				<p class="mb-6 text-gray-500">
 					The note you're looking for doesn't exist or has been removed.
 				</p>
-				<a href={resolve('/')} class="btn btn-primary">Go Home</a>
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+				<a href="/" class="btn btn-primary">Go Home</a>
 			</div>
 		</div>
 	{:else}
