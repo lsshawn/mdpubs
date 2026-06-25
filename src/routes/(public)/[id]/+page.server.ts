@@ -35,9 +35,11 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 		const res = await fetch(`${config.apiUrl}/notes/${params.id}?parse=markdown`);
 
 		if (!res.ok) {
+			// The public API hides a private note's existence, but it may signal that
+			// with any non-OK status (404, 401, 403, …). Whatever it returned, first
+			// check the DB directly: a live private note becomes a 403 "log in" gate.
+			await assertNotPrivate(params.id);
 			if (res.status === 404) {
-				// A 404 from the public API may really be a live private note.
-				await assertNotPrivate(params.id);
 				throw error(404, 'Note not found');
 			}
 			throw error(500, 'Failed to load note');
@@ -55,11 +57,6 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 		if (!isHtml && note?.html) {
 			note.html = parseCustomComponentsInHtml(note.html);
 		}
-
-		console.log(
-			'[LS] -> src/routes/(public)/[id]/+page.server.ts:52 -> note: ',
-			JSON.stringify(note.toc)
-		);
 
 		let versions = null;
 		if (showDiffs && note?.frontmatter?.mdpubs) {
@@ -100,8 +97,9 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 			}
 		};
 	} catch (e) {
-		if (e.status) {
-			throw e; // Re-throw SvelteKit errors
+		// Re-throw SvelteKit errors (incl. the 403 private-note gate) untouched.
+		if (e && typeof e === 'object' && 'status' in e) {
+			throw e;
 		}
 		throw error(500, 'Network error occurred');
 	}
