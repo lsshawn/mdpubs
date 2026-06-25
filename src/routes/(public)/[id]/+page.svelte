@@ -724,14 +724,29 @@
 			referrerpolicy="no-referrer"
 			class="h-full w-full border-0"
 		></iframe>
-		<a
-			href="https://mdpubs.com"
-			target="_blank"
-			rel="noopener"
-			class="fixed right-3 bottom-3 z-50 inline-flex items-center gap-1.5 rounded-full bg-base-100/90 px-3 py-1.5 text-xs font-medium text-base-content/80 shadow-lg ring-1 ring-base-300 backdrop-blur transition-colors hover:text-base-content"
-		>
-			📝 mdpubs
-		</a>
+		<!-- Floating controls (hidden when printing the wrapper) -->
+		<div class="fixed right-3 bottom-3 z-50 flex items-center gap-2 print:hidden">
+			<!-- Print / Save PDF: the iframe is cross-origin + sandboxed, so the parent
+			     cannot print it directly. Open the raw document in its own tab where the
+			     browser prints it natively with its own @page/print CSS. -->
+			<a
+				href={rawUrl}
+				target="_blank"
+				rel="noopener"
+				class="inline-flex items-center rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-lg ring-1 ring-gray-200 transition-colors hover:text-gray-900"
+				title="Open the document in a new tab to print or save as PDF"
+			>
+				Print / Save PDF
+			</a>
+			<a
+				href="https://mdpubs.com"
+				target="_blank"
+				rel="noopener"
+				class="inline-flex items-center rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-lg ring-1 ring-gray-200 transition-colors hover:text-gray-900"
+			>
+				Hosted on MdPubs
+			</a>
+		</div>
 	</div>
 {:else}
 <div class="min-h-screen overflow-x-hidden">
