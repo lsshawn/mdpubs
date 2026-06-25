@@ -730,14 +730,15 @@
 			class="fixed right-3 bottom-3 z-50 flex flex-col items-end gap-2 sm:flex-row sm:items-center print:hidden"
 		>
 			<!-- Print / Save PDF: the iframe is cross-origin + sandboxed, so the parent
-			     cannot print it directly. Open the raw document in its own tab where the
-			     browser prints it natively with its own @page/print CSS. -->
+			     cannot print it directly. Open the raw document in its own tab with
+			     ?print=1, which loads it natively (own @page/print CSS) and opens the
+			     print dialog on load. -->
 			<a
-				href={rawUrl}
+				href={`${rawUrl}?print=1`}
 				target="_blank"
 				rel="noopener"
 				class="inline-flex items-center rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-lg ring-1 ring-gray-200 transition-colors hover:text-gray-900"
-				title="Open the document in a new tab to print or save as PDF"
+				title="Open the document in a new tab and print or save as PDF"
 			>
 				Print / Save PDF
 			</a>
