@@ -1,7 +1,32 @@
 import { error } from '@sveltejs/kit';
+import { and, eq, isNull } from 'drizzle-orm';
 import { config } from '$lib/config';
+import { db } from '$lib/server/db';
+import { note as noteTable } from '$lib/server/db/schema';
 import { parseCustomComponentsInHtml } from '$lib/helpers/custom-components-parser';
 import type { PageServerLoad } from './$types';
+
+/**
+ * The public API returns 404 for missing, deleted, AND private notes alike (it
+ * intentionally hides a private note's existence). When that 404 is actually a
+ * private-but-not-deleted note, we want to show a "private note, log in" gate
+ * rather than the generic "not found"/"something went wrong" page. We can tell
+ * the cases apart because the UI shares the main DB: a direct lookup reveals
+ * whether the id is a live private note. Throws 403 (PRIVATE_NOTE) if so.
+ */
+async function assertNotPrivate(id: string): Promise<void> {
+	const noteId = parseInt(id, 10);
+	if (isNaN(noteId)) return;
+
+	const [row] = await db
+		.select({ isPrivate: noteTable.isPrivate })
+		.from(noteTable)
+		.where(and(eq(noteTable.id, noteId), isNull(noteTable.deletedAt)));
+
+	if (row?.isPrivate) {
+		throw error(403, 'PRIVATE_NOTE');
+	}
+}
 
 interface Heading {
 	level: number;
@@ -21,6 +46,8 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 
 		if (!res.ok) {
 			if (res.status === 404) {
+				// A 404 from the public API may really be a live private note.
+				await assertNotPrivate(params.id);
 				throw error(404, 'Note not found');
 			}
 			throw error(500, 'Failed to load note');

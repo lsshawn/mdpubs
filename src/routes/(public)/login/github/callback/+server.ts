@@ -24,6 +24,15 @@ export async function GET(event: RequestEvent): Promise<Response> {
 		});
 	}
 
+	// Destination set when login started (see /login/github). Validated there,
+	// re-validated here, then consumed.
+	const storedRedirect = event.cookies.get('github_oauth_redirect') ?? null;
+	const redirectTo =
+		storedRedirect && storedRedirect.startsWith('/') && !storedRedirect.startsWith('//')
+			? storedRedirect
+			: '/account';
+	event.cookies.delete('github_oauth_redirect', { path: '/' });
+
 	try {
 		const tokens = await github.validateAuthorizationCode(code);
 		const githubUserResponse = await fetch('https://api.github.com/user', {
@@ -41,7 +50,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 			return new Response(null, {
 				status: 302,
 				headers: {
-					Location: '/account'
+					Location: redirectTo
 				}
 			});
 		}
@@ -87,7 +96,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 			return new Response(null, {
 				status: 302,
 				headers: {
-					Location: '/account'
+					Location: redirectTo
 				}
 			});
 		}
@@ -103,7 +112,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 		return new Response(null, {
 			status: 302,
 			headers: {
-				Location: '/account'
+				Location: redirectTo
 			}
 		});
 	} catch (e) {

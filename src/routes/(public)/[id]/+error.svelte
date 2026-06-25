@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+
+	// On a private note, send the viewer to login and bring them back here after.
+	const loginHref = $derived(`/login?redirectTo=${encodeURIComponent($page.url.pathname)}`);
 </script>
 
 <svelte:head>
@@ -7,7 +10,19 @@
 </svelte:head>
 
 <div class="min-h-screen bg-white">
-	{#if $page.error?.status === 404}
+	{#if $page.error?.status === 403}
+		<!-- Private note -->
+		<div class="flex min-h-screen items-center justify-center">
+			<div class="text-center">
+				<div class="mb-4 text-6xl">🔒</div>
+				<h1 class="mb-2 text-2xl font-semibold text-gray-900">This is a private note</h1>
+				<p class="mb-6 text-gray-500">
+					Log in to MdPubs to view it. If you have access, you'll be brought right back here.
+				</p>
+				<a href={loginHref} class="btn btn-primary">Log in to MdPubs</a>
+			</div>
+		</div>
+	{:else if $page.error?.status === 404}
 		<!-- 404 State -->
 		<div class="flex min-h-screen items-center justify-center">
 			<div class="text-center">

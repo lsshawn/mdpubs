@@ -3,6 +3,8 @@
 	import { goto, replaceState } from '$app/navigation';
 	import { onMount } from 'svelte';
 
+	let { redirectTo = '/account' }: { redirectTo?: string } = $props();
+
 	let isOtpStep = $state(false);
 	// let email = 'l@sshawn.com';
 	let email = $state('');
@@ -18,12 +20,13 @@
 	let redirectingToSocialLogin = $state('');
 	function socialLogin(provider: string) {
 		redirectingToSocialLogin = provider;
+		const q = `?redirectTo=${encodeURIComponent(redirectTo)}`;
 		switch (provider) {
 			case 'github':
-				goto('/login/github');
+				goto(`/login/github${q}`);
 				break;
 			case 'google':
-				goto('/login/google');
+				goto(`/login/google${q}`);
 				break;
 			default:
 				console.error('Unknown provider:', provider);
@@ -65,7 +68,7 @@
 			errorMessage = data.errorMessage;
 		} else {
 			success = true;
-			goto('/account', { replaceState: true, invalidateAll: true });
+			goto(redirectTo, { replaceState: true, invalidateAll: true });
 		}
 
 		isLoading = false;
