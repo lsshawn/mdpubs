@@ -136,6 +136,10 @@
 	let versions = $derived(data.versions);
 	let showDiffs = $derived(!!versions);
 
+	// Raw HTML pubs render in a sandboxed iframe instead of {@html}.
+	let isHtml = $derived(!!data.isHtml);
+	let rawUrl = $derived(data.rawUrl);
+
 	// Helper function to safely query elements by ID, handling IDs that start with numbers
 	function safeQueryById(id: string): Element | null {
 		// If ID starts with a number, use attribute selector instead
@@ -707,7 +711,7 @@
 	</div>
 {/if}
 
-<div class="min-h-screen overflow-x-hidden" data-theme="light">
+<div class="min-h-screen overflow-x-hidden">
 	{#if showDiffs}
 		<div class="mx-auto max-w-4xl px-6 py-6 lg:py-12">
 			<header class="mb-8">
@@ -903,12 +907,25 @@
 						</header>
 
 						<!-- Content -->
-						<article
-								class="prose prose-sm min-h-[80vh] max-w-none overflow-x-hidden [overflow-wrap:anywhere] [&_pre]:overflow-x-auto [&_pre]:[overflow-wrap:normal] [&_code]:[overflow-wrap:anywhere] [&_table]:block [&_table]:overflow-x-auto [&_img]:max-w-full"
-								bind:this={articleElement}
-							>
-							{@html note.html}
-						</article>
+						{#if isHtml && rawUrl}
+							<!-- Raw HTML pub: rendered in a fully sandboxed iframe (no scripts,
+							     no same-origin) so it cannot touch the mdpubs origin. The API
+							     serves it with a strict CSP. -->
+							<iframe
+								src={rawUrl}
+								title={note?.title || 'Document'}
+								sandbox="allow-popups allow-popups-to-escape-sandbox"
+								referrerpolicy="no-referrer"
+								class="min-h-[85vh] w-full border-0"
+							></iframe>
+						{:else}
+							<article
+									class="prose prose-sm min-h-[80vh] max-w-none overflow-x-hidden [overflow-wrap:anywhere] [&_pre]:overflow-x-auto [&_pre]:[overflow-wrap:normal] [&_code]:[overflow-wrap:anywhere] [&_table]:block [&_table]:overflow-x-auto [&_img]:max-w-full"
+									bind:this={articleElement}
+								>
+								{@html note.html}
+							</article>
+						{/if}
 
 						<!-- Footer -->
 						<footer class="mt-32 border-t border-gray-200 pt-8">

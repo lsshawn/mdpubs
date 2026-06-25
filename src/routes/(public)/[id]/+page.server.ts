@@ -28,11 +28,15 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 
 		const note = await res.json();
 
-		// Process custom components in the HTML
-		if (note?.html) {
-			console.log('[DEBUG] HTML before parsing:', note.html.substring(0, 500));
+		// Raw HTML pubs are rendered in a sandboxed iframe (served by the API's
+		// /notes/:id/raw endpoint with a strict CSP), not via {@html}. Detect by
+		// file extension; the API returns the raw note (no `html` field) for these.
+		const ext = (note?.fileExtension || note?.file_extension || '').toLowerCase();
+		const isHtml = ext === 'html' || ext === 'htm';
+
+		// Process custom components in the markdown-rendered HTML (markdown pubs only)
+		if (!isHtml && note?.html) {
 			note.html = parseCustomComponentsInHtml(note.html);
-			console.log('[DEBUG] HTML after parsing:', note.html.substring(0, 500));
 		}
 
 		console.log(
@@ -56,7 +60,7 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 		}
 
 		// Generate meta tags for social sharing
-		const title = note?.frontmatter?.title || 'Note';
+		const title = note?.frontmatter?.title || note?.title || 'Note';
 		const description = note?.frontmatter?.description || 'A published note from MdPubs';
 		const ogImage = `https://mdpubs.com/og/${params.id}.png`; // We'll create this endpoint
 
@@ -65,6 +69,8 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 
 		return {
 			note,
+			isHtml,
+			rawUrl: isHtml ? `${config.apiUrl}/notes/${params.id}/raw` : null,
 			versions,
 			meta: {
 				title,
