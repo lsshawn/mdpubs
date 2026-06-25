@@ -711,6 +711,29 @@
 	</div>
 {/if}
 
+{#if isHtml && rawUrl && !showDiffs}
+	<!-- Fullscreen HTML pub: the document fills the viewport so it feels like a
+	     real site. Rendered in a fully sandboxed iframe (no scripts, no
+	     same-origin) served by the API with a strict CSP. A small floating badge
+	     keeps attribution and a way back to mdpubs. -->
+	<div class="fixed inset-0 h-screen w-screen overflow-hidden bg-base-100">
+		<iframe
+			src={rawUrl}
+			title={note?.title || 'Document'}
+			sandbox="allow-popups allow-popups-to-escape-sandbox"
+			referrerpolicy="no-referrer"
+			class="h-full w-full border-0"
+		></iframe>
+		<a
+			href="https://mdpubs.com"
+			target="_blank"
+			rel="noopener"
+			class="fixed right-3 bottom-3 z-50 inline-flex items-center gap-1.5 rounded-full bg-base-100/90 px-3 py-1.5 text-xs font-medium text-base-content/80 shadow-lg ring-1 ring-base-300 backdrop-blur transition-colors hover:text-base-content"
+		>
+			📝 mdpubs
+		</a>
+	</div>
+{:else}
 <div class="min-h-screen overflow-x-hidden">
 	{#if showDiffs}
 		<div class="mx-auto max-w-4xl px-6 py-6 lg:py-12">
@@ -906,26 +929,13 @@
 							{/if}
 						</header>
 
-						<!-- Content -->
-						{#if isHtml && rawUrl}
-							<!-- Raw HTML pub: rendered in a fully sandboxed iframe (no scripts,
-							     no same-origin) so it cannot touch the mdpubs origin. The API
-							     serves it with a strict CSP. -->
-							<iframe
-								src={rawUrl}
-								title={note?.title || 'Document'}
-								sandbox="allow-popups allow-popups-to-escape-sandbox"
-								referrerpolicy="no-referrer"
-								class="min-h-[85vh] w-full border-0"
-							></iframe>
-						{:else}
-							<article
-									class="prose prose-sm min-h-[80vh] max-w-none overflow-x-hidden text-base-content [overflow-wrap:anywhere] [--tw-prose-body:var(--color-base-content)] [--tw-prose-headings:var(--color-base-content)] [--tw-prose-bold:var(--color-base-content)] [--tw-prose-links:var(--color-primary)] [--tw-prose-quotes:var(--color-base-content)] [--tw-prose-code:var(--color-base-content)] [--tw-prose-captions:var(--color-base-content)] [--tw-prose-counters:var(--color-base-content)] [--tw-prose-bullets:var(--color-base-content)] [--tw-prose-hr:var(--color-base-300)] [--tw-prose-quote-borders:var(--color-base-300)] [--tw-prose-th-borders:var(--color-base-300)] [--tw-prose-td-borders:var(--color-base-300)] [&_code]:[overflow-wrap:anywhere] [&_img]:max-w-full [&_pre]:overflow-x-auto [&_pre]:[overflow-wrap:normal] [&_table]:block [&_table]:overflow-x-auto"
-									bind:this={articleElement}
-								>
-								{@html note.html}
-							</article>
-						{/if}
+						<!-- Content (markdown pubs; HTML pubs render fullscreen above) -->
+						<article
+								class="prose prose-sm min-h-[80vh] max-w-none overflow-x-hidden text-base-content [overflow-wrap:anywhere] [--tw-prose-body:var(--color-base-content)] [--tw-prose-headings:var(--color-base-content)] [--tw-prose-bold:var(--color-base-content)] [--tw-prose-links:var(--color-primary)] [--tw-prose-quotes:var(--color-base-content)] [--tw-prose-code:var(--color-base-content)] [--tw-prose-captions:var(--color-base-content)] [--tw-prose-counters:var(--color-base-content)] [--tw-prose-bullets:var(--color-base-content)] [--tw-prose-hr:var(--color-base-300)] [--tw-prose-quote-borders:var(--color-base-300)] [--tw-prose-th-borders:var(--color-base-300)] [--tw-prose-td-borders:var(--color-base-300)] [&_code]:[overflow-wrap:anywhere] [&_img]:max-w-full [&_pre]:overflow-x-auto [&_pre]:[overflow-wrap:normal] [&_table]:block [&_table]:overflow-x-auto"
+								bind:this={articleElement}
+							>
+							{@html note.html}
+						</article>
 
 						<!-- Footer -->
 						<footer class="mt-32 border-t border-base-300 pt-8">
@@ -1039,6 +1049,7 @@
 		{/if}
 	{/if}
 </div>
+{/if}
 
 <style>
 	@keyframes flash-it {
