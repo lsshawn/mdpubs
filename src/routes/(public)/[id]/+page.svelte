@@ -630,12 +630,12 @@
 	{#each items as item}
 		<button
 			onclick={() => handleTocClick(item.link)}
-			class="block w-full px-3 py-2 text-left text-sm transition-colors duration-200 hover:bg-gray-100 {isMobile
+			class="block w-full px-3 py-2 text-left text-sm transition-colors duration-200 hover:bg-base-200 {isMobile
 				? 'rounded-md'
 				: 'rounded-none'} {activeSection === item.link
-				? 'bg-blue-50 text-blue-700'
-				: 'text-gray-600 hover:text-gray-900'} {activeSection === item.link && !isMobile
-				? 'border-r-2 border-blue-600'
+				? 'bg-primary/10 text-primary'
+				: 'text-base-content/70 hover:text-base-content'} {activeSection === item.link && !isMobile
+				? 'border-r-2 border-primary'
 				: ''}"
 			style="padding-left: {0.75 + level * 0.75}rem"
 		>
@@ -716,12 +716,12 @@
 		<div class="mx-auto max-w-4xl px-6 py-6 lg:py-12">
 			<header class="mb-8">
 				{#if note?.frontmatter?.title}
-					<h1 class="text-2xl leading-tight font-bold text-gray-900 lg:text-4xl">
+					<h1 class="text-2xl leading-tight font-bold text-base-content lg:text-4xl">
 						Version history for: {note.frontmatter.title}
 					</h1>
 				{/if}
 				{#if note}
-					<a href="/{note.id}" class="text-sm text-blue-600 hover:underline">
+					<a href="/{note.id}" class="text-sm text-primary hover:underline">
 						&larr; Back to note
 					</a>
 				{/if}
@@ -731,9 +731,9 @@
 				<div class="space-y-12">
 					{#each versions as version (version.id)}
 						<div>
-							<div class="mb-2 flex items-center gap-4 text-sm text-gray-500">
+							<div class="mb-2 flex items-center gap-4 text-sm text-base-content/60">
 								<div class="font-bold">Version {version.version}</div>
-								<p class="text-xs text-gray-500">
+								<p class="text-xs text-base-content/60">
 									{new Date(version.createdAt).toLocaleString('en-US', {
 										year: 'numeric',
 										month: 'long',
@@ -765,7 +765,7 @@
 					transition:fade={{ duration: 150 }}
 				>
 					<button
-						class="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 shadow-lg hover:bg-gray-100"
+						class="flex items-center gap-2 rounded-md border border-base-300 bg-base-100 px-3 py-1.5 text-sm font-medium text-base-content shadow-lg hover:bg-base-200"
 						onclick={quoteSelection}
 					>
 						Quote
@@ -780,25 +780,25 @@
 						<!-- Expandable TOC Button/Container -->
 						<div class="sticky top-6 z-20 ml-2">
 							<div
-								class="overflow-hidden rounded-md bg-white shadow-none ring-0 ring-gray-200 transition-all duration-100 ease-in-out {sidebarOpen
+								class="overflow-hidden rounded-md bg-base-100 shadow-none ring-0 ring-base-300 transition-all duration-100 ease-in-out {sidebarOpen
 									? 'w-64 '
 									: 'h-12 w-12'}"
 							>
 								<!-- Toggle Button Header -->
 								<button
 									onclick={toggleSidebar}
-									class="flex w-full items-center p-3 transition-colors duration-200 hover:bg-gray-50 {sidebarOpen
-										? 'border-b border-gray-200'
+									class="flex w-full items-center p-3 transition-colors duration-200 hover:bg-base-200 {sidebarOpen
+										? 'border-b border-base-300'
 										: ''}"
 									title="{sidebarOpen ? 'Hide' : 'Show'} table of contents"
 								>
 									{#if sidebarOpen}
-										<X class="mr-2 h-5 w-5 flex-shrink-0 text-gray-600" />
-										<span class="text-sm font-semibold tracking-wide text-gray-900 uppercase">
+										<X class="mr-2 h-5 w-5 flex-shrink-0 text-base-content/70" />
+										<span class="text-sm font-semibold tracking-wide text-base-content uppercase">
 											Table of Contents
 										</span>
 									{:else}
-										<List class="h-5 w-5 text-gray-600" />
+										<List class="h-5 w-5 text-base-content/70" />
 									{/if}
 								</button>
 
@@ -822,7 +822,7 @@
 					<!-- Mobile TOC Button -->
 					{#if note?.toc?.length > 0}
 						<div
-							class="sticky top-0 z-40 border-b border-gray-200 bg-white lg:hidden"
+							class="sticky top-0 z-40 border-b border-base-300 bg-base-100 lg:hidden"
 							data-mobile-toc
 						>
 							<div class="px-6 py-3">
@@ -831,7 +831,7 @@
 										event.stopPropagation();
 										tocOpen = !tocOpen;
 									}}
-									class="flex items-center text-sm font-medium text-gray-700 hover:text-gray-900"
+									class="flex items-center text-sm font-medium text-base-content/80 hover:text-base-content"
 								>
 									{#if tocOpen}
 										<X class="mr-2 h-4 w-4" />
@@ -846,7 +846,7 @@
 						<!-- Mobile TOC Dropdown -->
 						{#if tocOpen}
 							<div
-								class="sticky top-[50px] z-30 border-b border-gray-200 bg-white shadow-sm lg:hidden"
+								class="sticky top-[50px] z-30 border-b border-base-300 bg-base-100 shadow-sm lg:hidden"
 								data-mobile-toc
 							>
 								<nav class="max-h-64 overflow-y-auto px-6 py-4">
@@ -878,20 +878,20 @@
 						<!-- Header -->
 						<header class="mb-8">
 							{#if !(note.frontmatter['mdpubs-hero-image'] && note.frontmatter['mdpubs-hero-title']) && note?.frontmatter?.title}
-								<h1 class="text-2xl leading-tight font-bold text-gray-900 lg:text-4xl">
+								<h1 class="text-2xl leading-tight font-bold text-base-content lg:text-4xl">
 									{note.frontmatter.title}
 								</h1>
 							{/if}
 
 							{#if !note.frontmatter?.['mdpubs-hide-meta']}
 								{#if !(note.frontmatter['mdpubs-hero-image'] && note.frontmatter['mdpubs-hero-title']) && note?.frontmatter?.description}
-									<p class="leading-relaxed text-gray-600 lg:text-xl">
+									<p class="leading-relaxed text-base-content/70 lg:text-xl">
 										{note?.frontmatter?.description}
 									</p>
 								{/if}
 
 								{#if note.updatedAt}
-									<div class="mt-2 flex items-center text-xs text-gray-500 md:text-sm">
+									<div class="mt-2 flex items-center text-xs text-base-content/60 md:text-sm">
 										<time datetime={note.updatedAt}>
 											{new Date(note.updatedAt).toLocaleDateString('en-US', {
 												year: 'numeric',
@@ -902,7 +902,7 @@
 									</div>
 								{/if}
 								<!-- Divider -->
-								<div class="mb-8 border-t border-gray-200"></div>
+								<div class="mb-8 border-t border-base-300"></div>
 							{/if}
 						</header>
 
@@ -920,7 +920,7 @@
 							></iframe>
 						{:else}
 							<article
-									class="prose prose-sm min-h-[80vh] max-w-none overflow-x-hidden [overflow-wrap:anywhere] [&_pre]:overflow-x-auto [&_pre]:[overflow-wrap:normal] [&_code]:[overflow-wrap:anywhere] [&_table]:block [&_table]:overflow-x-auto [&_img]:max-w-full"
+									class="prose prose-sm min-h-[80vh] max-w-none overflow-x-hidden text-base-content [overflow-wrap:anywhere] [--tw-prose-body:var(--color-base-content)] [--tw-prose-headings:var(--color-base-content)] [--tw-prose-bold:var(--color-base-content)] [--tw-prose-links:var(--color-primary)] [--tw-prose-quotes:var(--color-base-content)] [--tw-prose-code:var(--color-base-content)] [--tw-prose-captions:var(--color-base-content)] [--tw-prose-counters:var(--color-base-content)] [--tw-prose-bullets:var(--color-base-content)] [--tw-prose-hr:var(--color-base-300)] [--tw-prose-quote-borders:var(--color-base-300)] [--tw-prose-th-borders:var(--color-base-300)] [--tw-prose-td-borders:var(--color-base-300)] [&_code]:[overflow-wrap:anywhere] [&_img]:max-w-full [&_pre]:overflow-x-auto [&_pre]:[overflow-wrap:normal] [&_table]:block [&_table]:overflow-x-auto"
 									bind:this={articleElement}
 								>
 								{@html note.html}
@@ -928,11 +928,11 @@
 						{/if}
 
 						<!-- Footer -->
-						<footer class="mt-32 border-t border-gray-200 pt-8">
-							<div class="flex flex-col items-center justify-center text-gray-500">
+						<footer class="mt-32 border-t border-base-300 pt-8">
+							<div class="flex flex-col items-center justify-center text-base-content/60">
 								<a
 									href="http://mdpubs.com"
-									class="inline-flex items-center text-sm text-gray-500 underline transition-colors hover:text-gray-700"
+									class="inline-flex items-center text-sm text-base-content/60 underline transition-colors hover:text-base-content/80"
 								>
 									<span class="mr-2">📝</span>
 									Powered by {config.name}
@@ -945,10 +945,10 @@
 
 				<!-- Discussion Sidebar -->
 				{#if config.featureFlags.discussionSidebar}
-					<aside class="hidden w-80 flex-shrink-0 border-l border-gray-200 lg:block">
+					<aside class="hidden w-80 flex-shrink-0 border-l border-base-300 lg:block">
 						<div class="sticky top-0 flex h-screen flex-col">
-							<div class="flex-shrink-0 border-b border-gray-200 p-4">
-								<h3 class="text-lg font-semibold text-gray-900">Discussion</h3>
+							<div class="flex-shrink-0 border-b border-base-300 p-4">
+								<h3 class="text-lg font-semibold text-base-content">Discussion</h3>
 							</div>
 
 							<!-- Comments List -->
@@ -958,12 +958,12 @@
 										<div class="flex items-start gap-3">
 											<img src={comment.avatar} alt={comment.author} class="h-8 w-8 rounded-full" />
 											<div class="flex-1">
-												<p class="text-sm font-medium text-gray-900">{comment.author}</p>
+												<p class="text-sm font-medium text-base-content">{comment.author}</p>
 
 												{#if comment.quote}
 													<button
 														onclick={() => scrollToQuote(comment.quote.elementId)}
-														class="my-2 block w-full rounded-md border-l-4 border-gray-300 bg-gray-50 p-2 text-left text-sm text-gray-600 hover:bg-gray-100"
+														class="my-2 block w-full rounded-md border-l-4 border-base-300 bg-base-200 p-2 text-left text-sm text-base-content/70 hover:bg-base-300"
 													>
 														<blockquote class="line-clamp-3 italic">
 															"{comment.quote.text}"
@@ -972,10 +972,10 @@
 												{/if}
 
 												{#if comment.text}
-													<p class="text-sm text-gray-600">{comment.text}</p>
+													<p class="text-sm text-base-content/70">{comment.text}</p>
 												{/if}
 
-												<p class="mt-1 text-xs text-gray-400">{comment.timestamp}</p>
+												<p class="mt-1 text-xs text-base-content/50">{comment.timestamp}</p>
 											</div>
 										</div>
 									{/each}
@@ -983,7 +983,7 @@
 							</div>
 
 							<!-- New Comment Form -->
-							<div class="flex-shrink-0 border-t border-gray-200 p-4">
+							<div class="flex-shrink-0 border-t border-base-300 p-4">
 								<div class="flex items-start gap-3">
 									<img
 										src="https://i.pravatar.cc/40?u=you"
@@ -993,13 +993,13 @@
 									<div class="flex-1">
 										{#if activeQuote}
 											<div
-												class="mb-2 rounded-md border-l-4 border-blue-400 bg-blue-50 p-2 text-sm text-blue-800"
+												class="mb-2 rounded-md border-l-4 border-primary bg-primary/10 p-2 text-sm text-base-content"
 											>
 												<div class="flex items-center justify-between">
 													<p class="line-clamp-2 italic">Quoting: "{activeQuote.text}"</p>
 													<button
 														onclick={() => (activeQuote = null)}
-														class="rounded-full p-1 hover:bg-blue-200"
+														class="rounded-full p-1 hover:bg-primary/20"
 														title="Cancel quote"
 													>
 														<X class="h-4 w-4" />
@@ -1010,7 +1010,7 @@
 										<textarea
 											bind:value={newCommentText}
 											rows="3"
-											class="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+											class="textarea textarea-bordered w-full text-sm"
 											placeholder="Add to the discussion..."
 											onkeydown={(e) => {
 												if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -1020,11 +1020,11 @@
 											}}
 										></textarea>
 										<div class="mt-2 flex items-center justify-between">
-											<p class="text-xs text-gray-500">Cmd+Enter to send</p>
+											<p class="text-xs text-base-content/50">Cmd+Enter to send</p>
 											<button
 												onclick={addComment}
 												disabled={!newCommentText.trim() && !activeQuote}
-												class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 disabled:opacity-50"
+												class="btn btn-primary btn-sm"
 											>
 												Comment
 											</button>
