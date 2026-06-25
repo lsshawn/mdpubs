@@ -724,8 +724,11 @@
 			referrerpolicy="no-referrer"
 			class="h-full w-full border-0"
 		></iframe>
-		<!-- Floating controls (hidden when printing the wrapper) -->
-		<div class="fixed right-3 bottom-3 z-50 flex items-center gap-2 print:hidden">
+		<!-- Floating controls (hidden when printing the wrapper). Stacked vertically
+		     on mobile, horizontal row from sm up. -->
+		<div
+			class="fixed right-3 bottom-3 z-50 flex flex-col items-end gap-2 sm:flex-row sm:items-center print:hidden"
+		>
 			<!-- Print / Save PDF: the iframe is cross-origin + sandboxed, so the parent
 			     cannot print it directly. Open the raw document in its own tab where the
 			     browser prints it natively with its own @page/print CSS. -->
