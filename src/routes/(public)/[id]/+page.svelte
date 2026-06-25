@@ -857,7 +857,7 @@
 					{/if}
 
 					<!-- Hero Image -->
-					{#if note.frontmatter['mdpubs-hero-image'] && note.frontmatter['mdpubs-hero-title']}
+					{#if note?.frontmatter?.['mdpubs-hero-image'] && note?.frontmatter?.['mdpubs-hero-title']}
 						<div
 							class="relative flex h-80 items-end bg-cover bg-center"
 							style="background-image: url('{note.frontmatter['mdpubs-hero-image']}')"
@@ -877,14 +877,14 @@
 					<div class="mx-auto max-w-4xl px-6 py-6 lg:py-12">
 						<!-- Header -->
 						<header class="mb-8">
-							{#if !(note.frontmatter['mdpubs-hero-image'] && note.frontmatter['mdpubs-hero-title']) && note?.frontmatter?.title}
+							{#if !(note?.frontmatter?.['mdpubs-hero-image'] && note?.frontmatter?.['mdpubs-hero-title']) && note?.frontmatter?.title}
 								<h1 class="text-2xl leading-tight font-bold text-base-content lg:text-4xl">
 									{note.frontmatter.title}
 								</h1>
 							{/if}
 
-							{#if !note.frontmatter?.['mdpubs-hide-meta']}
-								{#if !(note.frontmatter['mdpubs-hero-image'] && note.frontmatter['mdpubs-hero-title']) && note?.frontmatter?.description}
+							{#if !note?.frontmatter?.['mdpubs-hide-meta']}
+								{#if !(note?.frontmatter?.['mdpubs-hero-image'] && note?.frontmatter?.['mdpubs-hero-title']) && note?.frontmatter?.description}
 									<p class="leading-relaxed text-base-content/70 lg:text-xl">
 										{note?.frontmatter?.description}
 									</p>
