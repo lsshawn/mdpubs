@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import { goto, replaceState } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 
 	let { redirectTo = '/account' }: { redirectTo?: string } = $props();
@@ -12,7 +13,7 @@
 	// let otp = [5, 5, 0, 4, 4, 8];
 	let errorMessage = $state('');
 
-	const validEmail = $derived(email && /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/g.test(email));
+	const validEmail = $derived(email && /^[\w.-]+@([\w-]+\.)+[\w-]{2,4}$/g.test(email));
 
 	let isLoading = $state(false);
 	let success = $state(false);
@@ -23,10 +24,12 @@
 		const q = `?redirectTo=${encodeURIComponent(redirectTo)}`;
 		switch (provider) {
 			case 'github':
-				goto(`/login/github${q}`);
+				// eslint-disable-next-line svelte/no-navigation-without-resolve
+				goto(`${resolve('/login/github')}${q}`);
 				break;
 			case 'google':
-				goto(`/login/google${q}`);
+				// eslint-disable-next-line svelte/no-navigation-without-resolve
+				goto(`${resolve('/login/google')}${q}`);
 				break;
 			default:
 				console.error('Unknown provider:', provider);
@@ -68,6 +71,7 @@
 			errorMessage = data.errorMessage;
 		} else {
 			success = true;
+			// eslint-disable-next-line svelte/no-navigation-without-resolve
 			goto(redirectTo, { replaceState: true, invalidateAll: true });
 		}
 
@@ -94,7 +98,8 @@
 			// Save email to sessionStorage
 			sessionStorage.setItem('userEmail', email);
 			// Update URL without exposing email
-			replaceState(`?step=otp`, {});
+			// eslint-disable-next-line svelte/no-navigation-without-resolve
+			replaceState(`${resolve('/login')}?step=otp`, {});
 		}
 		isLoading = false;
 	}
@@ -102,7 +107,8 @@
 	async function backFromOtp() {
 		errorMessage = '';
 		isOtpStep = false;
-		replaceState('?step=email', {});
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		replaceState(`${resolve('/login')}?step=email`, {});
 	}
 
 	// Function to focus next input on keyup
@@ -137,7 +143,7 @@
 
 		const lastNumberIndex = numbers.length - 1;
 		const nextInputIndex = lastNumberIndex + 1 < otp.length ? lastNumberIndex + 1 : lastNumberIndex;
-		event.target.form[nextInputIndex] && event.target.form[nextInputIndex].focus();
+		if (event.target.form[nextInputIndex]) event.target.form[nextInputIndex].focus();
 	}
 
 	function handleKeydown(event, index) {
@@ -245,7 +251,8 @@
 			{#if isOtpStep}
 				<form class="mx-auto flex max-w-lg flex-col justify-center">
 					<div class="flex justify-center space-x-2 p-4">
-						{#each otp as value, index}
+						<!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -->
+						{#each otp as _value, index (index)}
 							<input
 								inputmode="numeric"
 								autofocus={index === 0}

@@ -6,6 +6,6 @@ export const load: LayoutServerLoad = async ({ setHeaders }) => {
 		'X-Robots-Tag': 'noindex, nofollow',
 		'Cache-Control': 'private, no-cache'
 	});
-	
+
 	return {};
-}; 
+};

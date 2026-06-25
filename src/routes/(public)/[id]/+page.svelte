@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { onMount, tick, onDestroy, mount, unmount } from 'svelte';
+	import { onMount, tick, onDestroy, mount } from 'svelte';
 	import { Menu, X, List, Maximize2, Minimize2, ChevronDown, ChevronUp } from 'lucide-svelte';
 	import { fade } from 'svelte/transition';
 	import type { PageData } from './$types';
 	import DiffView from '$lib/components/DiffView.svelte';
 	import LinearProgress from '$lib/components/LinearProgress.svelte';
 	import { config } from '$lib/config';
+	import { resolve } from '$app/paths';
 
 	type TocItem = {
 		title: string;
@@ -59,7 +60,9 @@
 					const parsed = new URL(url);
 					const t = parsed.searchParams.get('t');
 					if (t) startSeconds = parseInt(t, 10) || 0;
-				} catch {}
+				} catch {
+					/* ignore malformed URL */
+				}
 				return { id: match[1], startSeconds };
 			}
 		}
@@ -206,7 +209,7 @@
 					value,
 					max,
 					label,
-					color: color as any,
+					color: color as 'primary' | 'secondary' | 'accent' | 'success' | 'warning' | 'error',
 					showPercentage,
 					showFraction
 				}
@@ -627,7 +630,7 @@
 </svelte:head>
 
 {#snippet tocItems(items: TocItem[], level = 0, isMobile = false)}
-	{#each items as item}
+	{#each items as item (item.link)}
 		<button
 			onclick={() => handleTocClick(item.link)}
 			class="block w-full px-3 py-2 text-left text-sm transition-colors duration-200 hover:bg-base-200 {isMobile
@@ -699,7 +702,9 @@
 		{#if !miniPlayerMinimized}
 			<div class="{miniPlayerMaximized ? 'h-[calc(100%-40px)]' : 'aspect-video'} w-full">
 				<iframe
-					src="https://www.youtube.com/embed/{miniPlayerVideoId}?autoplay=1&rel=0{miniPlayerStartSeconds ? `&start=${miniPlayerStartSeconds}` : ''}"
+					src="https://www.youtube.com/embed/{miniPlayerVideoId}?autoplay=1&rel=0{miniPlayerStartSeconds
+						? `&start=${miniPlayerStartSeconds}`
+						: ''}"
 					title="YouTube video"
 					frameborder="0"
 					allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -733,6 +738,7 @@
 			     cannot print it directly. Open the raw document in its own tab with
 			     ?print=1, which loads it natively (own @page/print CSS) and opens the
 			     print dialog on load. -->
+			<!-- eslint-disable svelte/no-navigation-without-resolve -->
 			<a
 				href={`${rawUrl}?print=1`}
 				target="_blank"
@@ -742,6 +748,8 @@
 			>
 				Print / Save PDF
 			</a>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 			<a
 				href="https://mdpubs.com"
 				target="_blank"
@@ -753,321 +761,328 @@
 		</div>
 	</div>
 {:else}
-<div class="min-h-screen overflow-x-hidden">
-	{#if showDiffs}
-		<div class="mx-auto max-w-4xl px-6 py-6 lg:py-12">
-			<header class="mb-8">
-				{#if note?.frontmatter?.title}
-					<h1 class="text-2xl leading-tight font-bold text-base-content lg:text-4xl">
-						Version history for: {note.frontmatter.title}
-					</h1>
-				{/if}
-				{#if note}
-					<a href="/{note.id}" class="text-sm text-primary hover:underline">
-						&larr; Back to note
-					</a>
-				{/if}
-			</header>
-
-			{#if versions && versions.length > 0}
-				<div class="space-y-12">
-					{#each versions as version (version.id)}
-						<div>
-							<div class="mb-2 flex items-center gap-4 text-sm text-base-content/60">
-								<div class="font-bold">Version {version.version}</div>
-								<p class="text-xs text-base-content/60">
-									{new Date(version.createdAt).toLocaleString('en-US', {
-										year: 'numeric',
-										month: 'long',
-										day: 'numeric',
-										hour: 'numeric',
-										minute: 'numeric'
-									})}
-								</p>
-							</div>
-							<DiffView diff={version.diff} />
-						</div>
-					{/each}
-				</div>
-			{:else if versions}
-				<p>No version history found for this note.</p>
-			{:else}
-				<p>Error loading version history.</p>
-			{/if}
-		</div>
-	{:else}
-		<!-- Main Content -->
-		{#if note}
-			<!-- Quote Button Popover -->
-			{#if quoteButtonVisible}
-				<div
-					style="top: {quoteButtonPosition.top}px; left: {quoteButtonPosition.left}px;"
-					class="absolute z-50"
-					data-quote-button
-					transition:fade={{ duration: 150 }}
-				>
-					<button
-						class="flex items-center gap-2 rounded-md border border-base-300 bg-base-100 px-3 py-1.5 text-sm font-medium text-base-content shadow-lg hover:bg-base-200"
-						onclick={quoteSelection}
-					>
-						Quote
-					</button>
-				</div>
-			{/if}
-
-			<div class="flex min-h-screen">
-				<!-- TOC Sidebar for Desktop -->
-				{#if note?.toc?.length > 0}
-					<aside class="relative hidden w-64 flex-shrink-0 lg:block">
-						<!-- Expandable TOC Button/Container -->
-						<div class="sticky top-6 z-20 ml-2">
-							<div
-								class="overflow-hidden rounded-md bg-base-100 shadow-none ring-0 ring-base-300 transition-all duration-100 ease-in-out {sidebarOpen
-									? 'w-64 '
-									: 'h-12 w-12'}"
-							>
-								<!-- Toggle Button Header -->
-								<button
-									onclick={toggleSidebar}
-									class="flex w-full items-center p-3 transition-colors duration-200 hover:bg-base-200 {sidebarOpen
-										? 'border-b border-base-300'
-										: ''}"
-									title="{sidebarOpen ? 'Hide' : 'Show'} table of contents"
-								>
-									{#if sidebarOpen}
-										<X class="mr-2 h-5 w-5 flex-shrink-0 text-base-content/70" />
-										<span class="text-sm font-semibold tracking-wide text-base-content uppercase">
-											Table of Contents
-										</span>
-									{:else}
-										<List class="h-5 w-5 text-base-content/70" />
-									{/if}
-								</button>
-
-								<!-- TOC Content (hidden when collapsed) -->
-								{#if sidebarOpen}
-									<div class="max-h-[calc(100vh-8rem)] overflow-y-auto p-4">
-										{#if tocContentVisible}
-											<nav class="space-y-1" transition:fade={{ duration: 200 }}>
-												{@render tocItems(note.toc as TocItem[], 0, false)}
-											</nav>
-										{/if}
-									</div>
-								{/if}
-							</div>
-						</div>
-					</aside>
-				{/if}
-
-				<!-- Main Content Area -->
-				<div class="flex-1">
-					<!-- Mobile TOC Button -->
-					{#if note?.toc?.length > 0}
-						<div
-							class="sticky top-0 z-40 border-b border-base-300 bg-base-100 lg:hidden"
-							data-mobile-toc
+	<div class="min-h-screen overflow-x-hidden">
+		{#if showDiffs}
+			<div class="mx-auto max-w-4xl px-6 py-6 lg:py-12">
+				<header class="mb-8">
+					{#if note?.frontmatter?.title}
+						<h1 class="text-2xl leading-tight font-bold text-base-content lg:text-4xl">
+							Version history for: {note.frontmatter.title}
+						</h1>
+					{/if}
+					{#if note}
+						<a
+							href={resolve('/(public)/[id]', { id: note.id })}
+							class="text-sm text-primary hover:underline"
 						>
-							<div class="px-6 py-3">
-								<button
-									onclick={(event) => {
-										event.stopPropagation();
-										tocOpen = !tocOpen;
-									}}
-									class="flex items-center text-sm font-medium text-base-content/80 hover:text-base-content"
-								>
-									{#if tocOpen}
-										<X class="mr-2 h-4 w-4" />
-									{:else}
-										<Menu class="mr-2 h-4 w-4" />
-									{/if}
-									Table of Contents
-								</button>
-							</div>
-						</div>
+							&larr; Back to note
+						</a>
+					{/if}
+				</header>
 
-						<!-- Mobile TOC Dropdown -->
-						{#if tocOpen}
+				{#if versions && versions.length > 0}
+					<div class="space-y-12">
+						{#each versions as version (version.id)}
+							<div>
+								<div class="mb-2 flex items-center gap-4 text-sm text-base-content/60">
+									<div class="font-bold">Version {version.version}</div>
+									<p class="text-xs text-base-content/60">
+										{new Date(version.createdAt).toLocaleString('en-US', {
+											year: 'numeric',
+											month: 'long',
+											day: 'numeric',
+											hour: 'numeric',
+											minute: 'numeric'
+										})}
+									</p>
+								</div>
+								<DiffView diff={version.diff} />
+							</div>
+						{/each}
+					</div>
+				{:else if versions}
+					<p>No version history found for this note.</p>
+				{:else}
+					<p>Error loading version history.</p>
+				{/if}
+			</div>
+		{:else}
+			<!-- Main Content -->
+			{#if note}
+				<!-- Quote Button Popover -->
+				{#if quoteButtonVisible}
+					<div
+						style="top: {quoteButtonPosition.top}px; left: {quoteButtonPosition.left}px;"
+						class="absolute z-50"
+						data-quote-button
+						transition:fade={{ duration: 150 }}
+					>
+						<button
+							class="flex items-center gap-2 rounded-md border border-base-300 bg-base-100 px-3 py-1.5 text-sm font-medium text-base-content shadow-lg hover:bg-base-200"
+							onclick={quoteSelection}
+						>
+							Quote
+						</button>
+					</div>
+				{/if}
+
+				<div class="flex min-h-screen">
+					<!-- TOC Sidebar for Desktop -->
+					{#if note?.toc?.length > 0}
+						<aside class="relative hidden w-64 flex-shrink-0 lg:block">
+							<!-- Expandable TOC Button/Container -->
+							<div class="sticky top-6 z-20 ml-2">
+								<div
+									class="overflow-hidden rounded-md bg-base-100 shadow-none ring-0 ring-base-300 transition-all duration-100 ease-in-out {sidebarOpen
+										? 'w-64 '
+										: 'h-12 w-12'}"
+								>
+									<!-- Toggle Button Header -->
+									<button
+										onclick={toggleSidebar}
+										class="flex w-full items-center p-3 transition-colors duration-200 hover:bg-base-200 {sidebarOpen
+											? 'border-b border-base-300'
+											: ''}"
+										title="{sidebarOpen ? 'Hide' : 'Show'} table of contents"
+									>
+										{#if sidebarOpen}
+											<X class="mr-2 h-5 w-5 flex-shrink-0 text-base-content/70" />
+											<span class="text-sm font-semibold tracking-wide text-base-content uppercase">
+												Table of Contents
+											</span>
+										{:else}
+											<List class="h-5 w-5 text-base-content/70" />
+										{/if}
+									</button>
+
+									<!-- TOC Content (hidden when collapsed) -->
+									{#if sidebarOpen}
+										<div class="max-h-[calc(100vh-8rem)] overflow-y-auto p-4">
+											{#if tocContentVisible}
+												<nav class="space-y-1" transition:fade={{ duration: 200 }}>
+													{@render tocItems(note.toc as TocItem[], 0, false)}
+												</nav>
+											{/if}
+										</div>
+									{/if}
+								</div>
+							</div>
+						</aside>
+					{/if}
+
+					<!-- Main Content Area -->
+					<div class="flex-1">
+						<!-- Mobile TOC Button -->
+						{#if note?.toc?.length > 0}
 							<div
-								class="sticky top-[50px] z-30 border-b border-base-300 bg-base-100 shadow-sm lg:hidden"
+								class="sticky top-0 z-40 border-b border-base-300 bg-base-100 lg:hidden"
 								data-mobile-toc
 							>
-								<nav class="max-h-64 overflow-y-auto px-6 py-4">
-									{@render tocItems(note.toc as TocItem[], 0, true)}
-								</nav>
+								<div class="px-6 py-3">
+									<button
+										onclick={(event) => {
+											event.stopPropagation();
+											tocOpen = !tocOpen;
+										}}
+										class="flex items-center text-sm font-medium text-base-content/80 hover:text-base-content"
+									>
+										{#if tocOpen}
+											<X class="mr-2 h-4 w-4" />
+										{:else}
+											<Menu class="mr-2 h-4 w-4" />
+										{/if}
+										Table of Contents
+									</button>
+								</div>
+							</div>
+
+							<!-- Mobile TOC Dropdown -->
+							{#if tocOpen}
+								<div
+									class="sticky top-[50px] z-30 border-b border-base-300 bg-base-100 shadow-sm lg:hidden"
+									data-mobile-toc
+								>
+									<nav class="max-h-64 overflow-y-auto px-6 py-4">
+										{@render tocItems(note.toc as TocItem[], 0, true)}
+									</nav>
+								</div>
+							{/if}
+						{/if}
+
+						<!-- Hero Image -->
+						{#if note?.frontmatter?.['mdpubs-hero-image'] && note?.frontmatter?.['mdpubs-hero-title']}
+							<div
+								class="relative flex h-80 items-end bg-cover bg-center"
+								style="background-image: url('{note.frontmatter['mdpubs-hero-image']}')"
+							>
+								<div
+									class="w-full bg-gradient-to-t from-black/80 to-transparent px-6 pt-24 pb-6 lg:px-8 lg:pt-32 lg:pb-8"
+								>
+									<h1
+										class="m-auto line-clamp-2 max-w-4xl text-3xl leading-snug font-extrabold text-white [text-shadow:0_2px_8px_rgba(0,0,0,0.8)] lg:text-5xl lg:leading-tight"
+									>
+										{note.frontmatter['mdpubs-hero-title']}
+									</h1>
+								</div>
 							</div>
 						{/if}
-					{/if}
 
-					<!-- Hero Image -->
-					{#if note?.frontmatter?.['mdpubs-hero-image'] && note?.frontmatter?.['mdpubs-hero-title']}
-						<div
-							class="relative flex h-80 items-end bg-cover bg-center"
-							style="background-image: url('{note.frontmatter['mdpubs-hero-image']}')"
-						>
-							<div
-								class="w-full bg-gradient-to-t from-black/80 to-transparent px-6 pt-24 pb-6 lg:px-8 lg:pt-32 lg:pb-8"
-							>
-								<h1
-									class="m-auto line-clamp-2 max-w-4xl text-3xl leading-snug font-extrabold text-white [text-shadow:0_2px_8px_rgba(0,0,0,0.8)] lg:text-5xl lg:leading-tight"
-								>
-									{note.frontmatter['mdpubs-hero-title']}
-								</h1>
-							</div>
-						</div>
-					{/if}
-
-					<div class="mx-auto max-w-4xl px-6 py-6 lg:py-12">
-						<!-- Header -->
-						<header class="mb-8">
-							{#if !(note?.frontmatter?.['mdpubs-hero-image'] && note?.frontmatter?.['mdpubs-hero-title']) && note?.frontmatter?.title}
-								<h1 class="text-2xl leading-tight font-bold text-base-content lg:text-4xl">
-									{note.frontmatter.title}
-								</h1>
-							{/if}
-
-							{#if !note?.frontmatter?.['mdpubs-hide-meta']}
-								{#if !(note?.frontmatter?.['mdpubs-hero-image'] && note?.frontmatter?.['mdpubs-hero-title']) && note?.frontmatter?.description}
-									<p class="leading-relaxed text-base-content/70 lg:text-xl">
-										{note?.frontmatter?.description}
-									</p>
+						<div class="mx-auto max-w-4xl px-6 py-6 lg:py-12">
+							<!-- Header -->
+							<header class="mb-8">
+								{#if !(note?.frontmatter?.['mdpubs-hero-image'] && note?.frontmatter?.['mdpubs-hero-title']) && note?.frontmatter?.title}
+									<h1 class="text-2xl leading-tight font-bold text-base-content lg:text-4xl">
+										{note.frontmatter.title}
+									</h1>
 								{/if}
 
-								{#if note.updatedAt}
-									<div class="mt-2 flex items-center text-xs text-base-content/60 md:text-sm">
-										<time datetime={note.updatedAt}>
-											{new Date(note.updatedAt).toLocaleDateString('en-US', {
-												year: 'numeric',
-												month: 'long',
-												day: 'numeric'
-											})}
-										</time>
-									</div>
-								{/if}
-								<!-- Divider -->
-								<div class="mb-8 border-t border-base-300"></div>
-							{/if}
-						</header>
+								{#if !note?.frontmatter?.['mdpubs-hide-meta']}
+									{#if !(note?.frontmatter?.['mdpubs-hero-image'] && note?.frontmatter?.['mdpubs-hero-title']) && note?.frontmatter?.description}
+										<p class="leading-relaxed text-base-content/70 lg:text-xl">
+											{note?.frontmatter?.description}
+										</p>
+									{/if}
 
-						<!-- Content (markdown pubs; HTML pubs render fullscreen above) -->
-						<article
+									{#if note.updatedAt}
+										<div class="mt-2 flex items-center text-xs text-base-content/60 md:text-sm">
+											<time datetime={note.updatedAt}>
+												{new Date(note.updatedAt).toLocaleDateString('en-US', {
+													year: 'numeric',
+													month: 'long',
+													day: 'numeric'
+												})}
+											</time>
+										</div>
+									{/if}
+									<!-- Divider -->
+									<div class="mb-8 border-t border-base-300"></div>
+								{/if}
+							</header>
+
+							<!-- Content (markdown pubs; HTML pubs render fullscreen above) -->
+							<article
 								class="prose prose-sm min-h-[80vh] max-w-none overflow-x-hidden text-base-content [overflow-wrap:anywhere] [--tw-prose-body:var(--color-base-content)] [--tw-prose-headings:var(--color-base-content)] [--tw-prose-bold:var(--color-base-content)] [--tw-prose-links:var(--color-primary)] [--tw-prose-quotes:var(--color-base-content)] [--tw-prose-code:var(--color-base-content)] [--tw-prose-captions:var(--color-base-content)] [--tw-prose-counters:var(--color-base-content)] [--tw-prose-bullets:var(--color-base-content)] [--tw-prose-hr:var(--color-base-300)] [--tw-prose-quote-borders:var(--color-base-300)] [--tw-prose-th-borders:var(--color-base-300)] [--tw-prose-td-borders:var(--color-base-300)] [&_code]:[overflow-wrap:anywhere] [&_img]:max-w-full [&_pre]:overflow-x-auto [&_pre]:[overflow-wrap:normal] [&_table]:block [&_table]:overflow-x-auto"
 								bind:this={articleElement}
 							>
-							{@html note.html}
-						</article>
+								<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+								{@html note.html}
+							</article>
 
-						<!-- Footer -->
-						<footer class="mt-32 border-t border-base-300 pt-8">
-							<div class="flex flex-col items-center justify-center text-base-content/60">
-								<a
-									href="http://mdpubs.com"
-									class="inline-flex items-center text-sm text-base-content/60 underline transition-colors hover:text-base-content/80"
-								>
-									<span class="mr-2">📝</span>
-									Powered by {config.name}
-								</a>
-								<div class="mt-1 text-xs">{config.description}</div>
-							</div>
-						</footer>
-					</div>
-				</div>
-
-				<!-- Discussion Sidebar -->
-				{#if config.featureFlags.discussionSidebar}
-					<aside class="hidden w-80 flex-shrink-0 border-l border-base-300 lg:block">
-						<div class="sticky top-0 flex h-screen flex-col">
-							<div class="flex-shrink-0 border-b border-base-300 p-4">
-								<h3 class="text-lg font-semibold text-base-content">Discussion</h3>
-							</div>
-
-							<!-- Comments List -->
-							<div class="flex-1 overflow-y-auto p-4">
-								<div class="space-y-6">
-									{#each comments as comment (comment.id)}
-										<div class="flex items-start gap-3">
-											<img src={comment.avatar} alt={comment.author} class="h-8 w-8 rounded-full" />
-											<div class="flex-1">
-												<p class="text-sm font-medium text-base-content">{comment.author}</p>
-
-												{#if comment.quote}
-													<button
-														onclick={() => scrollToQuote(comment.quote.elementId)}
-														class="my-2 block w-full rounded-md border-l-4 border-base-300 bg-base-200 p-2 text-left text-sm text-base-content/70 hover:bg-base-300"
-													>
-														<blockquote class="line-clamp-3 italic">
-															"{comment.quote.text}"
-														</blockquote>
-													</button>
-												{/if}
-
-												{#if comment.text}
-													<p class="text-sm text-base-content/70">{comment.text}</p>
-												{/if}
-
-												<p class="mt-1 text-xs text-base-content/50">{comment.timestamp}</p>
-											</div>
-										</div>
-									{/each}
+							<!-- Footer -->
+							<footer class="mt-32 border-t border-base-300 pt-8">
+								<div class="flex flex-col items-center justify-center text-base-content/60">
+									<a
+										href="http://mdpubs.com"
+										class="inline-flex items-center text-sm text-base-content/60 underline transition-colors hover:text-base-content/80"
+									>
+										<span class="mr-2">📝</span>
+										Powered by {config.name}
+									</a>
+									<div class="mt-1 text-xs">{config.description}</div>
 								</div>
-							</div>
+							</footer>
+						</div>
+					</div>
 
-							<!-- New Comment Form -->
-							<div class="flex-shrink-0 border-t border-base-300 p-4">
-								<div class="flex items-start gap-3">
-									<img
-										src="https://i.pravatar.cc/40?u=you"
-										alt="You"
-										class="h-8 w-8 rounded-full"
-									/>
-									<div class="flex-1">
-										{#if activeQuote}
-											<div
-												class="mb-2 rounded-md border-l-4 border-primary bg-primary/10 p-2 text-sm text-base-content"
-											>
-												<div class="flex items-center justify-between">
-													<p class="line-clamp-2 italic">Quoting: "{activeQuote.text}"</p>
-													<button
-														onclick={() => (activeQuote = null)}
-														class="rounded-full p-1 hover:bg-primary/20"
-														title="Cancel quote"
-													>
-														<X class="h-4 w-4" />
-													</button>
+					<!-- Discussion Sidebar -->
+					{#if config.featureFlags.discussionSidebar}
+						<aside class="hidden w-80 flex-shrink-0 border-l border-base-300 lg:block">
+							<div class="sticky top-0 flex h-screen flex-col">
+								<div class="flex-shrink-0 border-b border-base-300 p-4">
+									<h3 class="text-lg font-semibold text-base-content">Discussion</h3>
+								</div>
+
+								<!-- Comments List -->
+								<div class="flex-1 overflow-y-auto p-4">
+									<div class="space-y-6">
+										{#each comments as comment (comment.id)}
+											<div class="flex items-start gap-3">
+												<img
+													src={comment.avatar}
+													alt={comment.author}
+													class="h-8 w-8 rounded-full"
+												/>
+												<div class="flex-1">
+													<p class="text-sm font-medium text-base-content">{comment.author}</p>
+
+													{#if comment.quote}
+														<button
+															onclick={() => scrollToQuote(comment.quote.elementId)}
+															class="my-2 block w-full rounded-md border-l-4 border-base-300 bg-base-200 p-2 text-left text-sm text-base-content/70 hover:bg-base-300"
+														>
+															<blockquote class="line-clamp-3 italic">
+																"{comment.quote.text}"
+															</blockquote>
+														</button>
+													{/if}
+
+													{#if comment.text}
+														<p class="text-sm text-base-content/70">{comment.text}</p>
+													{/if}
+
+													<p class="mt-1 text-xs text-base-content/50">{comment.timestamp}</p>
 												</div>
 											</div>
-										{/if}
-										<textarea
-											bind:value={newCommentText}
-											rows="3"
-											class="textarea textarea-bordered w-full text-sm"
-											placeholder="Add to the discussion..."
-											onkeydown={(e) => {
-												if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-													e.preventDefault();
-													addComment();
-												}
-											}}
-										></textarea>
-										<div class="mt-2 flex items-center justify-between">
-											<p class="text-xs text-base-content/50">Cmd+Enter to send</p>
-											<button
-												onclick={addComment}
-												disabled={!newCommentText.trim() && !activeQuote}
-												class="btn btn-primary btn-sm"
-											>
-												Comment
-											</button>
+										{/each}
+									</div>
+								</div>
+
+								<!-- New Comment Form -->
+								<div class="flex-shrink-0 border-t border-base-300 p-4">
+									<div class="flex items-start gap-3">
+										<img
+											src="https://i.pravatar.cc/40?u=you"
+											alt="You"
+											class="h-8 w-8 rounded-full"
+										/>
+										<div class="flex-1">
+											{#if activeQuote}
+												<div
+													class="mb-2 rounded-md border-l-4 border-primary bg-primary/10 p-2 text-sm text-base-content"
+												>
+													<div class="flex items-center justify-between">
+														<p class="line-clamp-2 italic">Quoting: "{activeQuote.text}"</p>
+														<button
+															onclick={() => (activeQuote = null)}
+															class="rounded-full p-1 hover:bg-primary/20"
+															title="Cancel quote"
+														>
+															<X class="h-4 w-4" />
+														</button>
+													</div>
+												</div>
+											{/if}
+											<textarea
+												bind:value={newCommentText}
+												rows="3"
+												class="textarea textarea-bordered w-full text-sm"
+												placeholder="Add to the discussion..."
+												onkeydown={(e) => {
+													if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+														e.preventDefault();
+														addComment();
+													}
+												}}></textarea>
+											<div class="mt-2 flex items-center justify-between">
+												<p class="text-xs text-base-content/50">Cmd+Enter to send</p>
+												<button
+													onclick={addComment}
+													disabled={!newCommentText.trim() && !activeQuote}
+													class="btn btn-primary btn-sm"
+												>
+													Comment
+												</button>
+											</div>
 										</div>
 									</div>
 								</div>
 							</div>
-						</div>
-					</aside>
-				{/if}
-			</div>
+						</aside>
+					{/if}
+				</div>
+			{/if}
 		{/if}
-	{/if}
-</div>
+	</div>
 {/if}
 
 <style>

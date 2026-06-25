@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { enhance, type SubmitFunction } from '$app/forms';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { formatDateTime } from '$lib/helpers';
 	import type { Note } from '$lib/server/db/schema';
 
-	let { data, form } = $props();
+	let { data } = $props();
 
 	let toast = $state<{ message: string; type: 'success' | 'error' } | null>(null);
 	let noteToDelete: (typeof data.notes)[0] | null = $state(null);
@@ -110,7 +111,7 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each data.notes as note}
+					{#each data.notes as note (note.id)}
 						<tr>
 							<td>{note.id}</td>
 							<td>
@@ -121,8 +122,11 @@
 										onclick={() => showViewModal(note)}>{note.title || 'Untitled'}</button
 									>
 								{:else}
-									<a href="/{note.id}" class="link" target="_blank" rel="noopener noreferrer"
-										>{note.title || 'Untitled'}</a
+									<a
+										href={resolve('/(public)/[id]', { id: String(note.id) })}
+										class="link"
+										target="_blank"
+										rel="noopener noreferrer">{note.title || 'Untitled'}</a
 									>
 								{/if}
 							</td>
@@ -155,12 +159,14 @@
 		{#if data.totalPages > 1}
 			<div class="join mt-4 flex justify-center">
 				{#if data.currentPage > 1}
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 					<a href={getSearchURL(data.currentPage - 1)} class="join-item btn">«</a>
 				{:else}
 					<button class="join-item btn btn-disabled">«</button>
 				{/if}
 				<button class="join-item btn">Page {data.currentPage} of {data.totalPages}</button>
 				{#if data.currentPage < data.totalPages}
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 					<a href={getSearchURL(data.currentPage + 1)} class="join-item btn">»</a>
 				{:else}
 					<button class="join-item btn btn-disabled">»</button>
@@ -245,6 +251,7 @@
 				<div class="max-h-[60vh] overflow-y-auto">
 					{#if viewMode === 'html'}
 						<div class="prose dark:prose-invert max-w-none">
+							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 							{@html noteContent.html}
 						</div>
 					{:else}

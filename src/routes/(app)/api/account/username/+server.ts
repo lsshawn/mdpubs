@@ -23,10 +23,7 @@ export async function POST(event: RequestEvent) {
 	const validation = usernameSchema.safeParse(body);
 
 	if (!validation.success) {
-		return json(
-			{ success: false, message: validation.error.errors[0].message },
-			{ status: 400 }
-		);
+		return json({ success: false, message: validation.error.errors[0].message }, { status: 400 });
 	}
 	const { username } = validation.data;
 
@@ -34,8 +31,8 @@ export async function POST(event: RequestEvent) {
 		await db.update(table.user).set({ username }).where(eq(table.user.id, currentUser.id));
 
 		return json({ success: true, message: 'Username updated successfully.' });
-	} catch (e: any) {
-		if (e.message?.includes('UNIQUE constraint failed: users.username')) {
+	} catch (e) {
+		if (e instanceof Error && e.message?.includes('UNIQUE constraint failed: users.username')) {
 			return json({ success: false, message: 'Username is already taken.' }, { status: 409 });
 		}
 		console.error('Error updating username:', e);

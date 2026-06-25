@@ -38,9 +38,7 @@ export const load: PageServerLoad = async ({ params }) => {
 			tags: note.tags
 		})
 		.from(note)
-		.where(
-			and(eq(note.userId, targetUser.id), eq(note.isPrivate, false), isNull(note.deletedAt))
-		)
+		.where(and(eq(note.userId, targetUser.id), eq(note.isPrivate, false), isNull(note.deletedAt)))
 		.orderBy(desc(note.updatedAt))
 		.limit(limit)
 		.offset(offset);
@@ -58,7 +56,10 @@ export const load: PageServerLoad = async ({ params }) => {
 		content = content.replace(/\[TOC\]/gi, '').trim();
 
 		const parsedContent = marked.parse(content, { async: false }) as string;
-		const plainText = parsedContent.replace(/<[^>]+>/g, ' ').replace(/\s\s+/g, ' ').trim();
+		const plainText = parsedContent
+			.replace(/<[^>]+>/g, ' ')
+			.replace(/\s\s+/g, ' ')
+			.trim();
 		const contentSnippet = plainText.substring(0, 200);
 
 		return {

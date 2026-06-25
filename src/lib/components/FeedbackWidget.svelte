@@ -78,7 +78,7 @@
 				}
 				status = 'error';
 			}
-		} catch (e) {
+		} catch {
 			errorMessage = 'Failed to submit feedback. Please try again later.';
 			status = 'error';
 		}
@@ -106,8 +106,7 @@
 						rows="4"
 						placeholder="Your message..."
 						disabled={status === 'submitting'}
-						aria-label="Your message"
-					></textarea>
+						aria-label="Your message"></textarea>
 					{#if fieldErrors.message}
 						<p class="text-error mt-1 text-sm">{fieldErrors.message[0]}</p>
 					{/if}

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { config } from '$lib/config';
+	import { resolve } from '$app/paths';
 
 	import { Code, FileText, Globe } from 'lucide-svelte';
 </script>
@@ -43,11 +44,12 @@ https://mdpubs.com/[id]
 			<a
 				role="button"
 				class="btn btn-lg border-none bg-blue-600 px-12 py-6 text-xl text-white shadow-lg hover:bg-blue-700"
-				href="/login">Get Your Free API Key</a
+				href={resolve('/login')}>Get Your Free API Key</a
 			>
 
 			{@render ctaFootnote()}
 
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 			<a href={config.git} class="text-gray-400 underline">Documentation and Plugin Install Guide</a
 			>
 		</div>

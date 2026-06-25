@@ -28,16 +28,6 @@ async function assertNotPrivate(id: string): Promise<void> {
 	}
 }
 
-interface Heading {
-	level: number;
-	text: string;
-	id: string;
-}
-
-interface TocNode extends Heading {
-	children: TocNode[];
-}
-
 export const load: PageServerLoad = async ({ params, fetch, url }) => {
 	try {
 		const showDiffs = url.searchParams.get('diffs') === 'true';
@@ -79,7 +69,9 @@ export const load: PageServerLoad = async ({ params, fetch, url }) => {
 			if (versionsRes.ok) {
 				const versionsData = await versionsRes.json();
 				// Sort versions descending to show latest first
-				versions = versionsData.versions.sort((a: any, b: any) => b.version - a.version);
+				versions = versionsData.versions.sort(
+					(a: { version: number }, b: { version: number }) => b.version - a.version
+				);
 			} else {
 				// Don't throw an error, just log it and the page will show a message.
 				console.error('Failed to load note versions');

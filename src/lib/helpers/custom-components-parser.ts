@@ -134,7 +134,7 @@ function parseProgressValue(valueStr: string): { value: number; max: number } {
 		return { value: 0, max: 100 };
 	}
 
-	let [valuePart, maxPart] = parts.map(p => p.trim());
+	const [valuePart, maxPart] = parts.map((p) => p.trim());
 
 	// Check if value is a JavaScript expression (wrapped in {})
 	const valueIsExpression = valuePart.startsWith('{') && valuePart.endsWith('}');
@@ -144,9 +144,7 @@ function parseProgressValue(valueStr: string): { value: number; max: number } {
 		? evaluateExpression(valuePart.slice(1, -1))
 		: parseFloat(valuePart);
 
-	const max = maxIsExpression
-		? evaluateExpression(maxPart.slice(1, -1))
-		: parseFloat(maxPart);
+	const max = maxIsExpression ? evaluateExpression(maxPart.slice(1, -1)) : parseFloat(maxPart);
 
 	return {
 		value: isNaN(value) ? 0 : value,
@@ -228,7 +226,8 @@ function progressToHtml(config: ProgressConfig): string {
 
 	if (config.label) attrs.push(`data-label="${config.label}"`);
 	if (config.color) attrs.push(`data-color="${config.color}"`);
-	if (config.showPercentage !== undefined) attrs.push(`data-show-percentage="${config.showPercentage}"`);
+	if (config.showPercentage !== undefined)
+		attrs.push(`data-show-percentage="${config.showPercentage}"`);
 	if (config.showFraction !== undefined) attrs.push(`data-show-fraction="${config.showFraction}"`);
 
 	return `<div class="custom-component" ${attrs.join(' ')}></div>`;

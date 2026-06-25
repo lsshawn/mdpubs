@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
+	import { resolve } from '$app/paths';
 	import { formatDate } from '$lib/helpers/dates';
 	import type { PageData } from './$types';
 
@@ -78,7 +79,7 @@
 		<div class="space-y-4">
 			{#each notes as note (note.id)}
 				<a
-					href={`/${note.id}`}
+					href={resolve('/(public)/[id]', { id: String(note.id) })}
 					class="card bg-base-100 shadow-xl hover:bg-base-200 transition-colors block border border-base-300"
 				>
 					<div class="card-body">
@@ -95,7 +96,7 @@
 						</p>
 						<div class="card-actions justify-end mt-2">
 							{#if note.tags && note.tags.length > 0}
-								{#each note.tags as tag}
+								{#each note.tags as tag (tag)}
 									<div class="badge badge-outline">{tag}</div>
 								{/each}
 							{/if}

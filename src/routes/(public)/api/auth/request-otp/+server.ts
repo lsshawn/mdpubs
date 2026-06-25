@@ -7,7 +7,7 @@ import { dev } from '$app/environment';
 
 const testEmails = ['l@sshawn.com'];
 
-export async function POST({ locals, request }: RequestEvent) {
+export async function POST({ request }: RequestEvent) {
 	const title = config.name;
 	const { email } = await request.json();
 	const otpConfig = serverConfig.otp;

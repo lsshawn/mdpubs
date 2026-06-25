@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { dev } from '$app/environment';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import CopyableText from '$lib/components/CopyableText.svelte';
 	import { config } from '$lib/config';
 	import Icon from '@iconify/svelte';
@@ -45,7 +46,7 @@
 		loggingOut = true;
 		const res = await fetch('/api/auth/logout', { method: 'POST' });
 		if (res.ok) {
-			goto('/', { replaceState: true, invalidateAll: true });
+			goto(resolve('/'), { replaceState: true, invalidateAll: true });
 		}
 	}
 
@@ -162,6 +163,7 @@
 		<h3 class="text-2xl font-bold text-white">Your API Keys</h3>
 		<p class="py-4 text-gray-300">
 			Save these keys securely. You'll need them to use the MdPubs plugin.
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 			<a href={config.git} class="text-gray-400 underline">Documentation and Plugin Install Guide</a
 			>
 		</p>
@@ -206,12 +208,14 @@
 				<p class="my-2 text-gray-300">
 					Publish <strong>unlimited notes</strong> for just $10/month
 				</p>
+				<!-- eslint-disable svelte/no-navigation-without-resolve -->
 				<a
 					role="button"
 					class="btn btn-primary"
 					href={config.stripePaymentLinks.monthly.link + `?prefilled_email=${data.user.email}`}
 					>Upgrade Now</a
 				>
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			</div>
 		{/if}
 		<div class="mt-4 text-center">

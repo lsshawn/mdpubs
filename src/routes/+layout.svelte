@@ -4,11 +4,15 @@
 	import type { LayoutData, Snapshot } from './$types';
 	import { config } from '$lib/config';
 	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
+	import type { Snippet } from 'svelte';
 	import FeedbackWidget from '$lib/components/FeedbackWidget.svelte';
-	let { data, children }: { data: LayoutData; children: any } = $props();
+	let { data, children }: { data: LayoutData; children: Snippet } = $props();
 
 	let ogImage = $state(
-		data.meta?.ogImage ? `${page.url.origin}${data.meta.ogImage}` : `${page.url.origin}/ogimage.webp`
+		data.meta?.ogImage
+			? `${page.url.origin}${data.meta.ogImage}`
+			: `${page.url.origin}/ogimage.webp`
 	);
 
 	let message = $state('');
@@ -53,14 +57,14 @@
 	{#if page.route.id !== '/(public)/[id]'}
 		<header class="navbar shadow-sm md:px-8">
 			<div class="flex flex-1">
-				<a href="/" role="button" class="flex gap-2">
+				<a href={resolve('/')} role="button" class="flex gap-2">
 					<Pencil class="h-8 w-8 text-blue-400" />
 					<span class="text-2xl font-bold text-white">MdPubs</span>
 				</a>
 			</div>
 			<div class="flex items-center gap-2">
 				<a
-					href="/notes"
+					href={resolve('/notes')}
 					role="button"
 					class={page.url.pathname.startsWith('/notes')
 						? 'btn btn-ghost text-gray-600'
@@ -69,7 +73,7 @@
 					Notes
 				</a>
 				<a
-					href="/account"
+					href={resolve('/account')}
 					role="button"
 					class={page.url.pathname.startsWith('/account') || page.url.pathname.startsWith('/login')
 						? 'text-gray-600'

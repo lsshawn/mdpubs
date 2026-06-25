@@ -48,16 +48,19 @@ pnpm db:feedback:studio   # Open Drizzle Studio for feedback database
 ### Database Architecture
 
 **Dual-Database Setup**: The app uses two separate Turso databases:
+
 1. **Main database** (`DATABASE_URL`) - user data, notes, sessions
 2. **Feedback database** (`FEEDBACK_DATABASE_URL`) - feedback submissions, projects
 
 **Main Schema** (`src/lib/server/db/schema.ts`):
+
 - `users` - user accounts with OAuth IDs, API keys, Stripe data, custom domains
 - `sessions` - auth sessions (30-day expiry, auto-renewed at 15 days)
 - `notes` - markdown notes with versioning, tags, privacy flags, image maps
 - `note_versions` - historical versions of notes
 
 **Feedback Schema** (`src/lib/server/db/feedback.schema.ts`):
+
 - `projects` - feedback projects
 - `feedback` - user feedback submissions with metadata
 
@@ -66,11 +69,13 @@ pnpm db:feedback:studio   # Open Drizzle Studio for feedback database
 Session-based auth using SHA-256 hashed tokens stored in HTTP-only cookies (`auth-session`).
 
 **Auth Flows**:
+
 - OAuth (Google/GitHub) via Arctic library
 - Email OTP (one-time password) with rate limiting
 - API key authentication for programmatic access (both read-write and read-only keys)
 
 **Key Files**:
+
 - `src/lib/server/auth.ts` - session management, token generation
 - `src/lib/server/oauth.ts` - OAuth providers configuration
 - `src/lib/server/otp.ts` - OTP generation and verification
@@ -79,6 +84,7 @@ Session-based auth using SHA-256 hashed tokens stored in HTTP-only cookies (`aut
 ### Route Structure
 
 **SvelteKit Route Groups**:
+
 - `(public)` - unauthenticated routes (landing page, login, public note views)
   - `/[id]` - view public note by ID
   - `/u/[username]` - view user's public notes
@@ -94,6 +100,7 @@ Session-based auth using SHA-256 hashed tokens stored in HTTP-only cookies (`aut
 ### Custom Domain Handling
 
 `src/hooks.server.ts` intercepts requests:
+
 1. If host is NOT default (mdpubs.com/localhost), lookup user by `customDomain`
 2. Redirect root `/` to `/u/[username]`
 3. Rewrite all paths to `/u/[username]/[path]`
@@ -101,6 +108,7 @@ Session-based auth using SHA-256 hashed tokens stored in HTTP-only cookies (`aut
 ### API Key Authentication
 
 Users have two API keys (in `users` table):
+
 - `apiKey` - full read-write access
 - `readOnlyApiKey` - read-only access
 
@@ -116,6 +124,7 @@ Used for programmatic note syncing from Neovim plugin.
 ## Environment Variables
 
 Required env vars (see `.env.example`):
+
 - `DATABASE_URL`, `DATABASE_AUTH_TOKEN` - main Turso database
 - `FEEDBACK_DATABASE_URL`, `FEEDBACK_DATABASE_AUTH_TOKEN` - feedback database
 - `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM` - email for OTP

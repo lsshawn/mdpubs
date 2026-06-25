@@ -9,6 +9,7 @@ The basic syntax is: `::progress[value/max attributes]`
 ## Static Progress Examples
 
 ### Basic Progress Bar
+
 Simple progress with hardcoded values:
 
 ```markdown
@@ -18,6 +19,7 @@ Simple progress with hardcoded values:
 ::progress[5/100]
 
 ### Progress with Label
+
 Add a descriptive label to your progress bar:
 
 ```markdown
@@ -27,6 +29,7 @@ Add a descriptive label to your progress bar:
 ::progress[25/100 label="Tasks completed"]
 
 ### Progress with Colors
+
 Choose from different color schemes:
 
 ```markdown
@@ -50,6 +53,7 @@ Choose from different color schemes:
 Available colors: `primary`, `secondary`, `accent`, `success`, `warning`, `error`
 
 ### Show Fraction
+
 Display the actual numbers alongside the percentage:
 
 ```markdown
@@ -59,6 +63,7 @@ Display the actual numbers alongside the percentage:
 ::progress[342/500 label="Pages read" showFraction=true]
 
 ### Hide Percentage
+
 Hide the percentage text on the bar:
 
 ```markdown
@@ -70,6 +75,7 @@ Hide the percentage text on the bar:
 ## Dynamic Progress Examples (JavaScript Functions)
 
 ### Year Progress
+
 Track how much of the year has passed:
 
 ```markdown
@@ -79,6 +85,7 @@ Track how much of the year has passed:
 ::progress[{getDaysElapsed()}/{getTotalDaysInYear()} label="Year progress"]
 
 ### Days Remaining This Year
+
 Show how many days are left in the current year:
 
 ```markdown
@@ -88,6 +95,7 @@ Show how many days are left in the current year:
 ::progress[{getDaysRemaining()}/{getTotalDaysInYear()} label="Days remaining in year" color=warning]
 
 ### Week Progress
+
 Track weeks in the current year:
 
 ```markdown
@@ -97,6 +105,7 @@ Track weeks in the current year:
 ::progress[{getWeekNumber()}/52 label="Weeks this year" color=accent]
 
 ### Month Progress
+
 Track progress through the current month:
 
 ```markdown
@@ -106,6 +115,7 @@ Track progress through the current month:
 ::progress[{getDayOfMonth()}/{getDaysInMonth()} label="Month progress" showFraction=true]
 
 ### Quarter Progress
+
 Track which quarter we're in (1-4):
 
 ```markdown
@@ -118,18 +128,18 @@ Track which quarter we're in (1-4):
 
 When using dynamic expressions (wrapped in `{}`), you have access to these helper functions:
 
-| Function | Description | Returns |
-|----------|-------------|---------|
-| `getDayOfYear()` | Current day of year (1-365/366) | number |
-| `getTotalDaysInYear()` | Total days in current year (365 or 366) | number |
-| `getDaysElapsed()` | Days that have passed in current year | number |
-| `getDaysRemaining()` | Days remaining in current year | number |
-| `getWeekNumber()` | Current week number (1-52) | number |
-| `getTotalWeeks()` | Total weeks in a year (52) | number |
-| `getCurrentMonth()` | Current month (1-12) | number |
-| `getCurrentQuarter()` | Current quarter (1-4) | number |
-| `getDaysInMonth()` | Total days in current month | number |
-| `getDayOfMonth()` | Current day of month (1-31) | number |
+| Function               | Description                             | Returns |
+| ---------------------- | --------------------------------------- | ------- |
+| `getDayOfYear()`       | Current day of year (1-365/366)         | number  |
+| `getTotalDaysInYear()` | Total days in current year (365 or 366) | number  |
+| `getDaysElapsed()`     | Days that have passed in current year   | number  |
+| `getDaysRemaining()`   | Days remaining in current year          | number  |
+| `getWeekNumber()`      | Current week number (1-52)              | number  |
+| `getTotalWeeks()`      | Total weeks in a year (52)              | number  |
+| `getCurrentMonth()`    | Current month (1-12)                    | number  |
+| `getCurrentQuarter()`  | Current quarter (1-4)                   | number  |
+| `getDaysInMonth()`     | Total days in current month             | number  |
+| `getDayOfMonth()`      | Current day of month (1-31)             | number  |
 
 ## Advanced Examples
 
@@ -141,24 +151,30 @@ Track multiple goals in a single note:
 ## My 2026 Goals
 
 ### Reading Goal
+
 ::progress[23/52 label="Books read this year" color=success showFraction=true]
 
 ### Exercise Goal
+
 ::progress[{getWeekNumber()}/52 label="Weeks of exercise" color=primary showFraction=true]
 
 ### Project Completion
+
 ::progress[{getCurrentQuarter()}/4 label="Quarterly milestones" color=accent]
 ```
 
 ## My 2026 Goals
 
 ### Reading Goal
+
 ::progress[23/52 label="Books read this year" color=success showFraction=true]
 
 ### Exercise Goal
+
 ::progress[{getWeekNumber()}/52 label="Weeks of exercise" color=primary showFraction=true]
 
 ### Project Completion
+
 ::progress[{getCurrentQuarter()}/4 label="Quarterly milestones" color=accent]
 
 ---
@@ -169,24 +185,30 @@ Track multiple goals in a single note:
 ## Project: MdPubs Custom Components
 
 ### Overall Progress
+
 ::progress[3/5 label="Features completed" color=primary showFraction=true]
 
 ### Testing Coverage
+
 ::progress[78/100 label="Test coverage %" color=success]
 
 ### Documentation
+
 ::progress[5/10 label="Docs pages" color=warning showFraction=true]
 ```
 
 ## Project: MdPubs Custom Components
 
 ### Overall Progress
+
 ::progress[3/5 label="Features completed" color=primary showFraction=true]
 
 ### Testing Coverage
+
 ::progress[78/100 label="Test coverage %" color=success]
 
 ### Documentation
+
 ::progress[5/10 label="Docs pages" color=warning showFraction=true]
 
 ---
@@ -202,6 +224,7 @@ Track multiple goals in a single note:
 ## Future Component Ideas
 
 This custom component system can be extended to support:
+
 - `::chart[...]` - Inline charts and graphs
 - `::counter[...]` - Animated counters
 - `::calendar[...]` - Mini calendars with highlighted dates

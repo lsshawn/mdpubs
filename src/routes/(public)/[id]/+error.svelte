@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { resolve } from '$app/paths';
 
 	// On a private note, send the viewer to login and bring them back here after.
-	const loginHref = $derived(`/login?redirectTo=${encodeURIComponent($page.url.pathname)}`);
+	const loginHref = $derived(
+		`${resolve('/login')}?redirectTo=${encodeURIComponent($page.url.pathname)}`
+	);
 </script>
 
 <svelte:head>
@@ -19,6 +22,7 @@
 				<p class="mb-6 text-gray-500">
 					Log in to MdPubs to view it. If you have access, you'll be brought right back here.
 				</p>
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 				<a href={loginHref} class="btn btn-primary">Log in to MdPubs</a>
 			</div>
 		</div>
@@ -31,7 +35,7 @@
 				<p class="mb-6 text-gray-500">
 					The note you're looking for doesn't exist or has been removed.
 				</p>
-				<a href="/" class="btn btn-primary">Go Home</a>
+				<a href={resolve('/')} class="btn btn-primary">Go Home</a>
 			</div>
 		</div>
 	{:else}
@@ -45,4 +49,4 @@
 			</div>
 		</div>
 	{/if}
-</div> 
+</div>
