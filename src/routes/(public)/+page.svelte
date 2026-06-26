@@ -2,16 +2,24 @@
 	import { config } from '$lib/config';
 	import { resolve } from '$app/paths';
 
-	import { Code, FileText, Globe } from 'lucide-svelte';
+	import Icon from '@iconify/svelte';
 </script>
 
 <div class="min-h-screen bg-base-100 text-base-content">
-	<section class="container mx-auto px-4 py-4 text-center md:py-16">
+	<!-- ATTENTION -->
+	<section class="container mx-auto px-4 py-8 text-center md:py-16">
+		<p class="mb-4 font-mono text-sm tracking-wide text-primary">Markdown → public web page, instantly</p>
 		<h1
 			class="mx-auto mb-6 text-3xl leading-tight font-bold text-base-content md:max-w-4xl md:text-5xl"
 		>
-			{config.description}
+			Let your AI publish markdown to the web
 		</h1>
+
+		<!-- INTEREST -->
+		<p class="mx-auto mb-12 max-w-xl text-lg text-base-content/70">
+			Publish-to-web for your markdown, built for agents. Drop one line of
+			frontmatter and any file goes live at a shareable URL — no copy-paste, no CMS.
+		</p>
 
 		<!-- Code Example -->
 		<div class="mx-auto mb-12 max-w-2xl">
@@ -31,7 +39,7 @@
 							>---
 title: "My Note"
 // 👇 just add this to publish
-mdpubs:  
+mdpubs:
 ---
 
 This markdown file will be instantly available at:
@@ -42,6 +50,7 @@ https://mdpubs.com/[id]
 			</div>
 		</div>
 
+		<!-- ACTION -->
 		<div class="mx-auto max-w-xl">
 			<a
 				role="button"
@@ -52,22 +61,55 @@ https://mdpubs.com/[id]
 			{@render ctaFootnote()}
 
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-			<a href={config.git} class="text-base-content/60 underline"
-				>Documentation and Plugin Install Guide</a
-			>
+			<a href={config.git} class="text-base-content/60 underline">API & plugin docs</a>
 		</div>
 	</section>
 
-	<!-- Features Section -->
+	<!-- DESIRE -->
 	<section class="container min-w-full bg-base-200 px-10 py-16">
-		<h2 class="text-center text-3xl font-bold text-base-content">Built for Neovim Users</h2>
+		<h2 class="text-center text-3xl font-bold text-base-content">Publishing as a single API call</h2>
+		<p class="mx-auto mt-3 max-w-xl text-center text-base-content/70">
+			Hand your agent an API key. It writes markdown, MdPubs hosts it — clean, fast, public.
+		</p>
 		<div class="mt-12 grid gap-8 md:grid-cols-3">
 			<div class="card justify-start border border-base-300 bg-base-100 text-center shadow-lg">
 				<div class="card-body grow-0 items-center">
-					<Code class="mx-auto mb-4 h-12 w-12 text-primary" />
-					<h2 class="card-title justify-center text-base-content">Install Plugin in Neovim</h2>
+					<Icon icon="ph:robot" class="mx-auto mb-4 h-12 w-12 text-primary" />
+					<h2 class="card-title justify-center text-base-content">Built for AI</h2>
 					<p class="mt-2 text-base-content/70">
-						<a href="https://github.com/lsshawn/mdpubs.nvim" class="underline">Github Repo</a>
+						One frontmatter flag and a simple API. No browser, no CMS dashboard — exactly the
+						interface an agent wants.
+					</p>
+					<pre
+						class="w-full overflow-x-auto rounded-md bg-gray-900 p-4 text-left font-mono text-sm text-green-400"><code
+							>{`---
+title: "My Note"
+mdpubs:
+---`}</code
+						></pre>
+				</div>
+			</div>
+
+			<div class="card justify-start border border-base-300 bg-base-100 text-center shadow-lg">
+				<div class="card-body grow-0 items-center">
+					<Icon icon="ph:globe" class="mx-auto mb-4 h-12 w-12 text-primary" />
+					<h2 class="card-title justify-center text-base-content">Live in a second</h2>
+					<p class="mt-2 text-base-content/70">
+						Your content is online immediately at a clean, shareable
+						<code class="text-green-400">mdpubs.com/[id]</code>.
+					</p>
+					<img src="/sample-published-page.webp" alt="A published MdPubs page" />
+				</div>
+			</div>
+
+			<div class="card justify-start border border-base-300 bg-base-100 text-center shadow-lg">
+				<div class="card-body grow-0 items-center">
+					<Icon icon="ph:terminal-window" class="mx-auto mb-4 h-12 w-12 text-primary" />
+					<h2 class="card-title justify-center text-base-content">Works from your editor too</h2>
+					<p class="mt-2 text-base-content/70">
+						Prefer to write yourself? The
+						<a href="https://github.com/lsshawn/mdpubs.nvim" class="underline">Neovim plugin</a>
+						publishes the file you're editing without leaving the buffer.
 					</p>
 					<pre
 						class="w-full overflow-x-auto rounded-md bg-gray-900 p-4 text-left font-mono text-sm text-green-400"><code
@@ -82,36 +124,7 @@ https://mdpubs.com/[id]
 						></pre>
 				</div>
 			</div>
-
-			<div class="card justify-start border border-base-300 bg-base-100 text-center shadow-lg">
-				<div class="card-body grow-0 items-center">
-					<FileText class="mx-auto mb-4 h-12 w-12 text-primary" />
-					<h2 class="card-title justify-center text-base-content">Add to Frontmatter</h2>
-					<p class="mt-2 text-base-content/70">
-						Add <code class="text-green-400">mdpubs:</code> to the frontmatter of your markdown.
-					</p>
-					<pre
-						class="w-full overflow-x-auto rounded-md bg-gray-900 p-4 text-left font-mono text-sm text-green-400"><code
-							>{`---
-title: "My Note"
-mdpubs:  
----`}</code
-						></pre>
-				</div>
-			</div>
-
-			<div class="card justify-start border border-base-300 bg-base-100 text-center shadow-lg">
-				<div class="card-body grow-0 items-center">
-					<Globe class="mx-auto mb-4 h-12 w-12 text-primary" />
-					<h2 class="card-title justify-center text-base-content">Instant Publishing</h2>
-					<p class="mt-2 text-base-content/70">
-						Your content is live immediately at https://mdpubs.com/[note_id].
-					</p>
-					<img src="/sample-published-page.webp" />
-				</div>
-			</div>
 		</div>
-		<!-- <div class="mt-8 text-center italic">Coming soon: Obsidian</div> -->
 	</section>
 
 	<!-- Footer -->
