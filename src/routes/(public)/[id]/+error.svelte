@@ -12,14 +12,14 @@
 	<title>Error - MdPubs</title>
 </svelte:head>
 
-<div class="min-h-screen bg-white">
+<div class="min-h-screen bg-base-100">
 	{#if $page.status === 403}
 		<!-- Private note -->
 		<div class="flex min-h-screen items-center justify-center">
 			<div class="text-center">
 				<div class="mb-4 text-6xl">🔒</div>
-				<h1 class="mb-2 text-2xl font-semibold text-gray-900">This is a private note</h1>
-				<p class="mb-6 text-gray-500">
+				<h1 class="mb-2 text-2xl font-semibold text-base-content">This is a private note</h1>
+				<p class="mb-6 text-base-content/60">
 					Log in to MdPubs to view it. If you have access, you'll be brought right back here.
 				</p>
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
@@ -31,8 +31,8 @@
 		<div class="flex min-h-screen items-center justify-center">
 			<div class="text-center">
 				<div class="mb-4 text-6xl">📝</div>
-				<h1 class="mb-2 text-2xl font-semibold text-gray-900">Page not found</h1>
-				<p class="mb-6 text-gray-500">
+				<h1 class="mb-2 text-2xl font-semibold text-base-content">Page not found</h1>
+				<p class="mb-6 text-base-content/60">
 					The note you're looking for doesn't exist or has been removed.
 				</p>
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
@@ -44,8 +44,8 @@
 		<div class="flex min-h-screen items-center justify-center">
 			<div class="text-center">
 				<div class="mb-4 text-6xl">⚠️</div>
-				<h1 class="mb-2 text-2xl font-semibold text-gray-900">Something went wrong</h1>
-				<p class="mb-6 text-gray-500">{$page.error?.message || 'An unexpected error occurred'}</p>
+				<h1 class="mb-2 text-2xl font-semibold text-base-content">Something went wrong</h1>
+				<p class="mb-6 text-base-content/60">{$page.error?.message || 'An unexpected error occurred'}</p>
 				<button class="btn btn-primary" onclick={() => location.reload()}>Try Again</button>
 			</div>
 		</div>

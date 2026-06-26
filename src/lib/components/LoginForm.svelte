@@ -219,7 +219,7 @@
 						{/if}
 						Request OTP
 					</button>
-					<div class="mt-4 text-red-500">{errorMessage}</div>
+					<div class="mt-4 text-error">{errorMessage}</div>
 				</form>
 				<div class="text-center">
 					<div class="my-4">or</div>
@@ -271,7 +271,7 @@
 					</div>
 					<button
 						disabled={isLoading || otp.some((v) => v === '')}
-						class={`btn-primary btn mt-4 w-full rounded-md ${success ? 'bg-green-700' : ''}`}
+						class={`btn mt-4 w-full rounded-md ${success ? 'btn-success' : 'btn-primary'}`}
 						onclick={() => loginWithOtp()}
 					>
 						{#if isLoading}
@@ -280,7 +280,7 @@
 							{success ? 'Logging in...' : 'Login'}
 						{/if}
 					</button>
-					<div class="mt-4 text-red-500">{errorMessage}</div>
+					<div class="mt-4 text-error">{errorMessage}</div>
 				</form>
 			{/if}
 		</div>

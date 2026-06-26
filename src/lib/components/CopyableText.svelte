@@ -30,7 +30,7 @@
 		class:btn-circle={iconOnly}
 		class:btn-ghost={iconOnly}
 		class:btn-success={copied}
-		class:text-white={copied}
+		class:text-success-content={copied}
 		onclick={copy}
 	>
 		{#if iconOnly}

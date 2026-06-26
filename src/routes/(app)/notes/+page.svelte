@@ -80,9 +80,9 @@
 	}
 </script>
 
-<div class="mx-auto min-h-screen max-w-4xl text-white">
+<div class="mx-auto min-h-screen max-w-4xl text-base-content">
 	<section class="container mx-auto px-4 py-4 text-center md:pt-16">
-		<h1 class="mb-6 text-3xl leading-tight font-bold text-white md:text-5xl">My Notes</h1>
+		<h1 class="mb-6 text-3xl leading-tight font-bold text-base-content md:text-5xl">My Notes</h1>
 	</section>
 
 	<section class="container mx-auto px-4">

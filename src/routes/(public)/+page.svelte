@@ -5,9 +5,11 @@
 	import { Code, FileText, Globe } from 'lucide-svelte';
 </script>
 
-<div class="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+<div class="min-h-screen bg-base-100 text-base-content">
 	<section class="container mx-auto px-4 py-4 text-center md:py-16">
-		<h1 class="mx-auto mb-6 text-3xl leading-tight font-bold text-white md:max-w-4xl md:text-5xl">
+		<h1
+			class="mx-auto mb-6 text-3xl leading-tight font-bold text-base-content md:max-w-4xl md:text-5xl"
+		>
 			{config.description}
 		</h1>
 
@@ -43,27 +45,28 @@ https://mdpubs.com/[id]
 		<div class="mx-auto max-w-xl">
 			<a
 				role="button"
-				class="btn btn-lg border-none bg-blue-600 px-12 py-6 text-xl text-white shadow-lg hover:bg-blue-700"
+				class="btn btn-primary btn-lg border-none px-12 py-6 text-xl shadow-lg"
 				href={resolve('/login')}>Get Your Free API Key</a
 			>
 
 			{@render ctaFootnote()}
 
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-			<a href={config.git} class="text-gray-400 underline">Documentation and Plugin Install Guide</a
+			<a href={config.git} class="text-base-content/60 underline"
+				>Documentation and Plugin Install Guide</a
 			>
 		</div>
 	</section>
 
 	<!-- Features Section -->
-	<section class="container min-w-full bg-gray-800/50 px-10 py-16">
-		<h2 class="text-center text-3xl font-bold text-white">Built for Neovim Users</h2>
+	<section class="container min-w-full bg-base-200 px-10 py-16">
+		<h2 class="text-center text-3xl font-bold text-base-content">Built for Neovim Users</h2>
 		<div class="mt-12 grid gap-8 md:grid-cols-3">
-			<div class="card justify-start border border-gray-700 bg-gray-800/50 text-center shadow-lg">
+			<div class="card justify-start border border-base-300 bg-base-100 text-center shadow-lg">
 				<div class="card-body grow-0 items-center">
-					<Code class="mx-auto mb-4 h-12 w-12 text-blue-400" />
-					<h2 class="card-title justify-center text-white">Install Plugin in Neovim</h2>
-					<p class="mt-2 text-gray-300">
+					<Code class="mx-auto mb-4 h-12 w-12 text-primary" />
+					<h2 class="card-title justify-center text-base-content">Install Plugin in Neovim</h2>
+					<p class="mt-2 text-base-content/70">
 						<a href="https://github.com/lsshawn/mdpubs.nvim" class="underline">Github Repo</a>
 					</p>
 					<pre
@@ -80,15 +83,15 @@ https://mdpubs.com/[id]
 				</div>
 			</div>
 
-			<div class="card justify-start border border-gray-700 bg-gray-800/50 text-center shadow-lg">
+			<div class="card justify-start border border-base-300 bg-base-100 text-center shadow-lg">
 				<div class="card-body grow-0 items-center">
-					<FileText class="mx-auto mb-4 h-12 w-12 text-blue-400" />
-					<h2 class="card-title justify-center text-white">Add to Frontmatter</h2>
-					<p class="mt-2 text-gray-300">
+					<FileText class="mx-auto mb-4 h-12 w-12 text-primary" />
+					<h2 class="card-title justify-center text-base-content">Add to Frontmatter</h2>
+					<p class="mt-2 text-base-content/70">
 						Add <code class="text-green-400">mdpubs:</code> to the frontmatter of your markdown.
 					</p>
 					<pre
-						class="w-full overflow-x-auto rounded-md bg-gray-900 p-4 text-left font-mono text-sm text-white"><code
+						class="w-full overflow-x-auto rounded-md bg-gray-900 p-4 text-left font-mono text-sm text-green-400"><code
 							>{`---
 title: "My Note"
 mdpubs:  
@@ -97,11 +100,11 @@ mdpubs:
 				</div>
 			</div>
 
-			<div class="card justify-start border border-gray-700 bg-gray-800/50 text-center shadow-lg">
+			<div class="card justify-start border border-base-300 bg-base-100 text-center shadow-lg">
 				<div class="card-body grow-0 items-center">
-					<Globe class="mx-auto mb-4 h-12 w-12 text-blue-400" />
-					<h2 class="card-title justify-center text-white">Instant Publishing</h2>
-					<p class="mt-2 text-gray-300">
+					<Globe class="mx-auto mb-4 h-12 w-12 text-primary" />
+					<h2 class="card-title justify-center text-base-content">Instant Publishing</h2>
+					<p class="mt-2 text-base-content/70">
 						Your content is live immediately at https://mdpubs.com/[note_id].
 					</p>
 					<img src="/sample-published-page.webp" />
@@ -112,15 +115,15 @@ mdpubs:
 	</section>
 
 	<!-- Footer -->
-	<footer class="border-t border-gray-800 bg-gray-900 py-12 text-white">
+	<footer class="border-t border-base-300 bg-base-200 py-12 text-base-content">
 		<div class="container mx-auto flex justify-between px-4">
-			<div class="text-sm text-gray-400">
+			<div class="text-sm text-base-content/60">
 				<p>
 					&copy; {new Date().getFullYear()} MdPubs, built by
 					<a
 						href="https://x.com/me_sshawn"
 						target="_blank"
-						class="text-blue-400 hover:text-blue-300">Shawn</a
+						class="text-primary hover:underline">Shawn</a
 					>.
 				</p>
 			</div>
@@ -136,7 +139,7 @@ mdpubs:
 </div>
 
 {#snippet ctaFootnote()}
-	<div class="my-4 text-center text-sm text-gray-300">
+	<div class="my-4 text-center text-sm text-base-content/70">
 		<p>Free tier: 5 publishable markdown files, unlimited views.</p>
 		<p>For unlimited markdown files, it's $10 per month.</p>
 	</div>

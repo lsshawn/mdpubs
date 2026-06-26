@@ -35,17 +35,17 @@
 	{#if label || showFraction}
 		<div class="mb-2 flex items-center justify-between text-sm">
 			{#if label}
-				<span class="font-medium text-gray-700">{label}</span>
+				<span class="font-medium text-base-content">{label}</span>
 			{/if}
 			{#if showFraction}
-				<span class="text-gray-500">
+				<span class="text-base-content/60">
 					{value.toLocaleString()} / {max.toLocaleString()}
 				</span>
 			{/if}
 		</div>
 	{/if}
 
-	<div class="relative h-4 w-full overflow-hidden rounded-full bg-gray-200">
+	<div class="relative h-4 w-full overflow-hidden rounded-full bg-base-300">
 		<div
 			class="h-full transition-all duration-500 ease-out {colorClasses[color]}"
 			style="width: {percentage}%"
@@ -57,7 +57,7 @@
 
 		{#if showPercentage}
 			<div class="absolute inset-0 flex items-center justify-center">
-				<span class="text-xs font-semibold text-gray-700">
+				<span class="text-xs font-semibold text-base-content">
 					{percentage.toFixed(1)}%
 				</span>
 			</div>

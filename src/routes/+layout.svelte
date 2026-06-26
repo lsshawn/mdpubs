@@ -58,8 +58,8 @@
 		<header class="navbar shadow-sm md:px-8">
 			<div class="flex flex-1">
 				<a href={resolve('/')} role="button" class="flex gap-2">
-					<Pencil class="h-8 w-8 text-blue-400" />
-					<span class="text-2xl font-bold text-white">MdPubs</span>
+					<Pencil class="h-8 w-8 text-primary" />
+					<span class="text-2xl font-bold text-base-content">MdPubs</span>
 				</a>
 			</div>
 			<div class="flex items-center gap-2">
@@ -67,8 +67,8 @@
 					href={resolve('/notes')}
 					role="button"
 					class={page.url.pathname.startsWith('/notes')
-						? 'btn btn-ghost text-gray-600'
-						: 'btn btn-ghost text-white'}
+						? 'btn btn-ghost text-primary'
+						: 'btn btn-ghost text-base-content'}
 				>
 					Notes
 				</a>
@@ -76,8 +76,8 @@
 					href={resolve('/account')}
 					role="button"
 					class={page.url.pathname.startsWith('/account') || page.url.pathname.startsWith('/login')
-						? 'text-gray-600'
-						: 'text-white'}
+						? 'text-primary'
+						: 'text-base-content'}
 				>
 					<CircleUser class="h-8 w-8" />
 				</a>
