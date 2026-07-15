@@ -127,6 +127,69 @@ mdpubs:
 		</div>
 	</section>
 
+	<!-- E-signing -->
+	<section class="container mx-auto px-4 py-16 md:px-10">
+		<p class="text-center font-mono text-sm tracking-wide text-primary">New</p>
+		<h2 class="mt-2 text-center text-3xl font-bold text-base-content">
+			Sign documents, no DocuSign
+		</h2>
+		<p class="mx-auto mt-3 max-w-2xl text-center text-base-content/70">
+			Add one line to any HTML pub and it becomes a signable document. Share the link — each party
+			draws their signature in the browser. No accounts for signers, no PDF export, no per-envelope
+			fees.
+		</p>
+
+		<div class="mx-auto mt-12 grid max-w-5xl items-center gap-8 md:grid-cols-2">
+			<!-- The one-line opt-in -->
+			<div class="rounded-lg border border-base-300 bg-base-200 p-4 shadow-lg">
+				<pre
+					class="w-full overflow-x-auto rounded-md bg-gray-900 p-4 text-left font-mono text-sm text-green-400"><code
+						>{`<!-- mdpubs-sign: true -->
+<!-- mdpubs-signer: You <you@co.com> -->
+<!-- mdpubs-signer-open: Other party -->
+<!-- mdpubs-sign-order: sequential -->
+
+<h1>Non-Disclosure Agreement</h1>
+...`}</code
+					></pre>
+			</div>
+
+			<!-- What you get -->
+			<div class="grid gap-4">
+				<div class="flex items-start gap-3">
+					<Icon icon="ph:pencil-simple-line" class="mt-1 h-6 w-6 shrink-0 text-primary" />
+					<div>
+						<h3 class="font-semibold text-base-content">Draw-to-sign in the browser</h3>
+						<p class="text-sm text-base-content/70">
+							Signers type their name and draw a signature. Don't know the other party's email?
+							Use an open slot — they fill in their own details. Sequential or parallel order.
+						</p>
+					</div>
+				</div>
+				<div class="flex items-start gap-3">
+					<Icon icon="ph:lock-key" class="mt-1 h-6 w-6 shrink-0 text-primary" />
+					<div>
+						<h3 class="font-semibold text-base-content">Tamper-evident</h3>
+						<p class="text-sm text-base-content/70">
+							Each signature binds to a SHA-256 of the exact signed content. Once signed, the
+							document locks — no silent edits.
+						</p>
+					</div>
+				</div>
+				<div class="flex items-start gap-3">
+					<Icon icon="ph:list-checks" class="mt-1 h-6 w-6 shrink-0 text-primary" />
+					<div>
+						<h3 class="font-semibold text-base-content">Full audit trail</h3>
+						<p class="text-sm text-base-content/70">
+							Every view, signature, and completion is recorded with timestamp and IP. Download the
+							signed document as a PDF.
+						</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
 	<!-- Footer -->
 	<footer class="border-t border-base-300 bg-base-200 py-12 text-base-content">
 		<div class="container mx-auto flex justify-between px-4">

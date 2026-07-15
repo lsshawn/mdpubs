@@ -5,6 +5,8 @@
 	import type { PageData } from './$types';
 	import DiffView from '$lib/components/DiffView.svelte';
 	import LinearProgress from '$lib/components/LinearProgress.svelte';
+	import SignPanel from '$lib/components/SignPanel.svelte';
+	import InlineSignBox from '$lib/components/InlineSignBox.svelte';
 	import { config } from '$lib/config';
 	import { resolve } from '$app/paths';
 
@@ -143,6 +145,11 @@
 	let isHtml = $derived(!!data.isHtml);
 	let rawUrl = $derived(data.rawUrl);
 
+	// Shared signing state for inline sign boxes mounted at <!-- mdpubs-sign-here -->
+	// anchors. One box signing updates this; all boxes are refreshed from it.
+	let sharedSignState = $state(data.signState);
+	let inlineSignBoxes: Array<{ refresh: (s: unknown) => void }> = [];
+
 	// Helper function to safely query elements by ID, handling IDs that start with numbers
 	function safeQueryById(id: string): Element | null {
 		// If ID starts with a number, use attribute selector instead
@@ -218,6 +225,32 @@
 			// Store component reference for cleanup
 			mountedComponents.push(component);
 		});
+
+		// Mount inline sign boxes at <!-- mdpubs-sign-here --> anchors (now divs).
+		inlineSignBoxes = [];
+		if (sharedSignState?.enabled) {
+			const anchors = articleElement.querySelectorAll('[data-mdpubs-sign-here]');
+			anchors.forEach((element, index) => {
+				const label = element.getAttribute('data-mdpubs-sign-here') || '';
+				const box = mount(InlineSignBox, {
+					target: element,
+					props: {
+						apiUrl: data.apiUrl,
+						noteId: data.noteId,
+						label,
+						slotIndex: index,
+						getState: () => sharedSignState,
+						onSigned: (s: typeof sharedSignState) => {
+							sharedSignState = s;
+							// Propagate the new state to every mounted box.
+							inlineSignBoxes.forEach((b) => b.refresh(s));
+						}
+					}
+				});
+				mountedComponents.push(box as unknown as { unmount: () => void });
+				inlineSignBoxes.push(box as unknown as { refresh: (s: unknown) => void });
+			});
+		}
 	}
 
 	$effect(() => {
@@ -734,6 +767,15 @@
 		<div
 			class="fixed right-3 bottom-3 z-50 flex flex-col items-end gap-2 sm:flex-row sm:items-center print:hidden"
 		>
+			<!-- E-signing: shown only when the pub opts in via mdpubs-sign. The panel
+			     is self-contained (canvas draw + name/email) and talks to the API. -->
+			{#if data.signState?.enabled}
+				<SignPanel
+					apiUrl={data.apiUrl}
+					noteId={data.noteId}
+					initialState={data.signState}
+				/>
+			{/if}
 			<!-- Print / Save PDF: the iframe is cross-origin + sandboxed, so the parent
 			     cannot print it directly. Open the raw document in its own tab with
 			     ?print=1, which loads it natively (own @page/print CSS) and opens the
@@ -1082,6 +1124,14 @@
 				</div>
 			{/if}
 		{/if}
+	</div>
+{/if}
+
+<!-- Signing for markdown pubs: the HTML-pub branch has its own control in the
+     floating toolbar, so only render this for the markdown view. -->
+{#if !isHtml && !showDiffs && data.signState?.enabled}
+	<div class="fixed right-3 bottom-3 z-50 print:hidden">
+		<SignPanel apiUrl={data.apiUrl} noteId={data.noteId} initialState={data.signState} />
 	</div>
 {/if}
 

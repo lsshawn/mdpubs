@@ -93,10 +93,28 @@ export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
 		// Check if note should be indexed (default: false for privacy)
 		const allowIndexing = note?.frontmatter?.['mdpubs-allow-indexing'] === true;
 
+		// Signing state (mdpubs-sign). The API reads the signer config from content
+		// and reports progress; a non-signable pub returns { enabled: false }.
+		let signState = null;
+		try {
+			const signRes = await fetch(`${config.apiUrl}/notes/${params.id}/sign`, {
+				headers: locals.session ? { Authorization: `Bearer ${locals.session.id}` } : {}
+			});
+			if (signRes.ok) {
+				const s = await signRes.json();
+				if (s?.enabled) signState = s;
+			}
+		} catch {
+			// Signing is a progressive enhancement; never fail the page over it.
+		}
+
 		return {
 			note,
 			isHtml,
 			rawUrl: isHtml ? `${config.apiUrl}/notes/${params.id}/raw` : null,
+			apiUrl: config.apiUrl,
+			noteId: params.id,
+			signState,
 			versions,
 			meta: {
 				title,

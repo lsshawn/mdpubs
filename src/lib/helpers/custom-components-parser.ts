@@ -280,6 +280,23 @@ function decodeHtmlEntities(text: string): string {
  * Post-processes HTML to replace custom component markers
  * Use this if the backend has already converted markdown to HTML
  */
+/**
+ * Convert signing anchors into placeholder divs the page can mount into.
+ *
+ *   <!-- mdpubs-sign-here: Label --> -> <div data-mdpubs-sign-here="Label"></div>
+ *
+ * The anchor only marks WHERE a signing box renders; signatures are never written
+ * into the document (that would change the signed content hash). `marked` keeps
+ * HTML comments in its output, so this runs on the rendered note.html.
+ */
+export function parseSignAnchors(html: string): string {
+	return html.replace(
+		/<!--\s*mdpubs-sign-here:\s*(.*?)\s*-->/gi,
+		(_m, label: string) =>
+			`<div data-mdpubs-sign-here="${label.replace(/"/g, '&quot;').trim()}"></div>`
+	);
+}
+
 export function parseCustomComponentsInHtml(html: string): string {
 	// First decode any HTML entities that might have been escaped
 	const decoded = decodeHtmlEntities(html);
@@ -293,7 +310,7 @@ export function parseCustomComponentsInHtml(html: string): string {
 
 	// The markdown parser might convert ::progress to <p>::progress...</p>
 	// or leave it as-is, so we need to handle both cases
-	const result = parseCustomComponents(decoded);
+	const result = parseSignAnchors(parseCustomComponents(decoded));
 
 	console.log('[PARSER] Result HTML (first 500 chars):', result.substring(0, 500));
 	console.log('[PARSER] Has data-component:', result.includes('data-component="linear-progress"'));
