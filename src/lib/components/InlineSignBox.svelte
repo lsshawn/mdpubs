@@ -20,10 +20,13 @@
 		isTurn: boolean;
 		open?: boolean;
 		signatureImageUrl?: string | null;
+		fields?: Record<string, string> | null;
 	};
+	type SignField = { label: string; required: boolean };
 	type SignState = {
 		enabled: boolean;
 		order: 'sequential' | 'parallel';
+		fields: SignField[];
 		signers: SignStateSigner[];
 		complete: boolean;
 		started: boolean;
@@ -54,6 +57,8 @@
 	let errorMsg = $state<string | null>(null);
 	let name = $state('');
 	let email = $state('');
+	// Custom field values keyed by declared label.
+	let fieldValues = $state<Record<string, string>>({});
 
 	let canvasEl = $state<HTMLCanvasElement | null>(null);
 	let drawing = false;
@@ -75,7 +80,11 @@
 	function fmtDate(ts: number | null): string {
 		if (!ts) return '';
 		try {
-			return new Date(ts).toLocaleString();
+			return new Date(ts).toLocaleDateString(undefined, {
+				year: 'numeric',
+				month: 'long',
+				day: 'numeric'
+			});
 		} catch {
 			return '';
 		}
@@ -151,9 +160,13 @@
 
 	async function submit() {
 		errorMsg = null;
-		if (!email.trim()) return (errorMsg = 'Please enter your email.');
-		if (!name.trim()) return (errorMsg = 'Please enter your name.');
 		if (!hasDrawn) return (errorMsg = 'Please draw your signature.');
+		// Only an open slot asks for name/email here; a named slot supplies its own.
+		if (slot?.open && !name.trim()) return (errorMsg = 'Please enter your name.');
+		for (const f of signState.fields) {
+			if (f.required && !fieldValues[f.label]?.trim())
+				return (errorMsg = `Please fill in "${f.label}".`);
+		}
 		const blob = await canvasToBlob();
 		if (!blob) return (errorMsg = 'Could not read the signature. Try again.');
 
@@ -163,6 +176,9 @@
 			fd.append('name', name.trim());
 			fd.append('email', email.trim());
 			fd.append('signature', blob, 'signature.png');
+			for (const f of signState.fields) {
+				fd.append(`field:${f.label}`, (fieldValues[f.label] || '').trim());
+			}
 			const res = await fetch(`${apiUrl}/notes/${noteId}/sign`, { method: 'POST', body: fd });
 			const body = await res.json();
 			if (!res.ok) {
@@ -182,24 +198,30 @@
 
 <div class="my-4 max-w-md">
 	{#if slot?.signed}
-		<!-- Completed signature -->
-		<div class="rounded-lg border border-green-200 bg-green-50 p-3">
-			<div class="flex items-center justify-between">
-				<div>
-					<div class="text-sm font-semibold text-gray-900">{slot.name}</div>
+		<!-- Completed signature: render like a real signed document — the drawn mark
+		     sits on a signature line, with the name/date typed beneath. No card. -->
+		<div class="max-w-[280px]">
+			{#if slot.signatureImageUrl}
+				<img
+					src={slot.signatureImageUrl}
+					alt="Signature of {slot.name}"
+					class="h-14 max-w-[240px] object-contain object-left"
+				/>
+			{:else}
+				<div class="h-14 pt-4 font-[cursive] text-2xl text-gray-800 italic">{slot.name}</div>
+			{/if}
+			<div class="border-t border-gray-400 pt-1">
+				<div class="text-sm font-medium text-gray-900">{slot.name}</div>
+				{#if slot.signedAt}
+					<div class="text-xs text-gray-500">Date: {fmtDate(slot.signedAt)}</div>
+				{/if}
+				{#if slot.email}
 					<div class="text-xs text-gray-500">{slot.email}</div>
-					{#if slot.signedAt}
-						<div class="text-[11px] text-gray-400">Signed {fmtDate(slot.signedAt)}</div>
-					{/if}
-				</div>
-				{#if slot.signatureImageUrl}
-					<img
-						src={slot.signatureImageUrl}
-						alt="Signature of {slot.name}"
-						class="h-10 max-w-[120px] object-contain"
-					/>
-				{:else}
-					<span class="text-green-600">✓ Signed</span>
+				{/if}
+				{#if slot.fields}
+					{#each Object.entries(slot.fields) as [k, v] (k)}
+						<div class="text-xs text-gray-600">{k}: {v}</div>
+					{/each}
 				{/if}
 			</div>
 		</div>
@@ -222,7 +244,7 @@
 			</div>
 			<div class="mt-1 text-sm text-gray-700">
 				{#if canSignNow}
-					✍️ Click here to sign{slot.open ? '' : ` as ${slot.name}`}
+					✍️ Click here to sign
 				{:else if !signState.contentMatches}
 					⚠ Document changed after signing — cannot sign
 				{:else}
@@ -233,30 +255,18 @@
 	{:else}
 		<!-- Expanded: the draw pad -->
 		<div class="rounded-lg border border-gray-300 bg-white p-4 shadow-sm">
+			<p class="mb-2 text-sm font-semibold text-gray-900">Signing as {slot.name}</p>
 			{#if slot.open}
-				<p class="mb-2 text-xs text-gray-600">
-					Signing as <span class="font-medium">{slot.name}</span>. Enter your own name and email.
-				</p>
+				<p class="mb-2 text-xs text-gray-600">Enter your own name and email below.</p>
 			{/if}
 			<div class="space-y-2">
-				<input
-					type="text"
-					bind:value={name}
-					placeholder="Full name"
-					class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-				/>
-				<input
-					type="email"
-					bind:value={email}
-					placeholder="you@example.com"
-					class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-				/>
-				<div class="flex items-center justify-between">
+				<!-- Signature pad first, then the identifying fields. -->
+				<div class="flex items-center justify-start gap-2">
 					<span class="text-xs font-medium text-gray-600">Draw your signature</span>
 					<button
 						type="button"
 						onclick={clearPad}
-						class="text-[11px] text-gray-400 hover:text-gray-700">Clear</button
+						class="text-[11px] text-error">Clear</button
 					>
 				</div>
 				<canvas
@@ -267,6 +277,24 @@
 					onpointerleave={endDraw}
 					class="h-28 w-full touch-none rounded-lg border border-dashed border-gray-300 bg-gray-50"
 				></canvas>
+				{#if slot?.open}
+					<!-- Unknown party: capture who they are (name only; add other
+					     fields like email via mdpubs-signer-fields). -->
+					<input
+						type="text"
+						bind:value={name}
+						placeholder="Full name"
+						class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+					/>
+				{/if}
+				{#each signState.fields as field (field.label)}
+					<input
+						type="text"
+						bind:value={fieldValues[field.label]}
+						placeholder={field.required ? field.label : `${field.label} (optional)`}
+						class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+					/>
+				{/each}
 				{#if errorMsg}
 					<p class="text-xs text-red-600">{errorMsg}</p>
 				{/if}

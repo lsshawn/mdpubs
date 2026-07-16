@@ -7,6 +7,7 @@
 	import LinearProgress from '$lib/components/LinearProgress.svelte';
 	import SignPanel from '$lib/components/SignPanel.svelte';
 	import InlineSignBox from '$lib/components/InlineSignBox.svelte';
+	import SignCertificate from '$lib/components/SignCertificate.svelte';
 	import { config } from '$lib/config';
 	import { resolve } from '$app/paths';
 
@@ -768,29 +769,29 @@
 			class="fixed right-3 bottom-3 z-50 flex flex-col items-end gap-2 sm:flex-row sm:items-center print:hidden"
 		>
 			<!-- E-signing: shown only when the pub opts in via mdpubs-sign. The panel
-			     is self-contained (canvas draw + name/email) and talks to the API. -->
+			     bundles Sign + Download PDF + Audit trail. The PDF button opens the
+			     raw doc with ?print=1 (own @page CSS) since the iframe is sandboxed. -->
 			{#if data.signState?.enabled}
 				<SignPanel
 					apiUrl={data.apiUrl}
 					noteId={data.noteId}
 					initialState={data.signState}
+					pdfUrl={`${rawUrl}?print=1`}
 				/>
+			{:else}
+				<!-- Non-signable HTML pub: keep the standalone Print / Save PDF link. -->
+				<!-- eslint-disable svelte/no-navigation-without-resolve -->
+				<a
+					href={`${rawUrl}?print=1`}
+					target="_blank"
+					rel="noopener"
+					class="inline-flex items-center rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-lg ring-1 ring-gray-200 transition-colors hover:text-gray-900"
+					title="Open the document in a new tab and print or save as PDF"
+				>
+					Print / Save PDF
+				</a>
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			{/if}
-			<!-- Print / Save PDF: the iframe is cross-origin + sandboxed, so the parent
-			     cannot print it directly. Open the raw document in its own tab with
-			     ?print=1, which loads it natively (own @page/print CSS) and opens the
-			     print dialog on load. -->
-			<!-- eslint-disable svelte/no-navigation-without-resolve -->
-			<a
-				href={`${rawUrl}?print=1`}
-				target="_blank"
-				rel="noopener"
-				class="inline-flex items-center rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-lg ring-1 ring-gray-200 transition-colors hover:text-gray-900"
-				title="Open the document in a new tab and print or save as PDF"
-			>
-				Print / Save PDF
-			</a>
-			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 			<a
 				href="https://mdpubs.com"
@@ -1011,7 +1012,7 @@
 							</article>
 
 							<!-- Footer -->
-							<footer class="mt-32 border-t border-base-300 pt-8">
+							<footer class="mt-32 border-t border-base-300 pt-8 print:hidden">
 								<div class="flex flex-col items-center justify-center text-base-content/60">
 									<a
 										href="http://mdpubs.com"
@@ -1133,6 +1134,14 @@
 	<div class="fixed right-3 bottom-3 z-50 print:hidden">
 		<SignPanel apiUrl={data.apiUrl} noteId={data.noteId} initialState={data.signState} />
 	</div>
+	<!-- Print-only Certificate of Completion, appended after the document when
+	     saving/printing to PDF (hidden on screen). -->
+	<SignCertificate
+		apiUrl={data.apiUrl}
+		noteId={data.noteId}
+		title={note?.frontmatter?.title || note?.title || 'Document'}
+		initialState={data.signState}
+	/>
 {/if}
 
 <style>
