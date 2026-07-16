@@ -9,7 +9,7 @@ const APP_NAME = 'MdPubs';
 
 export const config = {
 	name: APP_NAME,
-	description: 'Fastest way to publish markdown from Neovim',
+	description: 'Fastest way to publish markdown',
 	domain: PUBLIC_DOMAIN,
 	apiUrl: PUBLIC_API_URL,
 	git: 'https://github.com/lsshawn/mdpubs.nvim',
