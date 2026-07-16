@@ -146,10 +146,19 @@
 	let isHtml = $derived(!!data.isHtml);
 	let rawUrl = $derived(data.rawUrl);
 
-	// Shared signing state for inline sign boxes mounted at <!-- mdpubs-sign-here -->
-	// anchors. One box signing updates this; all boxes are refreshed from it.
+	// Shared signing state across all sign surfaces (the FAB panel + inline boxes).
+	// Any surface that records a signature calls onSignedShared, which updates this
+	// and pushes the new state to every other surface — so the Sign count and boxes
+	// stay in sync live, no page reload needed.
 	let sharedSignState = $state(data.signState);
 	let inlineSignBoxes: Array<{ refresh: (s: unknown) => void }> = [];
+	let signPanelRef = $state<{ refresh: (s: unknown) => void } | null>(null);
+
+	function onSignedShared(s: unknown) {
+		sharedSignState = s as typeof sharedSignState;
+		inlineSignBoxes.forEach((b) => b.refresh(s));
+		signPanelRef?.refresh(s);
+	}
 
 	// Helper function to safely query elements by ID, handling IDs that start with numbers
 	function safeQueryById(id: string): Element | null {
@@ -241,11 +250,7 @@
 						label,
 						slotIndex: index,
 						getState: () => sharedSignState,
-						onSigned: (s: typeof sharedSignState) => {
-							sharedSignState = s;
-							// Propagate the new state to every mounted box.
-							inlineSignBoxes.forEach((b) => b.refresh(s));
-						}
+						onSigned: onSignedShared
 					}
 				});
 				mountedComponents.push(box as unknown as { unmount: () => void });
@@ -773,10 +778,12 @@
 			     raw doc with ?print=1 (own @page CSS) since the iframe is sandboxed. -->
 			{#if data.signState?.enabled}
 				<SignPanel
+					bind:this={signPanelRef}
 					apiUrl={data.apiUrl}
 					noteId={data.noteId}
 					initialState={data.signState}
 					pdfUrl={`${rawUrl}?print=1`}
+					onSigned={onSignedShared}
 				/>
 			{:else}
 				<!-- Non-signable HTML pub: keep the standalone Print / Save PDF link. -->
@@ -1012,11 +1019,11 @@
 							</article>
 
 							<!-- Footer -->
-							<footer class="mt-32 border-t border-base-300 pt-8 print:hidden">
+							<footer class="mt-32 border-t border-base-300 pt-8 print:hidden lg:pb-0 pb-12">
 								<div class="flex flex-col items-center justify-center text-base-content/60">
 									<a
 										href="http://mdpubs.com"
-										class="inline-flex items-center text-sm text-base-content/60 underline transition-colors hover:text-base-content/80"
+										class="inline-flex items-center text-xs text-base-content/60 underline transition-colors hover:text-base-content/80"
 									>
 										<span class="mr-2">📝</span>
 										Powered by {config.name}
@@ -1132,7 +1139,13 @@
      floating toolbar, so only render this for the markdown view. -->
 {#if !isHtml && !showDiffs && data.signState?.enabled}
 	<div class="fixed right-3 bottom-3 z-50 print:hidden">
-		<SignPanel apiUrl={data.apiUrl} noteId={data.noteId} initialState={data.signState} />
+		<SignPanel
+			bind:this={signPanelRef}
+			apiUrl={data.apiUrl}
+			noteId={data.noteId}
+			initialState={data.signState}
+			onSigned={onSignedShared}
+		/>
 	</div>
 	<!-- Print-only Certificate of Completion, appended after the document when
 	     saving/printing to PDF (hidden on screen). -->

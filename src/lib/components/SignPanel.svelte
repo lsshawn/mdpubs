@@ -48,16 +48,26 @@
 		apiUrl,
 		noteId,
 		initialState,
-		pdfUrl = null
+		pdfUrl = null,
+		onSigned
 	}: {
 		apiUrl: string;
 		noteId: string;
 		initialState: SignState;
 		/** URL that opens a print-ready view (HTML pubs). If null, print the page. */
 		pdfUrl?: string | null;
+		/** Notify the page when this panel records a signature, so other sign
+		 *  surfaces (inline boxes, count) refresh without a page reload. */
+		onSigned?: (s: SignState) => void;
 	} = $props();
 
 	let signState = $state<SignState>(initialState);
+
+	/** Let the page push a newer shared state into this panel (e.g. after an
+	 *  inline box signs) so the Sign count stays in sync live. */
+	export function refresh(s: SignState) {
+		signState = s;
+	}
 	let open = $state(false);
 	let submitting = $state(false);
 	let errorMsg = $state<string | null>(null);
@@ -275,6 +285,7 @@
 				return;
 			}
 			signState = body as SignState;
+			onSigned?.(signState);
 			clearPad();
 			// Advance the form to the next signer, or close if done.
 			if (signState.complete || !nextSigner) {
