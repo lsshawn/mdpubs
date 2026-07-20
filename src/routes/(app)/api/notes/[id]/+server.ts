@@ -25,7 +25,9 @@ export async function GET({ locals, params, url }: RequestEvent): Promise<Respon
 
 	let html = '';
 	if (url.searchParams.get('parse') === 'markdown' && noteData.content) {
-		html = await marked.parse(noteData.content);
+		// breaks: true — single newlines render as <br> so contact/signature
+		// blocks written on consecutive lines don't collapse onto one line.
+		html = await marked.parse(noteData.content, { gfm: true, breaks: true });
 	}
 
 	return json({

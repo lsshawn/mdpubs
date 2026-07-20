@@ -53,7 +53,11 @@ export async function GET({ params, url }: RequestEvent): Promise<Response> {
 
 		content = content.replace(/\[TOC\]/gi, '').trim();
 
-		const parsedContent = marked.parse(content, { async: false }) as string;
+		const parsedContent = marked.parse(content, {
+			async: false,
+			gfm: true,
+			breaks: true
+		}) as string;
 		const plainText = parsedContent
 			.replace(/<[^>]+>/g, ' ')
 			.replace(/\s\s+/g, ' ')
