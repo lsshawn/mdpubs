@@ -84,10 +84,16 @@ export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
 			}
 		}
 
-		// Generate meta tags for social sharing
+		// Generate meta tags for social sharing. The note title/description carry the
+		// per-note context (WhatsApp, iMessage, Slack, etc. show og:title as the
+		// preview heading); the image is a single static branded card. A note can
+		// override it via frontmatter (custom OG image, or its hero image).
 		const title = note?.frontmatter?.title || note?.title || 'Note';
 		const description = note?.frontmatter?.description || 'A published note from MdPubs';
-		const ogImage = `https://mdpubs.com/og/${params.id}.png`; // We'll create this endpoint
+		const ogImage =
+			note?.frontmatter?.['mdpubs-og-image'] ||
+			note?.frontmatter?.['mdpubs-hero-image'] ||
+			'https://mdpubs.com/og-default.png';
 
 		// Check if note should be indexed (default: false for privacy)
 		const allowIndexing = note?.frontmatter?.['mdpubs-allow-indexing'] === true;

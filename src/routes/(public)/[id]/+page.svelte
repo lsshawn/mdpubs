@@ -659,6 +659,9 @@
 	<meta property="og:title" content={data.meta.title} />
 	<meta property="og:description" content={data.meta.description} />
 	<meta property="og:image" content={data.meta.ogImage} />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
+	<meta property="og:site_name" content="MdPubs" />
 
 	<!-- Twitter -->
 	<meta name="twitter:card" content="summary_large_image" />
