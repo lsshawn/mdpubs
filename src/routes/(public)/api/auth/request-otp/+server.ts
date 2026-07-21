@@ -7,7 +7,7 @@ import { dev } from '$app/environment';
 
 const testEmails = ['l@sshawn.com'];
 
-export async function POST({ request }: RequestEvent) {
+export async function POST({ request, platform }: RequestEvent) {
 	const title = config.name;
 	const { email } = await request.json();
 	const otpConfig = serverConfig.otp;
@@ -50,10 +50,11 @@ export async function POST({ request }: RequestEvent) {
         </body>
       </html>`;
 
-	const res = await sendEmail(email, subject, text, true);
-	if (res.status === 200) {
+	try {
+		await sendEmail(platform, email, subject, text, true);
 		return json({ success: true });
-	} else {
-		return json({ success: false });
+	} catch (err) {
+		console.error('Failed to send OTP email', err);
+		return json({ success: false }, { status: 502 });
 	}
 }

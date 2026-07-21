@@ -1,0 +1,32 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "mdpubs",
+	// Cupbots account — pin it so a multi-account login can't deploy to the wrong one.
+	"account_id": "20275e70544c64c131854ca82ba1ca32",
+	"compatibility_date": "2026-07-21",
+	"compatibility_flags": ["nodejs_compat"],
+	// Custom domains. Cloudflare creates the proxied DNS records automatically
+	// on deploy — do NOT hand-add CNAMEs. Requires mdpubs.com to be a zone in
+	// the Cupbots account (nameservers pointed at Cloudflare).
+	"routes": [
+		{ "pattern": "mdpubs.com", "custom_domain": true },
+		{ "pattern": "www.mdpubs.com", "custom_domain": true }
+	],
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"assets": {
+		"binding": "ASSETS",
+		"directory": ".svelte-kit/cloudflare"
+	},
+	"observability": {
+		"enabled": true
+	},
+	// Cloudflare Email Sending binding. The `from` domain (mdpubs.com) must be
+	// onboarded first: `npx wrangler email sending enable mdpubs.com`.
+	// Restricted to noreply@mdpubs.com so this Worker can only send as that address.
+	"send_email": [
+		{
+			"name": "EMAIL",
+			"allowed_sender_addresses": ["noreply@mdpubs.com"]
+		}
+	]
+}

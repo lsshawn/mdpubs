@@ -1,20 +1,33 @@
-import Mailgun from 'mailgun.js';
-import { MAILGUN_API_KEY } from '$env/static/private';
 import { serverConfig } from '$lib/server/config';
 
-const mailgun = new Mailgun(FormData);
-const mg = mailgun.client({
-	username: 'api',
-	key: MAILGUN_API_KEY
-});
+/**
+ * Send a transactional email via the Cloudflare Email Sending binding.
+ *
+ * The `EMAIL` binding lives on `platform.env` and is only available inside a
+ * request, so callers must pass `event.platform` through. The `from` address
+ * must use a domain onboarded to Email Sending (see wrangler.jsonc).
+ *
+ * On success the binding resolves; on failure it throws an Error with a `.code`
+ * (e.g. E_SENDER_NOT_VERIFIED). Returns true when the send was accepted.
+ */
+export async function sendEmail(
+	platform: App.Platform | undefined,
+	to: string,
+	subject: string,
+	body: string,
+	isHtml = false
+): Promise<boolean> {
+	const email = platform?.env?.EMAIL;
+	if (!email) {
+		throw new Error('EMAIL binding is not available on platform.env');
+	}
 
-export async function sendEmail(to: string, subject: string, text: string, isHtml = false) {
-	const data = {
-		from: serverConfig.email.from,
+	await email.send({
+		from: { email: serverConfig.email.from, name: serverConfig.email.fromName },
 		to,
 		subject,
-		...(isHtml ? { html: text } : { text })
-	};
+		...(isHtml ? { html: body } : { text: body })
+	});
 
-	return await mg.messages.create(serverConfig.email.domain, data);
+	return true;
 }
