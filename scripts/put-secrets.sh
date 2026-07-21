@@ -6,20 +6,33 @@
 # so secret values never appear as command-line args or in shell history.
 #
 # Usage:
-#   ./scripts/put-secrets.sh              # upload to the default (production) env
+#   ./scripts/put-secrets.sh              # uses .env.production (default), else .env
+#   ENV_FILE=.env ./scripts/put-secrets.sh          # force local/dev values
 #   ENV_FILE=.env.staging ./scripts/put-secrets.sh
 #   WRANGLER_ENV=staging ./scripts/put-secrets.sh   # -> wrangler secret put --env staging
 #
-# Exclude-based: uploads EVERY key found in .env EXCEPT the ones in DENY below.
-# This way a newly added secret is pushed automatically — you don't have to
-# remember to allowlist it. The trade-off is the opposite failure mode: a var
+# `wrangler secret put` with no --env targets the LIVE Worker, so the default is
+# .env.production (the production values) — defaulting to .env once pushed dev
+# secrets (e.g. sk_test) to prod. The chosen file is printed before uploading.
+#
+# Exclude-based: uploads EVERY key found in the env file EXCEPT the ones in DENY
+# below. This way a newly added secret is pushed automatically — you don't have
+# to remember to allowlist it. The trade-off is the opposite failure mode: a var
 # that should NOT be a secret must be added to DENY, or it gets uploaded. To
 # make that safe, anything uploaded that isn't in the KNOWN list prints a
 # warning so a surprise var can't slip in silently.
 
 set -euo pipefail
 
-ENV_FILE="${ENV_FILE:-.env}"
+# Default to .env.production (this uploads to the live Worker); fall back to .env
+# only if no production file exists. Override explicitly with ENV_FILE=...
+if [[ -n "${ENV_FILE:-}" ]]; then
+  : # caller specified it explicitly
+elif [[ -f .env.production ]]; then
+  ENV_FILE=.env.production
+else
+  ENV_FILE=.env
+fi
 
 # Names that must NEVER be pushed as Worker secrets:
 #   - Vercel/Turbo build metadata (land in .env via `vercel env pull`).
@@ -27,8 +40,9 @@ ENV_FILE="${ENV_FILE:-.env}"
 #   - Stale config from before the Cloudflare Email migration (MAILGUN_*).
 #   - API-side keys the UI Worker does not use (ADMIN_API_KEY).
 DENY=(
-  # Vercel / Turbo platform metadata
+  # Vercel / Turbo / Nx build-tool metadata
   TURBO_CACHE TURBO_DOWNLOAD_LOCAL_ENABLED TURBO_REMOTE_ONLY TURBO_RUN_SUMMARY
+  NX_DAEMON
   VERCEL VERCEL_ENV VERCEL_TARGET_ENV VERCEL_URL VERCEL_OIDC_TOKEN
   VERCEL_GIT_COMMIT_AUTHOR_LOGIN VERCEL_GIT_COMMIT_AUTHOR_NAME
   VERCEL_GIT_COMMIT_MESSAGE VERCEL_GIT_COMMIT_REF VERCEL_GIT_COMMIT_SHA
@@ -89,6 +103,8 @@ fi
 # Pass --env <name> to wrangler only if WRANGLER_ENV is set.
 env_args=()
 [[ -n "${WRANGLER_ENV:-}" ]] && env_args=(--env "$WRANGLER_ENV")
+
+echo "📤 Uploading secrets from '$ENV_FILE' → Worker env '${WRANGLER_ENV:-<default/production>}'"
 
 # Read one key's value from the env file without echoing it.
 # Handles: optional `export `, `KEY=value`, and surrounding single/double quotes.
