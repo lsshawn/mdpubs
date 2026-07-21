@@ -40,6 +40,10 @@ DENY=(
   MAILGUN_API_KEY MAILGUN_DOMAIN MAILGUN_FROM_EMAIL
   # API-side admin key; the UI Worker does not use it.
   ADMIN_API_KEY
+  # PUBLIC_* are plaintext runtime config in wrangler.jsonc [vars] (read via
+  # $env/dynamic/public). A binding name can't be BOTH a var and a secret, so
+  # uploading them here fails with "Binding name already in use". Keep them out.
+  PUBLIC_DOMAIN PUBLIC_API_URL PUBLIC_STRIPE_MONTHLY_LINK PUBLIC_STRIPE_YEARLY_LINK
 )
 
 # Vars we expect and have deliberately classified (either uploaded or denied).
@@ -52,9 +56,6 @@ KNOWN=(
   GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET
   GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET
   HERMES_WEBHOOK_SECRET HERMES_APP_TOKEN
-  # PUBLIC_* are build-time (inlined by `vite build`); uploaded for parity but
-  # NOT read by the runtime Worker — a rebuild is what changes their values.
-  PUBLIC_DOMAIN PUBLIC_API_URL PUBLIC_STRIPE_MONTHLY_LINK PUBLIC_STRIPE_YEARLY_LINK
 )
 
 in_list() {
