@@ -1,24 +1,24 @@
-import {
-	PUBLIC_API_URL,
-	PUBLIC_DOMAIN,
-	PUBLIC_STRIPE_MONTHLY_LINK,
-	PUBLIC_STRIPE_YEARLY_LINK
-} from '$env/static/public';
+// Read PUBLIC_* from the runtime environment (not $env/static/public, which
+// inlines at build time and hard-fails the build if a var is absent — the
+// Cloudflare build container did not expose them). $env/dynamic/public resolves
+// at runtime from the Worker's environment, so these must be provided as Worker
+// runtime vars ([vars] in wrangler.jsonc or `wrangler secret put`).
+import { env } from '$env/dynamic/public';
 
 const APP_NAME = 'MdPubs';
 
 export const config = {
 	name: APP_NAME,
 	description: 'Fastest way to publish markdown',
-	domain: PUBLIC_DOMAIN,
-	apiUrl: PUBLIC_API_URL,
+	domain: env.PUBLIC_DOMAIN,
+	apiUrl: env.PUBLIC_API_URL,
 	git: 'https://github.com/lsshawn/mdpubs.nvim',
 	stripePaymentLinks: {
 		monthly: {
-			link: PUBLIC_STRIPE_MONTHLY_LINK
+			link: env.PUBLIC_STRIPE_MONTHLY_LINK
 		},
 		yearly: {
-			link: PUBLIC_STRIPE_YEARLY_LINK
+			link: env.PUBLIC_STRIPE_YEARLY_LINK
 		}
 	},
 	plans: {

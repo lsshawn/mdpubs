@@ -20,6 +20,15 @@
 	"observability": {
 		"enabled": true
 	},
+	// Public runtime config, read via $env/dynamic/public in src/lib/config.ts.
+	// These are PUBLIC by definition (they ship to the client), so they live here
+	// in plaintext rather than as secrets. Update here to change them in prod.
+	"vars": {
+		"PUBLIC_DOMAIN": "mdpubs.com",
+		"PUBLIC_API_URL": "https://api.mdpubs.com",
+		"PUBLIC_STRIPE_MONTHLY_LINK": "https://buy.stripe.com/14A3cw7N6aZaaEZewf0oM0L",
+		"PUBLIC_STRIPE_YEARLY_LINK": "https://buy.stripe.com/9B6dRa9Ve0kw8wR5ZJ0oM0M"
+	},
 	// Cloudflare Email Sending binding. The `from` domain (mdpubs.com) must be
 	// onboarded first: `npx wrangler email sending enable mdpubs.com`.
 	// Restricted to noreply@mdpubs.com so this Worker can only send as that address.
