@@ -19,22 +19,12 @@ import type { PageServerLoad } from './$types';
  * raise the gate for viewers who don't own the note.
  */
 async function assertNotPrivate(id: string, currentUserId?: string): Promise<void> {
-	// `id` is the unguessable publicId. During the transition a legacy integer id
-	// may still appear in old links, so fall back to an integer lookup when the
-	// ref is purely numeric.
-	let row: { isPrivate: boolean | null; userId: string } | undefined;
-
-	[row] = await db
+	// `id` is the unguessable publicId — the enumerable integer id is never a
+	// valid public address.
+	const [row] = await db
 		.select({ isPrivate: noteTable.isPrivate, userId: noteTable.userId })
 		.from(noteTable)
 		.where(and(eq(noteTable.publicId, id), isNull(noteTable.deletedAt)));
-
-	if (!row && /^\d+$/.test(id)) {
-		[row] = await db
-			.select({ isPrivate: noteTable.isPrivate, userId: noteTable.userId })
-			.from(noteTable)
-			.where(and(eq(noteTable.id, parseInt(id, 10)), isNull(noteTable.deletedAt)));
-	}
 
 	if (row?.isPrivate && row.userId !== currentUserId) {
 		throw error(403, 'PRIVATE_NOTE');
