@@ -811,7 +811,10 @@
 		</div>
 	</div>
 {:else}
-	<div class="min-h-screen overflow-x-hidden">
+	<!-- overflow-x-clip (not -hidden) contains wide content horizontally WITHOUT
+	     establishing a scroll container, so `position: sticky` on the desktop TOC
+	     sidebar below keeps working. overflow-x-hidden would break it. -->
+	<div class="min-h-screen overflow-x-clip">
 		{#if showDiffs}
 			<div class="mx-auto max-w-4xl px-6 py-6 lg:py-12">
 				<header class="mb-8">
