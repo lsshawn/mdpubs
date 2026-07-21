@@ -9,13 +9,14 @@
 	import FeedbackWidget from '$lib/components/FeedbackWidget.svelte';
 	let { data, children }: { data: LayoutData; children: Snippet } = $props();
 
-	let ogImage = $state(
+	let ogImage = $derived(
 		data.meta?.ogImage
 			? `${page.url.origin}${data.meta.ogImage}`
 			: `${page.url.origin}/ogimage.webp`
 	);
 
 	let message = $state('');
+	// eslint-disable-next-line svelte/prefer-writable-derived -- one-time prefill for a bindable field
 	let email = $state(data.user?.email ?? '');
 	let name = $state('');
 
