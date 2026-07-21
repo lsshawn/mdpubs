@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
@@ -56,6 +56,18 @@ export const note = sqliteTable(
 	'notes',
 	{
 		id: Id,
+		// Unguessable public identifier used in all public URLs and public API
+		// reads. The autoincrement `id` is enumerable and must never be exposed
+		// publicly. Mirrors the same column in mdpubs-api's schema.
+		//
+		// .notNull() keeps the app-facing type a non-null string. The LIVE DB column
+		// is actually nullable (backfilled + always written by the API); we do NOT
+		// run db:push to enforce NOT NULL (it forces a SQLite/Turso table rebuild for
+		// no benefit — the unique index guarantees uniqueness). A db:push data-loss
+		// warning about this column is a false positive; do not approve it.
+		publicId: text('public_id')
+			.notNull()
+			.$defaultFn(() => nanoid()),
 		userId: text('user_id')
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
@@ -74,6 +86,7 @@ export const note = sqliteTable(
 		imageMap: text('image_map', { mode: 'json' }).$type<Record<string, string>>()
 	},
 	(notes) => ({
+		publicIdIdx: uniqueIndex('idx_notes_public_id').on(notes.publicId),
 		userIdIdx: index('idx_notes_user_id').on(notes.userId),
 		updatedAtIdx: index('idx_notes_updated_at').on(notes.updatedAt),
 		deletedAtIdx: index('idx_notes_deleted_at').on(notes.deletedAt)

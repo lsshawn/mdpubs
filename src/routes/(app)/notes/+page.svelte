@@ -123,7 +123,7 @@
 									>
 								{:else}
 									<a
-										href={resolve('/(public)/[id]', { id: String(note.id) })}
+										href={resolve('/(public)/[id]', { id: note.publicId })}
 										class="link"
 										target="_blank"
 										rel="noopener noreferrer">{note.title || 'Untitled'}</a

@@ -31,7 +31,7 @@ export const load: PageServerLoad = async ({ params }) => {
 
 	const notesFromDb = await db
 		.select({
-			id: note.id,
+			id: note.publicId,
 			title: note.title,
 			updatedAt: note.updatedAt,
 			content: note.content,
