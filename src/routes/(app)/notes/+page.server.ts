@@ -56,19 +56,16 @@ export const actions: Actions = {
 			return fail(401, { message: 'Unauthorized' });
 		}
 		const formData = await request.formData();
-		const id = formData.get('id');
+		// The publicId (nanoid) is the note's public identifier; the external API
+		// resolves notes by publicId only, so send it through as-is (no parseInt).
+		const publicId = formData.get('id');
 
-		if (typeof id !== 'string') {
-			return fail(400, { message: 'Invalid request' });
-		}
-
-		const noteId = parseInt(id, 10);
-		if (isNaN(noteId)) {
+		if (typeof publicId !== 'string' || publicId === '') {
 			return fail(400, { message: 'Invalid note ID' });
 		}
 
 		try {
-			const response = await fetch(`${config.apiUrl}/notes/${noteId}`, {
+			const response = await fetch(`${config.apiUrl}/notes/${publicId}`, {
 				method: 'DELETE',
 				headers: {
 					Authorization: `Bearer ${locals.session.id}`

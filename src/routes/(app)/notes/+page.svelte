@@ -199,7 +199,7 @@
 			</form>
 			{#if noteToDelete}
 				<form method="POST" action="?/delete" use:enhance={handleDelete}>
-					<input type="hidden" name="id" value={noteToDelete.id} />
+					<input type="hidden" name="id" value={noteToDelete.publicId} />
 					<button type="submit" class="btn btn-error" class:btn-disabled={deleting}>
 						{#if deleting}
 							<span class="loading loading-spinner"></span>

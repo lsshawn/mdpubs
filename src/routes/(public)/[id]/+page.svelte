@@ -822,7 +822,7 @@
 					{/if}
 					{#if note}
 						<a
-							href={resolve('/(public)/[id]', { id: note.id })}
+							href={resolve('/(public)/[id]', { id: note.publicId })}
 							class="text-sm text-primary hover:underline"
 						>
 							&larr; Back to note
