@@ -12,5 +12,11 @@ export default defineConfig({
 		// SvelteKit/Vite rejects requests whose Host header isn't localhost; allow
 		// the Tailscale hostname so beelink:5173 isn't blocked as an invalid host.
 		allowedHosts: ['beelink']
+	},
+	ssr: {
+		// @cf-wasm/* packages import raw .wasm files that reference 'wbg'
+		// (a wasm-bindgen runtime namespace, not a real npm package).
+		// Externalize so Vite skips bundling them — avoids ERR_MODULE_NOT_FOUND.
+		external: ['@cf-wasm/og', '@cf-wasm/resvg', '@cf-wasm/satori']
 	}
 });
