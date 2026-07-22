@@ -253,7 +253,14 @@ export function parseCustomComponents(markdown: string): string {
 }
 
 /**
- * Decodes HTML entities in a string
+ * Decodes HTML entities in a string.
+ *
+ * This exists so custom-component syntax (e.g. `::progress[...]`) survives
+ * marked's escaping. It must NOT touch entities inside code — both fenced
+ * `<pre>...</pre>` blocks and inline `<code>...</code>` spans intentionally keep
+ * markup escaped (e.g. `&lt;/body&gt;`). Decoding it back to a real `</body>`
+ * makes the browser parse it as a live tag, so the code text vanishes from the
+ * rendered output. We split the HTML on those regions and only decode the rest.
  */
 function decodeHtmlEntities(text: string): string {
 	const entities: Record<string, string> = {
@@ -273,7 +280,15 @@ function decodeHtmlEntities(text: string): string {
 		'&#93;': ']'
 	};
 
-	return text.replace(/&[#\w]+;/g, (match) => entities[match] || match);
+	const decode = (segment: string) =>
+		segment.replace(/&[#\w]+;/g, (match) => entities[match] || match);
+
+	// Preserve <pre>...</pre> blocks and inline <code>...</code> spans verbatim;
+	// decode entities only in the surrounding prose.
+	return text
+		.split(/(<pre\b[\s\S]*?<\/pre>|<code\b[\s\S]*?<\/code>)/gi)
+		.map((segment) => (/^<(?:pre|code)\b/i.test(segment) ? segment : decode(segment)))
+		.join('');
 }
 
 /**
