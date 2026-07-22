@@ -1178,4 +1178,93 @@
 	.flash-animation {
 		animation: flash-it 1.5s ease-in-out;
 	}
+
+	/* ---------------------------------------------------------------------------
+	   Print / Save-as-PDF styles for markdown pubs.
+	   (Raw HTML pubs print via their own sandboxed ?print=1 route, not this page.)
+
+	   Goals:
+	   - Professional, consistent page margins.
+	   - Text is never split across a page boundary mid-line: paragraphs keep a
+	     minimum of lines together (orphans/widows), and atomic blocks (headings +
+	     their content, images, tables, code, blockquotes, list items) are kept
+	     whole where a page break would otherwise cut through them.
+	   - Screen-only chrome (sticky sidebar/TOC, min-heights, scroll containers)
+	     is neutralised so content reflows naturally onto printed pages.
+
+	   `.prose` content is injected via {@html}, so those rules use :global().
+	--------------------------------------------------------------------------- */
+	@media print {
+		/* Professional page margin around every printed page. */
+		@page {
+			margin: 0.85in 0.75in;
+		}
+
+		/* Let content flow: drop screen-only min-heights and scroll clipping that
+		   would otherwise trap content in a single viewport-tall box. */
+		:global(.min-h-screen) {
+			min-height: 0 !important;
+		}
+		:global(article.prose) {
+			min-height: 0 !important;
+			overflow: visible !important;
+			max-width: none !important;
+		}
+
+		/* The desktop TOC sidebar and mobile TOC bars are navigation, not content. */
+		:global(aside),
+		:global([data-mobile-toc]) {
+			display: none !important;
+		}
+
+		/* Keep the whole document readable in black on white regardless of theme,
+		   and ask the browser to preserve intentional backgrounds (code blocks). */
+		:global(html),
+		:global(body) {
+			background: #fff !important;
+		}
+		:global(*) {
+			-webkit-print-color-adjust: exact;
+			print-color-adjust: exact;
+		}
+
+		/* Don't strand one or two lines of a paragraph on their own page. */
+		:global(.prose p),
+		:global(.prose li),
+		:global(.prose blockquote) {
+			orphans: 3;
+			widows: 3;
+		}
+
+		/* Never break in the middle of an atomic block. */
+		:global(.prose figure),
+		:global(.prose img),
+		:global(.prose pre),
+		:global(.prose table),
+		:global(.prose blockquote),
+		:global(.prose li),
+		:global(.prose tr) {
+			break-inside: avoid;
+			page-break-inside: avoid; /* legacy alias for older print engines */
+		}
+
+		/* Keep a heading with the content that follows it — no orphaned headings
+		   at the bottom of a page, and no page break immediately after one. */
+		:global(.prose h1),
+		:global(.prose h2),
+		:global(.prose h3),
+		:global(.prose h4),
+		:global(.prose h5),
+		:global(.prose h6) {
+			break-inside: avoid;
+			break-after: avoid;
+			page-break-after: avoid;
+		}
+
+		/* Images must never overflow the printable width. */
+		:global(.prose img) {
+			max-width: 100% !important;
+			height: auto !important;
+		}
+	}
 </style>
