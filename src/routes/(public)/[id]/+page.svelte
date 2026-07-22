@@ -999,10 +999,12 @@
 										</p>
 									{/if}
 
-									{#if note.updatedAt}
+									{@const rawDate = note?.frontmatter?.date ?? note.updatedAt}
+									{@const parsedDate = rawDate ? new Date(rawDate) : null}
+									{#if parsedDate && !isNaN(parsedDate.getTime())}
 										<div class="mt-2 flex items-center text-xs text-base-content/60 md:text-sm">
-											<time datetime={note.updatedAt}>
-												{new Date(note.updatedAt).toLocaleDateString('en-US', {
+											<time datetime={parsedDate.toISOString()}>
+												{parsedDate.toLocaleDateString('en-US', {
 													year: 'numeric',
 													month: 'long',
 													day: 'numeric'
