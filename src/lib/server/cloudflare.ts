@@ -12,7 +12,7 @@
  *   2. Set the Fallback Origin to the Worker hostname behind PUBLIC_CNAME_TARGET
  *      so every custom hostname routes into this Worker.
  *   3. Provision these Worker secrets:
- *        wrangler secret put CF_API_TOKEN   # token scoped: Zone > SSL and Certificates > Edit
+ *        wrangler secret put CF_SAAS_API_TOKEN   # token scoped: Zone > SSL and Certificates > Edit
  *        wrangler secret put CF_ZONE_ID     # the mdpubs.com zone id
  *
  * Docs: https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/
@@ -47,11 +47,11 @@ export type CustomHostname = {
 };
 
 function creds(): { token: string; zoneId: string } {
-	const token = env.CF_API_TOKEN;
+	const token = env.CF_SAAS_API_TOKEN;
 	const zoneId = env.CF_ZONE_ID;
 	if (!token || !zoneId) {
 		throw new Error(
-			'Cloudflare for SaaS is not configured: set CF_API_TOKEN and CF_ZONE_ID secrets.'
+			'Cloudflare for SaaS is not configured: set CF_SAAS_API_TOKEN and CF_ZONE_ID secrets.'
 		);
 	}
 	return { token, zoneId };
