@@ -51,7 +51,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 };
 
 export const actions: Actions = {
-	delete: async ({ request, locals }) => {
+	delete: async ({ request, locals, fetch }) => {
 		if (!locals.user || !locals?.session?.id) {
 			return fail(401, { message: 'Unauthorized' });
 		}

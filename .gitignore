@@ -29,3 +29,10 @@ vite.config.ts.timestamp-*
 *.db
 .aider*
 .env*
+
+# Claude Code (agent-local config + worktrees)
+.claude/
+
+# Syncthing temp files and sync-conflict copies
+.syncthing.*.tmp
+*.sync-conflict-*

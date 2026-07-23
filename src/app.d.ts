@@ -10,6 +10,10 @@ declare global {
 			env: {
 				// Cloudflare Email Sending binding (see wrangler.jsonc).
 				EMAIL: import('@cloudflare/workers-types').SendEmail;
+				// R2 bucket for note images/assets.
+				BUCKET: import('@cloudflare/workers-types').R2Bucket;
+				// Cloudflare Images binding (resize/format transforms).
+				IMAGES: import('@cloudflare/workers-types').ImagesBinding;
 			};
 			cf: import('@cloudflare/workers-types').CfProperties;
 			ctx: import('@cloudflare/workers-types').ExecutionContext;

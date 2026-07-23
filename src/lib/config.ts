@@ -11,7 +11,12 @@ export const config = {
 	name: APP_NAME,
 	description: 'Fastest way to publish markdown',
 	domain: env.PUBLIC_DOMAIN,
-	apiUrl: env.PUBLIC_API_URL,
+	// The notes API now lives in THIS app under /api (ported from the old
+	// standalone api.mdpubs.com). Default to the same-origin relative base so
+	// server loads (event.fetch) and browser fetches both resolve to the in-repo
+	// +server.ts routes. PUBLIC_API_URL can still override (e.g. to point back at
+	// the old host during cutover).
+	apiUrl: env.PUBLIC_API_URL || '/api',
 	git: 'https://github.com/lsshawn/mdpubs.nvim',
 	stripePaymentLinks: {
 		monthly: {

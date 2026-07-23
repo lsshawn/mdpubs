@@ -39,8 +39,26 @@
 		// SaaS fallback origin). Must resolve to this Worker. Shown in the org
 		// domain-settings UI as the DNS record to add.
 		"PUBLIC_CNAME_TARGET": "cname.mdpubs.com",
+		// Public base URL for note images. The R2 bucket `neonote` must be connected
+		// to this custom domain (R2 → Settings → Public access → Connect Domain).
+		// imageMap stores `${PUBLIC_IMG_BASE}/<key>`; delivery resizes via Cloudflare
+		// Images URL transforms. See src/lib/server/storage.ts.
+		"PUBLIC_IMG_BASE": "https://img.mdpubs.com",
 		"PUBLIC_STRIPE_MONTHLY_LINK": "https://buy.stripe.com/14A3cw7N6aZaaEZewf0oM0L",
 		"PUBLIC_STRIPE_YEARLY_LINK": "https://buy.stripe.com/9B6dRa9Ve0kw8wR5ZJ0oM0M"
+	},
+	// R2 bucket for note images/assets (was S3 API + keys on the old VPS; now a
+	// native binding — no access keys).
+	"r2_buckets": [
+		{
+			"binding": "BUCKET",
+			"bucket_name": "neonote"
+		}
+	],
+	// Cloudflare Images binding for on-the-fly resize/WebP (replaces server-side
+	// sharp). Originals live in R2; delivery transforms happen via URL.
+	"images": {
+		"binding": "IMAGES"
 	},
 	// Cloudflare Email Sending binding. The `from` domain (mdpubs.com) must be
 	// onboarded first: `npx wrangler email sending enable mdpubs.com`.
