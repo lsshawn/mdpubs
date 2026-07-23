@@ -15,8 +15,8 @@
 	//   1. Enable Cloudflare for SaaS on the mdpubs.com zone.
 	//   2. Add a "cname" DNS record + set the Fallback Origin so PUBLIC_CNAME_TARGET
 	//      (cname.mdpubs.com) resolves to this Worker.
-	//   3. Set secrets:  wrangler secret put CF_API_TOKEN   (Zone > SSL:Edit)
-	//                     wrangler secret put CF_ZONE_ID     (mdpubs.com zone id)
+	//   3. Set secrets:  wrangler secret put CF_SAAS_API_TOKEN  (Zone > SSL:Edit)
+	//                     wrangler secret put CF_ZONE_ID         (mdpubs.com zone id)
 	"routes": [
 		{ "pattern": "mdpubs.com", "custom_domain": true },
 		{ "pattern": "www.mdpubs.com", "custom_domain": true }
@@ -34,7 +34,10 @@
 	// in plaintext rather than as secrets. Update here to change them in prod.
 	"vars": {
 		"PUBLIC_DOMAIN": "mdpubs.com",
-		"PUBLIC_API_URL": "https://api.mdpubs.com",
+		// The notes API is now served same-origin by THIS Worker under /api (ported
+		// from the retired standalone api.mdpubs.com). config.ts falls back to /api
+		// if unset; kept explicit here for clarity.
+		"PUBLIC_API_URL": "/api",
 		// The CNAME target customers point their custom domain at (Cloudflare for
 		// SaaS fallback origin). Must resolve to this Worker. Shown in the org
 		// domain-settings UI as the DNS record to add.
