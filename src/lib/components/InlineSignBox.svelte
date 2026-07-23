@@ -196,7 +196,46 @@
 	}
 </script>
 
-<div class="my-4 max-w-md">
+<!--
+	Print / Save-as-PDF rendering: the interactive box below is display:none on
+	print. Instead we render a conventional signature line with explicit
+	Name: / Date: / Title: labels, so a printed contract reads like a standard
+	signature block regardless of whether the slot was signed on screen.
+-->
+<div class="mdpubs-sign-print my-6 max-w-md">
+	{#if slot}
+		<!-- Drawn mark (if signed) sitting on the signature rule. -->
+		{#if slot.signed && slot.signatureImageUrl}
+			<img
+				src={slot.signatureImageUrl}
+				alt="Signature of {slot.name}"
+				class="print-sign-mark"
+			/>
+		{:else if slot.signed}
+			<div class="print-sign-cursive">{slot.name}</div>
+		{:else}
+			<div class="print-sign-blank"></div>
+		{/if}
+		<div class="print-sign-rule"></div>
+		<div class="print-sign-fields">
+			<div><span class="print-sign-label">Name:</span> {slot.signed ? slot.name : ''}</div>
+			<div><span class="print-sign-label">Date:</span> {slot.signed ? fmtDate(slot.signedAt) : ''}</div>
+			{#if slot.email}
+				<div><span class="print-sign-label">Email:</span> {slot.email}</div>
+			{/if}
+			<!-- Custom fields (e.g. Title). Show declared fields even when unsigned so
+			     the printed line has a labelled blank to complete by hand. -->
+			{#each signState.fields as field (field.label)}
+				<div>
+					<span class="print-sign-label">{field.label}:</span>
+					{slot.fields?.[field.label] ?? ''}
+				</div>
+			{/each}
+		</div>
+	{/if}
+</div>
+
+<div class="mdpubs-sign-screen my-4 max-w-md">
 	{#if slot?.signed}
 		<!-- Completed signature: render like a real signed document — the drawn mark
 		     sits on a signature line, with the name/date typed beneath. No card. -->
@@ -205,12 +244,12 @@
 				<img
 					src={slot.signatureImageUrl}
 					alt="Signature of {slot.name}"
-					class="h-14 max-w-[240px] object-contain object-left"
+					class="h-10 max-w-[160px] object-contain object-left object-bottom"
 				/>
 			{:else}
-				<div class="h-14 pt-4 font-[cursive] text-2xl text-gray-800 italic">{slot.name}</div>
+				<div class="h-10 pt-2 font-[cursive] text-xl text-gray-800 italic">{slot.name}</div>
 			{/if}
-			<div class="border-t border-gray-400 pt-1">
+			<div class="border-t-2 border-dotted border-gray-400 pt-1">
 				<div class="text-sm font-medium text-gray-900">{slot.name}</div>
 				{#if slot.signedAt}
 					<div class="text-xs text-gray-500">Date: {fmtDate(slot.signedAt)}</div>
@@ -318,3 +357,61 @@
 		</div>
 	{/if}
 </div>
+
+<style>
+	/* Screen shows the interactive box; the standard signature line is print-only. */
+	.mdpubs-sign-print {
+		display: none;
+	}
+
+	@media print {
+		.mdpubs-sign-screen {
+			display: none !important;
+		}
+		.mdpubs-sign-print {
+			display: block;
+			break-inside: avoid;
+			page-break-inside: avoid;
+			color: #111;
+		}
+		/* Drawn signature mark rests just above the rule. */
+		.print-sign-mark {
+			display: block;
+			/* !important: beats the page's global `.prose img { height:auto }`
+			   print rule, which would otherwise blow the mark up to full size. */
+			height: 2.5rem !important;
+			max-width: 160px !important;
+			width: auto !important;
+			object-fit: contain;
+			object-position: left bottom;
+		}
+		.print-sign-cursive {
+			height: 2.5rem;
+			padding-top: 0.75rem;
+			font-family: cursive;
+			font-size: 1.25rem;
+			font-style: italic;
+			color: #1f2937;
+		}
+		/* Empty slot still gets space above the rule to sign by hand. */
+		.print-sign-blank {
+			height: 2.5rem;
+		}
+		.print-sign-rule {
+			/* Dotted signature line. 2px reads as clearly dotted at print DPI —
+			   a 1px dotted border renders almost solid. */
+			border-top: 2px dotted #4b5563;
+			max-width: 260px;
+		}
+		.print-sign-fields {
+			margin-top: 0.35rem;
+			font-size: 0.8rem;
+			line-height: 1.5;
+			color: #1f2937;
+		}
+		.print-sign-label {
+			font-weight: 600;
+			color: #111;
+		}
+	}
+</style>
