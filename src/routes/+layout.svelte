@@ -14,7 +14,10 @@
 	// expect); `ogimage.webp` is 1200x684 and gets cropped oddly. Pages that own
 	// their meta (e.g. the public note view) render their own og:image and this
 	// block is skipped for them below.
-	let ogImage = $derived(`${page.url.origin}/og-default.png`);
+	// The URL is inlined in `<svelte:head>` (see below) rather than computed
+	// with a top-level `$derived`, because `$derived` runs outside the SvelteKit
+	// SSR render context where `page.url` isn't available — that raised
+	// `ReferenceError: ogImage is not defined` during server-side rendering.
 
 	let message = $state('');
 	let email = $state(data.user?.email ?? '');
@@ -53,14 +56,14 @@
 		<meta property="og:url" content={page.url.href} />
 		<meta property="og:title" content={config.name} />
 		<meta property="og:description" content={config.description} />
-		<meta property="og:image" content={ogImage} />
+		<meta property="og:image" content={`${page.url.origin}/og-default.png`} />
 
 		<!-- Twitter -->
 		<meta name="twitter:card" content="summary_large_image" />
 		<meta name="twitter:url" content={page.url.href} />
 		<meta name="twitter:title" content={config.name} />
 		<meta name="twitter:description" content={config.description} />
-		<meta name="twitter:image" content={ogImage} />
+		<meta name="twitter:image" content={`${page.url.origin}/og-default.png`} />
 	{/if}
 </svelte:head>
 
