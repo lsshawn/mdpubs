@@ -162,6 +162,20 @@
 			{/if}
 		</div>
 
+		<div class="mb-10">
+			<div class="flex items-center gap-2">
+				<h3 class="text-xl font-bold text-base-content">Accounts (organizations)</h3>
+			</div>
+			<p class="flex items-center py-2 text-base-content/70">
+				<span>
+					Publish under a shared team name and a custom domain (e.g. docs.108labs.ai). Tag notes
+					with <code class="rounded bg-base-200 px-1">mdpubs-account: &lt;slug&gt;</code>.
+				</span>
+			</p>
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+			<a href="/orgs" class="btn btn-outline">Manage accounts</a>
+		</div>
+
 		<h3 class="text-2xl font-bold text-base-content">Your API Keys</h3>
 		<p class="py-4 text-base-content/70">
 			Save these keys securely. You'll need them to use the MdPubs plugin.

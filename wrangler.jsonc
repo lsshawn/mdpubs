@@ -5,9 +5,18 @@
 	"account_id": "20275e70544c64c131854ca82ba1ca32",
 	"compatibility_date": "2026-07-21",
 	"compatibility_flags": ["nodejs_compat"],
-	// Custom domains. Cloudflare creates the proxied DNS records automatically
-	// on deploy — do NOT hand-add CNAMEs. Requires mdpubs.com to be a zone in
-	// the Cupbots account (nameservers pointed at Cloudflare).
+	// OUR OWN domains only. Cloudflare creates the proxied DNS records
+	// automatically on deploy — do NOT hand-add CNAMEs. Requires mdpubs.com to be
+	// a zone in the Cupbots account (nameservers pointed at Cloudflare).
+	//
+	// CUSTOMER domains (e.g. docs.108labs.ai) are NOT listed here — they are
+	// provisioned at runtime via Cloudflare for SaaS "custom hostnames"
+	// (src/lib/server/cloudflare.ts). One-time platform setup:
+	//   1. Enable Cloudflare for SaaS on the mdpubs.com zone.
+	//   2. Add a "cname" DNS record + set the Fallback Origin so PUBLIC_CNAME_TARGET
+	//      (cname.mdpubs.com) resolves to this Worker.
+	//   3. Set secrets:  wrangler secret put CF_API_TOKEN   (Zone > SSL:Edit)
+	//                     wrangler secret put CF_ZONE_ID     (mdpubs.com zone id)
 	"routes": [
 		{ "pattern": "mdpubs.com", "custom_domain": true },
 		{ "pattern": "www.mdpubs.com", "custom_domain": true }
@@ -26,6 +35,10 @@
 	"vars": {
 		"PUBLIC_DOMAIN": "mdpubs.com",
 		"PUBLIC_API_URL": "https://api.mdpubs.com",
+		// The CNAME target customers point their custom domain at (Cloudflare for
+		// SaaS fallback origin). Must resolve to this Worker. Shown in the org
+		// domain-settings UI as the DNS record to add.
+		"PUBLIC_CNAME_TARGET": "cname.mdpubs.com",
 		"PUBLIC_STRIPE_MONTHLY_LINK": "https://buy.stripe.com/14A3cw7N6aZaaEZewf0oM0L",
 		"PUBLIC_STRIPE_YEARLY_LINK": "https://buy.stripe.com/9B6dRa9Ve0kw8wR5ZJ0oM0M"
 	},

@@ -17,6 +17,9 @@ Thumbs.db
 .env.*
 !.env.example
 !.env.test
+# Wrangler local secrets (loaded into platform.env for `wrangler dev`)
+.dev.vars
+.dev.vars.*
 
 # Vite
 vite.config.js.timestamp-*

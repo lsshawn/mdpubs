@@ -24,6 +24,14 @@
 
 set -euo pipefail
 
+# Wrangler 4.x AUTO-LOADS .env and treats CF_API_TOKEN / CLOUDFLARE_API_TOKEN as
+# its OWN auth credential. Since we store CF_API_TOKEN as an APP secret in .env,
+# wrangler would try to authenticate the CLI with it (it only has SSL:Edit scope)
+# and fail — or shadow your `wrangler login` session. Strip both from wrangler's
+# environment so the CLI uses your OAuth login; this does NOT affect the VALUES we
+# read from the env file and upload (that's read_value below, not the env).
+wrangler() { env -u CF_API_TOKEN -u CLOUDFLARE_API_TOKEN pnpm exec wrangler "$@"; }
+
 # Default to .env.production (this uploads to the live Worker); fall back to .env
 # only if no production file exists. Override explicitly with ENV_FILE=...
 if [[ -n "${ENV_FILE:-}" ]]; then
@@ -70,6 +78,8 @@ KNOWN=(
   GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET
   GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET
   HERMES_WEBHOOK_SECRET HERMES_APP_TOKEN
+  # Cloudflare for SaaS custom-hostname provisioning (src/lib/server/cloudflare.ts).
+  CF_API_TOKEN CF_ZONE_ID
 )
 
 in_list() {
@@ -95,7 +105,7 @@ fi
 
 # Preflight: wrangler must be resolvable, else `pnpm exec wrangler` fails mid-run
 # with an opaque exit code after some secrets are already uploaded.
-if ! pnpm exec wrangler --version >/dev/null 2>&1; then
+if ! wrangler --version >/dev/null 2>&1; then
   echo "❌ wrangler not found. Run \`pnpm install\` first (it's a devDependency)." >&2
   exit 1
 fi
@@ -142,7 +152,7 @@ while IFS= read -r key; do
     # Suppress wrangler's noisy success chatter on stdout, but let stderr through
     # so a real failure (auth, wrong account, invalid value) is visible. Don't let
     # one failed put abort the whole run (set -e): report it and keep going.
-    if printf '%s' "$value" | pnpm exec wrangler secret put "$key" "${env_args[@]}" >/dev/null; then
+    if printf '%s' "$value" | wrangler secret put "$key" "${env_args[@]}" >/dev/null; then
       uploaded=$((uploaded + 1))
     else
       echo "  ❌ failed to put $key (see wrangler error above)" >&2

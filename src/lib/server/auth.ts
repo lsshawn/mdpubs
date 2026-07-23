@@ -46,7 +46,8 @@ export async function validateSession(sessionId: string) {
 				id: table.user.id,
 				email: table.user.email,
 				plan: table.user.plan,
-				username: table.user.username
+				username: table.user.username,
+				defaultOrgId: table.user.defaultOrgId
 			},
 			session: table.session
 		})
