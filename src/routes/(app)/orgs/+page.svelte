@@ -73,7 +73,7 @@
 	<h1 class="mb-2 text-3xl font-bold">Accounts</h1>
 	<p class="mb-8 text-base-content/70">
 		An account (organization) lets a team publish under a shared name and custom domain. Tag a note
-		with <code class="rounded bg-base-200 px-1">mdpubs-account: &lt;slug&gt;</code> to publish it under
+		with <code class="rounded bg-base-200 px-1">mdpubs-company: &lt;slug&gt;</code> to publish it under
 		that account.
 	</p>
 
@@ -118,7 +118,7 @@
 		</div>
 		<p class="mb-8 -mt-6 text-xs text-base-content/50">
 			Your <strong>default</strong> account is used when a synced note has no
-			<code>mdpubs-account</code> frontmatter.
+			<code>mdpubs-company</code> frontmatter.
 		</p>
 	{:else}
 		<div class="mb-10 rounded-lg border border-dashed border-base-300 p-6 text-center text-base-content/60">

@@ -32,7 +32,7 @@ export const user = sqliteTable(
 		githubId: text('github_id').unique(),
 		customDomain: text('custom_domain').unique(),
 		// Default org for this user's API key (hybrid org resolution). When a synced
-		// note has no `mdpubs-account` frontmatter, publishing falls back to this
+		// note has no `mdpubs-company` frontmatter, publishing falls back to this
 		// org. Null = personal notes by default. Frontmatter always overrides. The
 		// membership check still applies regardless, so this is only a convenience
 		// default, never an authorization grant. Declared here (keys live on the
@@ -55,7 +55,7 @@ export const user = sqliteTable(
 );
 
 /**
- * Organizations ("accounts"). A note's `mdpubs-account: <slug>` frontmatter
+ * Organizations ("accounts"). A note's `mdpubs-company: <slug>` frontmatter
  * resolves to one of these by `slug`, and each org can own a custom domain
  * (e.g. docs.108labs.ai) served via Cloudflare for SaaS custom hostnames.
  *
@@ -69,7 +69,7 @@ export const organization = sqliteTable(
 		id: text('id')
 			.primaryKey()
 			.$defaultFn(() => nanoid()),
-		// The frontmatter value: `mdpubs-account: 108labs`. URL-safe, lowercase.
+		// The frontmatter value: `mdpubs-company: 108labs`. URL-safe, lowercase.
 		slug: text('slug').notNull().unique(),
 		name: text('name').notNull(),
 
@@ -96,7 +96,7 @@ export const organization = sqliteTable(
 
 /**
  * Membership: which users belong to which org, and their role. Publishing a
- * note into an org (via `mdpubs-account`) requires the syncing user to have a
+ * note into an org (via `mdpubs-company`) requires the syncing user to have a
  * row here; domain management requires role owner/admin.
  */
 export const orgMember = sqliteTable(
@@ -162,7 +162,7 @@ export const note = sqliteTable(
 			.default(sql`'[]'`),
 		isPrivate: integer('is_private', { mode: 'boolean' }).default(false),
 		imageMap: text('image_map', { mode: 'json' }).$type<Record<string, string>>(),
-		// The org this note is published under, from `mdpubs-account` frontmatter.
+		// The org this note is published under, from `mdpubs-company` frontmatter.
 		// Null for personal notes. Set by mdpubs-api during sync, after verifying
 		// the syncing user is a member of the org. Custom-domain routing serves a
 		// note only if its org owns the requesting host.

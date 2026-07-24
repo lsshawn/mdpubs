@@ -1,7 +1,7 @@
 /**
  * Organization ("account") server helpers.
  *
- * An org is the entity behind `mdpubs-account: <slug>` frontmatter. It owns a
+ * An org is the entity behind `mdpubs-company: <slug>` frontmatter. It owns a
  * custom domain (docs.108labs.ai) and a set of notes. These helpers back:
  *   - custom-domain request routing (hooks.server.ts): host -> org
  *   - the org landing page ((public)/o/[org])
@@ -14,7 +14,7 @@ import type { Organization } from '$lib/server/db/schema';
 
 export type OrgRole = 'owner' | 'admin' | 'member';
 
-/** Resolve an org by its `mdpubs-account` slug. */
+/** Resolve an org by its `mdpubs-company` slug. */
 export async function getOrgBySlug(slug: string): Promise<Organization | null> {
 	const [org] = await db
 		.select()
@@ -65,7 +65,7 @@ export type ResolveOrgResult =
  * Hybrid org resolution for a synced note. Used by the sync path to decide which
  * org a note belongs to. The precedence is:
  *
- *   1. `mdpubs-account` frontmatter (explicit per-file choice), unless it's a
+ *   1. `mdpubs-company` frontmatter (explicit per-file choice), unless it's a
  *      "personal" sentinel ('none' / '' / 'personal') which forces no org.
  *   2. the user's `defaultOrgId` (their API key's default).
  *   3. null — a personal note.

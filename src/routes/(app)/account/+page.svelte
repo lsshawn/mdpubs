@@ -169,7 +169,7 @@
 			<p class="flex items-center py-2 text-base-content/70">
 				<span>
 					Publish under a shared team name and a custom domain (e.g. docs.108labs.ai). Tag notes
-					with <code class="rounded bg-base-200 px-1">mdpubs-account: &lt;slug&gt;</code>.
+					with <code class="rounded bg-base-200 px-1">mdpubs-company: &lt;slug&gt;</code>.
 				</span>
 			</p>
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->

@@ -41,7 +41,7 @@ export class InvalidFrontmatterError extends Error {
 }
 
 /**
- * Thrown when a note's `mdpubs-account` frontmatter names an org the syncing
+ * Thrown when a note's `mdpubs-company` frontmatter names an org the syncing
  * user can't publish to (unknown slug, or not a member). Surfaced to the client
  * as a 403 so the mistake is visible rather than silently mis-filed.
  */
@@ -172,7 +172,7 @@ export class NoteService {
 	}
 
 	/**
-	 * Read `mdpubs-account` from the content's frontmatter and resolve it (with
+	 * Read `mdpubs-company` from the content's frontmatter and resolve it (with
 	 * the user's default org) to an org id. Returns null for personal notes.
 	 * Throws InvalidAccountError on an explicit but unauthorized/unknown account.
 	 */
@@ -184,7 +184,7 @@ export class NoteService {
 		let slug: string | null = null;
 		try {
 			const { data } = matter(content || '');
-			const raw = data?.['mdpubs-account'];
+			const raw = data?.['mdpubs-company'];
 			if (raw != null) slug = String(raw);
 		} catch {
 			// Malformed frontmatter is reported elsewhere; treat as no account here.
@@ -215,7 +215,7 @@ export class NoteService {
 
 		const content = noteData.content || '';
 
-		// Resolve which org this note belongs to (mdpubs-account frontmatter →
+		// Resolve which org this note belongs to (mdpubs-company frontmatter →
 		// user default → personal), verifying membership. Throws on an explicit
 		// but unauthorized/unknown account.
 		const orgId = await this.resolveOrgForContent(content, userId, defaultOrgId);
@@ -563,7 +563,7 @@ export class NoteService {
 		if (updateData.isPrivate !== undefined) noteUpdateData.isPrivate = updateData.isPrivate;
 
 		// Re-resolve the org from the (possibly edited) frontmatter every update so
-		// changing `mdpubs-account` moves the note, and removing it demotes it.
+		// changing `mdpubs-company` moves the note, and removing it demotes it.
 		noteUpdateData.orgId = await this.resolveOrgForContent(finalContent, userId, defaultOrgId);
 
 		const updatedNote = await this.db.updateNote(noteId, noteUpdateData);

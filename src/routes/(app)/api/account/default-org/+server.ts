@@ -8,7 +8,7 @@ import type { RequestEvent } from './$types';
 
 /**
  * Set (or clear) the caller's default org — the org their API key publishes to
- * when a synced note has no `mdpubs-account` frontmatter (hybrid resolution).
+ * when a synced note has no `mdpubs-company` frontmatter (hybrid resolution).
  *
  *   PUT { orgId: string }  → set default (must be a member of that org)
  *   PUT { orgId: null }    → clear default (notes default to personal)

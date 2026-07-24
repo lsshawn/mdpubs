@@ -6,7 +6,7 @@ import type { RequestEvent } from './$types';
 
 /**
  * Create a new org. The creator becomes its owner. The slug is the value used in
- * `mdpubs-account:` frontmatter and must be URL-safe and unique.
+ * `mdpubs-company:` frontmatter and must be URL-safe and unique.
  */
 const createSchema = z.object({
 	name: z.string().trim().min(1).max(80),
