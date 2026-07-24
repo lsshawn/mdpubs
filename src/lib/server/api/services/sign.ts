@@ -28,7 +28,7 @@
 
 import { createHash } from 'node:crypto';
 import { database, NotFoundError, NoteNotOwnedError } from '../db';
-import { uploadFile } from '$lib/server/storage';
+import { uploadFile, publicUrl } from '$lib/server/storage';
 import type { R2Bucket } from '@cloudflare/workers-types';
 import { NoteService } from './note';
 import type { Note, Signature } from '$lib/server/db/schema';
@@ -547,8 +547,11 @@ class SignService {
 
 	/**
 	 * Attach signature-image URLs for signed signatures onto a SignState's signers
-	 * (so the UI can show the drawn marks). Signatures now store the plain public
-	 * URL in `signatureImageKey`, so we surface it directly (no presigning).
+	 * (so the UI can show the drawn marks). Current signatures store the plain public
+	 * URL in `signatureImageKey`; records migrated from the pre-Cloudflare system
+	 * stored a bare R2 key. Normalise both to a public URL via `publicUrl` (a no-op
+	 * for values that are already absolute) so legacy rows don't render as relative
+	 * URLs against the app origin (which 404s).
 	 */
 	async withSignatureImageUrls(note: Note, state: SignState): Promise<SignState> {
 		if (!state.enabled) return state;
@@ -556,7 +559,10 @@ class SignService {
 		// Key by slot index (stable for both fixed and open slots).
 		const urlByIndex = new Map<number, string>();
 		for (const s of signatures) {
-			if (s.signatureImageKey) urlByIndex.set(s.signerIndex, s.signatureImageKey);
+			if (s.signatureImageKey) {
+				const raw = s.signatureImageKey;
+				urlByIndex.set(s.signerIndex, raw.startsWith('http') ? raw : publicUrl(raw));
+			}
 		}
 		if (urlByIndex.size === 0) return state;
 
