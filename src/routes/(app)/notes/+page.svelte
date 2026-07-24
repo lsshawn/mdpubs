@@ -68,6 +68,26 @@
 		};
 	};
 
+	let hardDeleting = $state(false);
+	// Two-click guard: the first click arms the button, the second submits.
+	let hardDeleteArmed = $state(false);
+	const handleHardDelete: SubmitFunction = () => {
+		hardDeleting = true;
+		hardDeleteArmed = false;
+		return ({ result, update }) => {
+			if (result.type === 'success' || result.type === 'failure') {
+				if (result.data?.success) {
+					showToast('Note permanently deleted.', 'success');
+					deleteModal?.close();
+				} else if (result.data?.message) {
+					showToast(result.data.message as string, 'error');
+				}
+			}
+			update();
+			hardDeleting = false;
+		};
+	};
+
 	function getSearchURL(p: number) {
 		const url = new URL($page.url);
 		url.searchParams.set('page', p.toString());
@@ -140,6 +160,7 @@
 									class="btn btn-error btn-sm"
 									onclick={() => {
 										noteToDelete = note;
+										hardDeleteArmed = false;
 										deleteModal.showModal();
 									}}
 								>
@@ -184,7 +205,14 @@
 	</div>
 {/if}
 
-<dialog id="delete_modal" class="modal" bind:this={deleteModal}>
+<dialog
+	id="delete_modal"
+	class="modal"
+	bind:this={deleteModal}
+	onclose={() => {
+		hardDeleteArmed = false;
+	}}
+>
 	<div class="modal-box">
 		<h3 class="text-lg font-bold">Confirm Deletion</h3>
 		{#if noteToDelete}
@@ -200,7 +228,11 @@
 			{#if noteToDelete}
 				<form method="POST" action="?/delete" use:enhance={handleDelete}>
 					<input type="hidden" name="id" value={noteToDelete.publicId} />
-					<button type="submit" class="btn btn-error" class:btn-disabled={deleting}>
+					<button
+						type="submit"
+						class="btn btn-error"
+						class:btn-disabled={deleting || hardDeleting}
+					>
 						{#if deleting}
 							<span class="loading loading-spinner"></span>
 						{/if}
@@ -209,6 +241,41 @@
 				</form>
 			{/if}
 		</div>
+		{#if noteToDelete}
+			<div class="mt-3 flex flex-col items-center gap-1">
+				<form method="POST" action="?/hardDelete" use:enhance={handleHardDelete}>
+					<input type="hidden" name="id" value={noteToDelete.publicId} />
+					{#if hardDeleteArmed}
+						<button
+							type="submit"
+							class="btn btn-error btn-xs"
+							class:btn-disabled={deleting || hardDeleting}
+						>
+							{#if hardDeleting}
+								<span class="loading loading-spinner loading-xs"></span>
+							{/if}
+							Click again to confirm permanent delete
+						</button>
+					{:else}
+						<button
+							type="button"
+							class="btn btn-ghost btn-xs text-error"
+							class:btn-disabled={deleting || hardDeleting}
+							onclick={() => (hardDeleteArmed = true)}
+						>
+							Hard delete permanently
+						</button>
+					{/if}
+				</form>
+				<span class="text-xs text-base-content/60">
+					{#if hardDeleteArmed}
+						This cannot be undone. Click the red button to permanently remove it.
+					{:else}
+						Removes the note and its images from the database and Cloudflare. Cannot be restored.
+					{/if}
+				</span>
+			</div>
+		{/if}
 	</div>
 	<form method="dialog" class="modal-backdrop">
 		<button></button>

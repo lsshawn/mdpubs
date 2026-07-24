@@ -83,5 +83,39 @@ export const actions: Actions = {
 			console.error(e);
 			return fail(500, { message: 'Could not delete note' });
 		}
+	},
+
+	hardDelete: async ({ request, locals, fetch }) => {
+		if (!locals.user || !locals?.session?.id) {
+			return fail(401, { message: 'Unauthorized' });
+		}
+		const formData = await request.formData();
+		// publicId (nanoid) — the API resolves notes by publicId only (no parseInt).
+		const publicId = formData.get('id');
+
+		if (typeof publicId !== 'string' || publicId === '') {
+			return fail(400, { message: 'Invalid note ID' });
+		}
+
+		try {
+			// ?hard=true purges the DB rows AND the note's Cloudflare R2 images.
+			const response = await fetch(`${config.apiUrl}/notes/${publicId}?hard=true`, {
+				method: 'DELETE',
+				headers: {
+					Authorization: `Bearer ${locals.session.id}`
+				}
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				const message = errorData.error || `Failed to delete note. Status: ${response.status}`;
+				return fail(response.status, { message });
+			}
+
+			return { success: true };
+		} catch (e) {
+			console.error(e);
+			return fail(500, { message: 'Could not permanently delete note' });
+		}
 	}
 };

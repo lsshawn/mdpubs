@@ -23,7 +23,7 @@ import {
 	NoteLockedError
 } from '../db';
 import type { Note, NoteVersion } from '$lib/server/db/schema';
-import { uploadFile, deleteFiles } from '$lib/server/storage';
+import { uploadFile, deleteFiles, deleteFolder } from '$lib/server/storage';
 import type { R2Bucket } from '@cloudflare/workers-types';
 import { config } from '../config';
 import { resolveNoteOrg } from '$lib/server/org';
@@ -582,8 +582,12 @@ export class NoteService {
 		return updatedNote;
 	}
 
-	// Delete note (soft delete)
-	async deleteNote(bucket: R2Bucket, noteId: number, userId: string): Promise<void> {
+	// Delete note (soft delete). This is a FULLY soft delete: the row is marked
+	// with deletedAt and the note can be restored via restoreNote(). R2 image
+	// objects are intentionally left in place so a restored note still renders —
+	// deleting them here would break restore. (Kept in the signature for API
+	// compatibility; not used now that files survive a soft delete.)
+	async deleteNote(_bucket: R2Bucket, noteId: number, userId: string): Promise<void> {
 		// First check if the note exists and belongs to the user
 		const existingNote = await this.db.getNoteById(noteId);
 
@@ -595,18 +599,43 @@ export class NoteService {
 			throw new NoteNotOwnedError('Note does not belong to you');
 		}
 
-		// Delete associated R2 files
-		if (existingNote.imageMap && Object.keys(existingNote.imageMap).length > 0) {
-			const urlsToDelete = Object.values(existingNote.imageMap as Record<string, string>);
-			try {
-				await deleteFiles(bucket, urlsToDelete);
-			} catch (error) {
-				console.error(`[NoteService] Error deleting R2 files for note ${noteId}:`, error);
-				// We'll log the error but proceed with soft-deleting the note
-			}
+		await this.db.deleteNote(noteId);
+	}
+
+	/**
+	 * Permanently delete a note: purge its R2 assets, then delete the note row and
+	 * all rows referencing it (versions, signature requests/signatures/events).
+	 *
+	 * Unlike soft `deleteNote`, this is irreversible and works whether the note is
+	 * currently active or already soft-deleted (so it can be called from either the
+	 * notes list or a trash view). R2 objects live under
+	 * `users/<userId>/notes/<noteId>/`, so deleting that prefix removes every image
+	 * for the note without needing the imageMap.
+	 */
+	async hardDeleteNote(bucket: R2Bucket, noteId: number, userId: string): Promise<void> {
+		const existingNote = await this.db.getNoteById(noteId);
+
+		if (!existingNote) {
+			throw new NotFoundError('Note not found');
 		}
 
-		await this.db.deleteNote(noteId);
+		if (existingNote.userId !== userId) {
+			throw new NoteNotOwnedError('Note does not belong to you');
+		}
+
+		// Remove all R2 assets for this note. Best-effort: a storage failure should
+		// not leave a half-deleted DB, so log and continue to the row deletion.
+		const prefix = `users/${userId}/notes/${noteId}/`;
+		try {
+			const removed = await deleteFolder(bucket, prefix);
+			if (removed > 0) {
+				console.log(`[NoteService] Hard delete: removed ${removed} R2 object(s) under ${prefix}.`);
+			}
+		} catch (error) {
+			console.error(`[NoteService] Hard delete: failed to purge R2 objects under ${prefix}:`, error);
+		}
+
+		await this.db.hardDeleteNote(noteId);
 	}
 
 	// Get deleted notes by user ID

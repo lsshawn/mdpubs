@@ -144,6 +144,14 @@ export async function DELETE(event: RequestEvent): Promise<Response> {
 		const noteId = await resolveNoteId(event.params.id);
 		if (noteId === null) return notFound();
 
+		// ?hard=true permanently deletes the note, its versions/signatures, and its
+		// R2 image objects (irreversible). Without it, the note is soft-deleted.
+		const hard = event.url.searchParams.get('hard') === 'true';
+		if (hard) {
+			await noteService.hardDeleteNote(bucket, noteId, user.id);
+			return json({ message: 'Note permanently deleted' });
+		}
+
 		await noteService.deleteNote(bucket, noteId, user.id);
 		return json({ message: 'Note deleted successfully' });
 	} catch (error) {

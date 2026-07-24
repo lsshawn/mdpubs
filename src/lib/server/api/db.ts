@@ -254,6 +254,32 @@ class DatabaseConnection {
 		}
 	}
 
+	/**
+	 * Permanently delete a note and every row that references it.
+	 *
+	 * The child tables declare `onDelete: 'cascade'`, but libSQL/Turso does NOT
+	 * enforce foreign keys over the remote protocol unless `PRAGMA foreign_keys`
+	 * is on (it isn't here), so we delete the children explicitly rather than
+	 * relying on the cascade. Order: leaf tables first, note row last.
+	 */
+	async hardDeleteNote(id: number): Promise<void> {
+		try {
+			await db.delete(signatureEvent).where(eq(signatureEvent.noteId, id));
+			await db.delete(signature).where(eq(signature.noteId, id));
+			await db.delete(signatureRequest).where(eq(signatureRequest.noteId, id));
+			await db.delete(noteVersion).where(eq(noteVersion.noteId, id));
+
+			const result = await db.delete(note).where(eq(note.id, id)).returning();
+
+			if (!result[0]) {
+				throw new NotFoundError('Note not found');
+			}
+		} catch (error) {
+			if (error instanceof NotFoundError) throw error;
+			throw new DatabaseError(`Failed to permanently delete note: ${error}`);
+		}
+	}
+
 	async restoreNote(id: number): Promise<void> {
 		try {
 			const result = await db
