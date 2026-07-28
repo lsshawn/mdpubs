@@ -1195,9 +1195,9 @@
 	   `.prose` content is injected via {@html}, so those rules use :global().
 	--------------------------------------------------------------------------- */
 	@media print {
-		/* Professional page margin around every printed page. */
+		/* Tight but professional page margin around every printed page. */
 		@page {
-			margin: 0.85in 0.75in;
+			margin: 0.4in 0.45in;
 		}
 
 		/* Let content flow: drop screen-only min-heights and scroll clipping that
@@ -1209,6 +1209,16 @@
 			min-height: 0 !important;
 			overflow: visible !important;
 			max-width: none !important;
+		}
+
+		/* The screen content wrapper adds its own gutters/vertical rhythm on top of
+		   the @page margin; drop it so the printed margin is the only whitespace. */
+		:global(.max-w-4xl) {
+			max-width: none !important;
+			padding-left: 0 !important;
+			padding-right: 0 !important;
+			padding-top: 0 !important;
+			padding-bottom: 0 !important;
 		}
 
 		/* The desktop TOC sidebar and mobile TOC bars are navigation, not content. */
