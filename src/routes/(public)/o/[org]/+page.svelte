@@ -10,6 +10,16 @@
 	<title>{data.org.name} · Docs</title>
 </svelte:head>
 
+{#if data.isCustomDomain}
+	<!-- Custom domains get a plain branded landing page, not the note index. -->
+	<div class="flex min-h-screen flex-col items-center justify-center p-4 text-center">
+		<h1 class="text-4xl font-bold">{data.org.name}</h1>
+		<p class="mt-3 text-sm text-base-content/60">
+			powered by
+			<a href="https://mdpubs.com" class="link link-hover font-medium">mdpubs.com</a>
+		</p>
+	</div>
+{:else}
 <div class="container mx-auto max-w-4xl p-4">
 	<h1 class="mb-4 text-3xl font-bold">{data.org.name}</h1>
 
@@ -49,3 +59,4 @@
 		</div>
 	{/if}
 </div>
+{/if}

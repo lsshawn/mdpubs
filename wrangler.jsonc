@@ -13,13 +13,33 @@
 	// provisioned at runtime via Cloudflare for SaaS "custom hostnames"
 	// (src/lib/server/cloudflare.ts). One-time platform setup:
 	//   1. Enable Cloudflare for SaaS on the mdpubs.com zone.
-	//   2. Add a "cname" DNS record + set the Fallback Origin so PUBLIC_CNAME_TARGET
-	//      (cname.mdpubs.com) resolves to this Worker.
+	//   2. Set the zone Fallback Origin to PUBLIC_CNAME_TARGET (origin.mdpubs.com),
+	//      whose DNS record must be ORIGINLESS: `origin  AAAA  100::` (proxied).
 	//   3. Set secrets:  wrangler secret put CF_SAAS_API_TOKEN  (Zone > SSL:Edit)
 	//                     wrangler secret put CF_ZONE_ID         (mdpubs.com zone id)
+	//
+	// How customer-hostname traffic actually reaches this Worker (per
+	// developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/
+	// start/advanced-settings/worker-as-origin/):
+	//
+	//   The wildcard route `*mdpubs.com/*` below matches SaaS traffic BEFORE
+	//   origin resolution happens, so the Worker answers and the fallback origin
+	//   is never dialled. That is why the fallback origin is intentionally
+	//   originless (AAAA 100:: is unroutable) — it exists only to satisfy the
+	//   "fallback origin must be an active proxied record" requirement.
+	//
+	// A Worker *custom domain* on the fallback hostname does NOT work: custom
+	// domains bind one hostname, and SaaS traffic arrives as Host: <customer>,
+	// so nothing matches and Cloudflare tries (and fails) to dial an origin. 522.
+	// Only a wildcard route intercepts custom hostnames.
 	"routes": [
 		{ "pattern": "mdpubs.com", "custom_domain": true },
-		{ "pattern": "www.mdpubs.com", "custom_domain": true }
+		{ "pattern": "www.mdpubs.com", "custom_domain": true },
+		// `*/*` on the SaaS zone catches every custom hostname CNAME'd to our
+		// fallback origin (docs.108labs.ai etc). It must be this literal pattern —
+		// customer domains are not subdomains of mdpubs.com, so a *mdpubs.com/*
+		// wildcard would never match them.
+		{ "pattern": "*/*", "zone_name": "mdpubs.com" }
 	],
 	"main": ".svelte-kit/cloudflare/_worker.js",
 	"assets": {
@@ -39,9 +59,12 @@
 		// if unset; kept explicit here for clarity.
 		"PUBLIC_API_URL": "/api",
 		// The CNAME target customers point their custom domain at (Cloudflare for
-		// SaaS fallback origin). Must resolve to this Worker. Shown in the org
-		// domain-settings UI as the DNS record to add.
-		"PUBLIC_CNAME_TARGET": "cname.mdpubs.com",
+		// SaaS fallback origin). Must be a Worker custom domain — see the routes
+		// note above. Shown in the org domain-settings UI as the DNS record to add.
+		// Existing customers still CNAME'd to the old cname.mdpubs.com keep working
+		// (SaaS routes via the zone Fallback Origin setting, not the customer's
+		// CNAME target), so re-pointing them is cleanup, not a break-fix.
+		"PUBLIC_CNAME_TARGET": "origin.mdpubs.com",
 		// Public base URL for note images. The R2 bucket `neonote` must be connected
 		// to this custom domain (R2 → Settings → Public access → Connect Domain).
 		// imageMap stores `${PUBLIC_IMG_BASE}/<key>`; delivery resizes via Cloudflare

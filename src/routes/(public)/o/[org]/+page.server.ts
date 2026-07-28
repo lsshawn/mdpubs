@@ -11,11 +11,16 @@ import type { PageServerLoad } from './$types';
  * request arrives on the org's custom domain (rerouted in hooks.server.ts).
  * Lists the org's public notes, mirroring the /u/[username] view.
  */
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params, url }) => {
 	const { org: slug } = params;
 
 	const org = await getOrgBySlug(slug);
 	if (!org) throw error(404, 'Account not found');
+
+	// Reached via the org's own custom domain (rerouted in src/hooks.ts) rather
+	// than directly at /o/<slug> on mdpubs.com. Custom domains get a plain
+	// branded landing page instead of the full note index.
+	const isCustomDomain = !!org.customDomain && url.host.toLowerCase() === org.customDomain;
 
 	const limit = 10;
 	const offset = 0;
@@ -66,5 +71,5 @@ export const load: PageServerLoad = async ({ params }) => {
 		};
 	});
 
-	return { notes, org: { slug: org.slug, name: org.name } };
+	return { notes, org: { slug: org.slug, name: org.name }, isCustomDomain };
 };
