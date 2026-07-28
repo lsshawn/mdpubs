@@ -31,7 +31,13 @@ vite.config.ts.timestamp-*
 .env*
 
 # Claude Code (agent-local config + worktrees)
-.claude/
+# Ignore everything under .claude/ EXCEPT shared skills, which are versioned
+# with the code. Re-including a nested path needs the parent dirs unignored
+# first — git never descends into an excluded directory.
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/mdpubs/
 
 # Syncthing temp files and sync-conflict copies
 .syncthing.*.tmp
