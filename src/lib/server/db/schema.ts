@@ -122,6 +122,50 @@ export const orgMember = sqliteTable(
 	})
 );
 
+/**
+ * Pending invitations to an org, keyed by EMAIL rather than user id — the whole
+ * point is that the invitee may not have an MdPubs account yet.
+ *
+ * An invite is claimed on login (see acceptPendingInvites, called from
+ * createSession), which covers every auth path — OAuth signup, OAuth login, and
+ * OTP — without each callback needing its own hook. Claiming inserts the
+ * org_members row and stamps `acceptedAt`; rows are kept after acceptance as an
+ * audit trail of who invited whom.
+ *
+ * `email` is NOT globally unique: the same person can hold pending invites to
+ * several orgs at once. It is unique per (orgId, email) so re-inviting is a
+ * no-op rather than a duplicate.
+ */
+export const orgInvite = sqliteTable(
+	'org_invites',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => nanoid()),
+		orgId: text('org_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		// Lowercased at every write site so the login-time lookup can match exactly.
+		email: text('email').notNull(),
+		// Role granted when the invite is accepted. 'owner' is deliberately not
+		// invitable — ownership is transferred explicitly, never handed out by email.
+		role: text('role').notNull().default('member'),
+		// Who sent it (for the members UI). Kept if the inviter is later deleted.
+		invitedByUserId: text('invited_by_user_id').references(() => user.id, {
+			onDelete: 'set null'
+		}),
+		createdAt: CreatedAt,
+		// Null while pending; stamped when the invitee logs in and joins.
+		acceptedAt: integer('accepted_at', { mode: 'timestamp' })
+	},
+	(i) => ({
+		orgEmailIdx: uniqueIndex('idx_org_invites_org_email').on(i.orgId, i.email),
+		// The login hot path: "any pending invites for this email?"
+		emailIdx: index('idx_org_invites_email').on(i.email),
+		orgIdx: index('idx_org_invites_org').on(i.orgId)
+	})
+);
+
 export const session = sqliteTable('sessions', {
 	id: text('id').primaryKey(),
 	userId: text('user_id')
@@ -307,6 +351,8 @@ export type Organization = typeof organization.$inferSelect;
 export type NewOrganization = typeof organization.$inferInsert;
 export type OrgMember = typeof orgMember.$inferSelect;
 export type NewOrgMember = typeof orgMember.$inferInsert;
+export type OrgInvite = typeof orgInvite.$inferSelect;
+export type NewOrgInvite = typeof orgInvite.$inferInsert;
 export type Session = typeof session.$inferSelect;
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;

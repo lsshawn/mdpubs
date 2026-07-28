@@ -4,6 +4,7 @@ import { encodeBase32LowerCaseNoPadding, encodeHexLowerCase } from '@oslojs/enco
 import { db } from '$lib/server/db';
 import * as table from '$lib/server/db/schema';
 import type { Session } from '$lib/server/db/schema';
+import { acceptPendingInvites } from '$lib/server/org';
 import type { RequestEvent } from '@sveltejs/kit';
 
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
@@ -28,11 +29,22 @@ export async function createSession(userId: string): Promise<Session> {
 
 	try {
 		await db.insert(table.session).values(session);
-		return session;
 	} catch (error) {
 		console.error('Session creation error:', error);
 		throw error;
 	}
+
+	// Claim any org invites addressed to this user's email. Done here because every
+	// auth path (OAuth signup, OAuth login, OTP) funnels through createSession, so
+	// one hook covers them all. Strictly best-effort: an invite that fails to apply
+	// stays pending for the next login and must never break the login itself.
+	try {
+		await acceptPendingInvites(userId);
+	} catch (error) {
+		console.error('Accepting org invites failed (login unaffected):', error);
+	}
+
+	return session;
 }
 
 export async function invalidateSession(sessionId: string): Promise<void> {

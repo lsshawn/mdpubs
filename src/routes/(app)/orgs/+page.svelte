@@ -69,7 +69,7 @@
 
 <svelte:head><title>Accounts | MdPubs</title></svelte:head>
 
-<div class="mx-auto min-h-screen max-w-2xl px-4 py-8 text-base-content">
+<div class="mx-auto max-w-2xl text-base-content">
 	<h1 class="mb-2 text-3xl font-bold">Accounts</h1>
 	<p class="mb-8 text-base-content/70">
 		An account (organization) lets a team publish under a shared name and custom domain. Tag a note
@@ -121,7 +121,9 @@
 			<code>mdpubs-company</code> frontmatter.
 		</p>
 	{:else}
-		<div class="mb-10 rounded-lg border border-dashed border-base-300 p-6 text-center text-base-content/60">
+		<div
+			class="mb-10 rounded-lg border border-dashed border-base-300 p-6 text-center text-base-content/60"
+		>
 			You don't belong to any accounts yet. Create one below.
 		</div>
 	{/if}

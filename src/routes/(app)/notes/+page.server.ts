@@ -15,7 +15,44 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const page = Number(url.searchParams.get('page') ?? '1');
 	const searchId = url.searchParams.get('search');
 
-	const whereClauses = [eq(table.note.userId, locals.user.id), isNull(table.note.deletedAt)];
+	/**
+	 * Workspace scoping (sidebar company switcher). `?org=<slug>` shows that
+	 * company's notes — every member's, since the whole point of a company account
+	 * is a shared library — while no param shows the user's own personal notes
+	 * (those with no org).
+	 *
+	 * Membership is verified here rather than trusting the slug: a non-member (or
+	 * unknown slug) silently falls back to Personal, matching the sidebar, which
+	 * only ever lists orgs the user belongs to.
+	 */
+	const orgSlug = url.searchParams.get('org');
+	let activeOrg: { id: string; name: string; slug: string } | null = null;
+	if (orgSlug) {
+		const [row] = await db
+			.select({
+				id: table.organization.id,
+				name: table.organization.name,
+				slug: table.organization.slug
+			})
+			.from(table.orgMember)
+			.innerJoin(table.organization, eq(table.orgMember.orgId, table.organization.id))
+			.where(
+				and(
+					eq(table.orgMember.userId, locals.user.id),
+					eq(table.organization.slug, orgSlug.toLowerCase())
+				)
+			)
+			.limit(1);
+		activeOrg = row ?? null;
+	}
+
+	const whereClauses = [isNull(table.note.deletedAt)];
+	if (activeOrg) {
+		whereClauses.push(eq(table.note.orgId, activeOrg.id));
+	} else {
+		// Personal: this user's notes that aren't filed under any company.
+		whereClauses.push(eq(table.note.userId, locals.user.id), isNull(table.note.orgId));
+	}
 	if (searchId) {
 		const id = parseInt(searchId, 10);
 		if (!isNaN(id)) {
@@ -46,7 +83,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		currentPage: page,
 		totalPages,
 		totalNotes,
-		search: searchId ?? ''
+		search: searchId ?? '',
+		activeOrg
 	};
 };
 

@@ -8,8 +8,8 @@
  *   - domain-provisioning endpoints (membership/role checks)
  */
 import { db } from '$lib/server/db';
-import { organization, orgMember } from '$lib/server/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { organization, orgInvite, orgMember, user as userTable } from '$lib/server/db/schema';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { Organization } from '$lib/server/db/schema';
 
 export type OrgRole = 'owner' | 'admin' | 'member';
@@ -106,4 +106,120 @@ export async function resolveNoteOrg(
 	}
 
 	return { ok: true, orgId: null };
+}
+
+// --- Invitations -----------------------------------------------------------
+
+export type InviteRole = 'admin' | 'member';
+
+export type InviteResult =
+	| { ok: true; status: 'added' } // invitee already had an account → member now
+	| { ok: true; status: 'invited' } // no account yet → pending invite
+	| { ok: false; error: string };
+
+/**
+ * Invite an email to an org.
+ *
+ * If the email already belongs to an MdPubs user we skip the invite entirely and
+ * add the membership row directly — there is nothing to wait for. Otherwise we
+ * record a pending invite that is claimed the first time that email logs in
+ * (acceptPendingInvites, wired into createSession).
+ *
+ * Re-inviting a pending email is idempotent: it refreshes the role rather than
+ * erroring, so fixing a mis-typed role doesn't require a revoke first.
+ */
+export async function inviteToOrg(
+	orgId: string,
+	email: string,
+	role: InviteRole,
+	invitedByUserId: string
+): Promise<InviteResult> {
+	const normalized = email.trim().toLowerCase();
+
+	const [existing] = await db
+		.select({ id: userTable.id })
+		.from(userTable)
+		.where(eq(userTable.email, normalized))
+		.limit(1);
+
+	if (existing) {
+		if (await getOrgRole(orgId, existing.id)) {
+			return { ok: false, error: 'That user is already a member.' };
+		}
+		await db.insert(orgMember).values({ orgId, userId: existing.id, role });
+		return { ok: true, status: 'added' };
+	}
+
+	// No account yet — upsert a pending invite. onConflictDoUpdate keeps the
+	// (orgId, email) unique index authoritative instead of racing a select+insert.
+	await db
+		.insert(orgInvite)
+		.values({ orgId, email: normalized, role, invitedByUserId })
+		.onConflictDoUpdate({
+			target: [orgInvite.orgId, orgInvite.email],
+			set: { role, invitedByUserId, acceptedAt: null }
+		});
+	return { ok: true, status: 'invited' };
+}
+
+/** Pending (unaccepted) invites for an org, for the members UI. */
+export async function listPendingInvites(orgId: string) {
+	return db
+		.select({
+			id: orgInvite.id,
+			email: orgInvite.email,
+			role: orgInvite.role,
+			createdAt: orgInvite.createdAt
+		})
+		.from(orgInvite)
+		.where(and(eq(orgInvite.orgId, orgId), isNull(orgInvite.acceptedAt)));
+}
+
+/** Withdraw a pending invite. Accepted invites are audit rows and are left alone. */
+export async function revokeInvite(orgId: string, inviteId: string): Promise<void> {
+	await db
+		.delete(orgInvite)
+		.where(
+			and(eq(orgInvite.id, inviteId), eq(orgInvite.orgId, orgId), isNull(orgInvite.acceptedAt))
+		);
+}
+
+/**
+ * Claim every pending invite addressed to this user's email.
+ *
+ * Called from createSession, so it runs on ANY successful login (OAuth signup,
+ * OAuth login, OTP) — one hook instead of five. Best-effort by design: a failure
+ * here must never block a login, so callers swallow errors and the invite simply
+ * stays pending until the next login.
+ *
+ * Returns the number of orgs joined.
+ */
+export async function acceptPendingInvites(userId: string): Promise<number> {
+	const [u] = await db
+		.select({ email: userTable.email })
+		.from(userTable)
+		.where(eq(userTable.id, userId))
+		.limit(1);
+	if (!u?.email) return 0;
+
+	const email = u.email.toLowerCase();
+	const pending = await db
+		.select({ id: orgInvite.id, orgId: orgInvite.orgId, role: orgInvite.role })
+		.from(orgInvite)
+		.where(and(eq(orgInvite.email, email), isNull(orgInvite.acceptedAt)));
+	if (!pending.length) return 0;
+
+	let joined = 0;
+	for (const invite of pending) {
+		// Ignore a conflict on (orgId, userId): the user may already be a member if
+		// they were added directly after the invite was sent. Either way the invite
+		// is settled, so it still gets stamped below.
+		await db
+			.insert(orgMember)
+			.values({ orgId: invite.orgId, userId, role: invite.role })
+			.onConflictDoNothing();
+		await db.update(orgInvite).set({ acceptedAt: new Date() }).where(eq(orgInvite.id, invite.id));
+		joined++;
+	}
+	return joined;
 }

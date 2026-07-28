@@ -3,15 +3,17 @@ import { z } from 'zod';
 import { db } from '$lib/server/db';
 import { organization, orgMember, user as userTable } from '$lib/server/db/schema';
 import { and, eq } from 'drizzle-orm';
-import { canManageOrg, getOrgRole } from '$lib/server/org';
-import { getUserByEmail } from '$lib/server/user';
+import { canManageOrg, getOrgRole, inviteToOrg, listPendingInvites } from '$lib/server/org';
 import type { RequestEvent } from './$types';
 
 /**
  * Org membership management (owner/admin only for writes).
- *   GET    → list members
- *   POST   { email, role? }  → add an existing user by email
+ *   GET    → list members + pending invites
+ *   POST   { email, role? }  → add by email; invites the address if it has no
+ *                              account yet (claimed on their first login)
  *   DELETE { userId }        → remove a member
+ *
+ * Pending invites are withdrawn via ./invites (DELETE { inviteId }).
  */
 
 async function requireOrg(event: RequestEvent) {
@@ -31,18 +33,21 @@ export async function GET(event: RequestEvent) {
 	// Any member can view the roster.
 	if (!(await getOrgRole(org.id, user.id))) throw error(403, 'Forbidden');
 
-	const members = await db
-		.select({
-			userId: orgMember.userId,
-			role: orgMember.role,
-			email: userTable.email,
-			name: userTable.name
-		})
-		.from(orgMember)
-		.innerJoin(userTable, eq(orgMember.userId, userTable.id))
-		.where(eq(orgMember.orgId, org.id));
+	const [members, invites] = await Promise.all([
+		db
+			.select({
+				userId: orgMember.userId,
+				role: orgMember.role,
+				email: userTable.email,
+				name: userTable.name
+			})
+			.from(orgMember)
+			.innerJoin(userTable, eq(orgMember.userId, userTable.id))
+			.where(eq(orgMember.orgId, org.id)),
+		listPendingInvites(org.id)
+	]);
 
-	return json({ success: true, members });
+	return json({ success: true, members, invites });
 }
 
 const addSchema = z.object({
@@ -60,23 +65,17 @@ export async function POST(event: RequestEvent) {
 	}
 	const { email, role } = parsed.data;
 
-	const target = await getUserByEmail(email);
-	if (!target) {
-		return json(
-			{ success: false, message: 'No MdPubs user with that email. They must sign up first.' },
-			{ status: 404 }
-		);
-	}
-
 	try {
-		await db.insert(orgMember).values({ orgId: org.id, userId: target.id, role });
-		return json({ success: true });
-	} catch (e) {
-		if (e instanceof Error && e.message.includes('UNIQUE constraint')) {
-			return json({ success: false, message: 'That user is already a member.' }, { status: 409 });
+		const result = await inviteToOrg(org.id, email, role, user.id);
+		if (!result.ok) {
+			return json({ success: false, message: result.error }, { status: 409 });
 		}
-		console.error('Add member failed:', e);
-		return json({ success: false, message: 'Could not add the member.' }, { status: 500 });
+		// 'added' → the email already had an account and is a member now.
+		// 'invited' → no account yet; they join automatically on first login.
+		return json({ success: true, status: result.status });
+	} catch (e) {
+		console.error('Invite/add member failed:', e);
+		return json({ success: false, message: 'Could not add that person.' }, { status: 500 });
 	}
 }
 
@@ -104,8 +103,6 @@ export async function DELETE(event: RequestEvent) {
 		);
 	}
 
-	await db
-		.delete(orgMember)
-		.where(and(eq(orgMember.orgId, org.id), eq(orgMember.userId, userId)));
+	await db.delete(orgMember).where(and(eq(orgMember.orgId, org.id), eq(orgMember.userId, userId)));
 	return json({ success: true });
 }

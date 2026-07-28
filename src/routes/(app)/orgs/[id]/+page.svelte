@@ -87,57 +87,11 @@
 					? { cls: 'badge-error', label: 'Failed' }
 					: { cls: 'badge-ghost', label: 'Not connected' }
 	);
-
-	// --- Members --------------------------------------------------------------
-	let members = $state(data.members);
-	let inviteEmail = $state('');
-	let inviteRole = $state<'member' | 'admin'>('member');
-	let inviting = $state(false);
-	let memberMsg = $state<{ type: 'success' | 'error'; text: string } | null>(null);
-
-	async function refreshMembers() {
-		const res = await fetch(`/api/org/${data.org.id}/members`);
-		if (res.ok) members = (await res.json()).members;
-	}
-
-	async function addMember(e: SubmitEvent) {
-		e.preventDefault();
-		if (inviting) return;
-		inviting = true;
-		memberMsg = null;
-		try {
-			const res = await fetch(`/api/org/${data.org.id}/members`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email: inviteEmail, role: inviteRole })
-			});
-			const r = await res.json();
-			if (res.ok && r.success) {
-				inviteEmail = '';
-				await refreshMembers();
-			} else {
-				memberMsg = { type: 'error', text: r.message ?? 'Could not add member.' };
-			}
-		} finally {
-			inviting = false;
-		}
-	}
-
-	async function removeMember(userId: string) {
-		const res = await fetch(`/api/org/${data.org.id}/members`, {
-			method: 'DELETE',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ userId })
-		});
-		const r = await res.json();
-		if (res.ok && r.success) await refreshMembers();
-		else memberMsg = { type: 'error', text: r.message ?? 'Could not remove member.' };
-	}
 </script>
 
 <svelte:head><title>{data.org.name} · Account | MdPubs</title></svelte:head>
 
-<div class="mx-auto min-h-screen max-w-2xl px-4 py-8 text-base-content">
+<div class="mx-auto max-w-2xl text-base-content">
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 	<a href="/orgs" class="text-sm text-primary hover:underline">&larr; All accounts</a>
 	<h1 class="mt-2 mb-1 text-3xl font-bold">{data.org.name}</h1>
@@ -176,7 +130,8 @@
 					{domainStatus === 'none' ? 'Connect' : 'Change'}
 				</button>
 				{#if domainStatus !== 'none'}
-					<button type="button" class="btn btn-ghost text-error" onclick={removeDomain}>Remove</button
+					<button type="button" class="btn btn-ghost text-error" onclick={removeDomain}
+						>Remove</button
 					>
 				{/if}
 			</form>
@@ -216,58 +171,15 @@
 		{/if}
 	</section>
 
-	<!-- Members -->
+	<!-- Members live on their own page (sidebar → Members). -->
 	<section class="rounded-lg border border-base-300 p-6">
-		<h2 class="mb-4 text-xl font-bold">Members</h2>
-		<div class="mb-4 space-y-2">
-			{#each members as m (m.userId)}
-				<div class="flex items-center justify-between rounded border border-base-200 px-3 py-2">
-					<div>
-						<span class="font-medium">{m.name || m.email}</span>
-						<span class="ml-2 text-sm text-base-content/50">{m.email}</span>
-					</div>
-					<div class="flex items-center gap-2">
-						<span class="badge badge-ghost badge-sm">{m.role}</span>
-						{#if data.canManage && m.userId !== data.currentUserId}
-							<button class="btn btn-ghost btn-xs text-error" onclick={() => removeMember(m.userId)}
-								>Remove</button
-							>
-						{/if}
-					</div>
-				</div>
-			{/each}
-		</div>
-
-		{#if data.canManage}
-			<form class="flex flex-wrap items-end gap-2" onsubmit={addMember}>
-				<div class="flex-1">
-					<label class="text-sm font-medium" for="invite">Add member by email</label>
-					<input
-						id="invite"
-						type="email"
-						bind:value={inviteEmail}
-						placeholder="teammate@example.com"
-						class="input input-bordered w-full"
-						required
-					/>
-				</div>
-				<select bind:value={inviteRole} class="select select-bordered">
-					<option value="member">Member</option>
-					<option value="admin">Admin</option>
-				</select>
-				<button class="btn btn-primary" disabled={inviting}>
-					{#if inviting}<span class="loading loading-spinner"></span>{/if}
-					Add
-				</button>
-			</form>
-			<p class="mt-1 text-xs text-base-content/50">
-				The person must already have an MdPubs account.
-			</p>
-			{#if memberMsg}
-				<p class="mt-2 text-sm {memberMsg.type === 'error' ? 'text-error' : 'text-success'}">
-					{memberMsg.text}
-				</p>
-			{/if}
-		{/if}
+		<h2 class="mb-1 text-xl font-bold">Members</h2>
+		<p class="mb-4 text-sm text-base-content/70">
+			Invite teammates by email and manage roles. Each member uses their own API key to publish
+			here.
+		</p>
+		<a href={`/orgs/${data.org.id}/members`} class="btn btn-sm">
+			Manage members ({data.members.length})
+		</a>
 	</section>
 </div>

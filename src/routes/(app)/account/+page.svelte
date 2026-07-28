@@ -88,8 +88,8 @@
 	}
 </script>
 
-<div class=" mx-auto min-h-screen max-w-lg text-base-content">
-	<section class="container mx-auto px-4 py-4 text-center md:pt-16">
+<div class="mx-auto max-w-lg text-base-content">
+	<section class="container mx-auto py-4 text-center">
 		<h1 class="mb-6 text-3xl leading-tight font-bold text-base-content md:text-5xl">
 			Your Account Page
 		</h1>
@@ -153,9 +153,7 @@
 			</form>
 			{#if usernameMessage}
 				<p
-					class="mt-2 text-sm {usernameMessage.type === 'success'
-						? 'text-success'
-						: 'text-error'}"
+					class="mt-2 text-sm {usernameMessage.type === 'success' ? 'text-success' : 'text-error'}"
 				>
 					{usernameMessage.text}
 				</p>
@@ -180,7 +178,8 @@
 		<p class="py-4 text-base-content/70">
 			Save these keys securely. You'll need them to use the MdPubs plugin.
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-			<a href={config.git} class="text-base-content/60 underline">Documentation and Plugin Install Guide</a
+			<a href={config.git} class="text-base-content/60 underline"
+				>Documentation and Plugin Install Guide</a
 			>
 		</p>
 		<div class="my-4 space-y-4">

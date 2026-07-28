@@ -16,6 +16,16 @@
 	// block is skipped for them below.
 	let ogImage = $derived(`${page.url.origin}/og-default.png`);
 
+	/**
+	 * Logged-in routes render their own dashboard shell (sidebar + mobile top bar)
+	 * in src/routes/(app)/+layout.svelte, so the public navbar is suppressed there
+	 * to avoid two stacked headers. The public note view (/(public)/[id]) has
+	 * always opted out of the navbar too.
+	 */
+	let hideSiteChrome = $derived(
+		page.route.id === '/(public)/[id]' || page.route.id?.startsWith('/(app)') === true
+	);
+
 	let message = $state('');
 	let email = $state(data.user?.email ?? '');
 	let name = $state('');
@@ -65,7 +75,7 @@
 </svelte:head>
 
 <div class="flex min-h-screen flex-col">
-	{#if page.route.id !== '/(public)/[id]'}
+	{#if !hideSiteChrome}
 		<header class="navbar shadow-sm md:px-8">
 			<div class="flex flex-1">
 				<a href={resolve('/')} role="button" class="flex gap-2">

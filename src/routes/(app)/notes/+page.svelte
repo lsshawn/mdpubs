@@ -101,14 +101,29 @@
 	}
 </script>
 
-<div class="mx-auto min-h-screen max-w-4xl text-base-content">
-	<section class="container mx-auto px-4 py-4 text-center md:pt-16">
-		<h1 class="mb-6 text-3xl leading-tight font-bold text-base-content md:text-5xl">My Notes</h1>
+<div class="mx-auto max-w-4xl text-base-content">
+	<section class="container mx-auto py-4">
+		<h1 class="text-2xl leading-tight font-bold text-base-content md:text-3xl">
+			{data.activeOrg ? `${data.activeOrg.name} notes` : 'My notes'}
+		</h1>
+		<p class="mt-1 text-sm text-base-content/60">
+			{#if data.activeOrg}
+				Everything published to <code class="rounded bg-base-200 px-1"
+					>mdpubs-company: {data.activeOrg.slug}</code
+				> by any member.
+			{:else}
+				Your personal notes — not filed under a company.
+			{/if}
+		</p>
 	</section>
 
-	<section class="container mx-auto px-4">
+	<section class="container mx-auto">
 		<div class="mb-4">
 			<form method="GET" class="flex gap-2">
+				<!-- Keep the active workspace when searching; a bare GET would drop it. -->
+				{#if data.activeOrg}
+					<input type="hidden" name="org" value={data.activeOrg.slug} />
+				{/if}
 				<input
 					type="search"
 					name="search"
@@ -229,11 +244,7 @@
 			{#if noteToDelete}
 				<form method="POST" action="?/delete" use:enhance={handleDelete}>
 					<input type="hidden" name="id" value={noteToDelete.publicId} />
-					<button
-						type="submit"
-						class="btn btn-error"
-						class:btn-disabled={deleting || hardDeleting}
-					>
+					<button type="submit" class="btn btn-error" class:btn-disabled={deleting || hardDeleting}>
 						{#if deleting}
 							<span class="loading loading-spinner"></span>
 						{/if}
