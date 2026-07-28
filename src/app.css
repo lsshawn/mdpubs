@@ -14,3 +14,10 @@
 html {
 	font-size: 16px;
 }
+
+/* The typography plugin decorates blockquotes with open/close quotation marks;
+   notes often already include their own quotes, so it reads as ""doubled"". */
+.prose blockquote p:first-of-type::before,
+.prose blockquote p:last-of-type::after {
+	content: none;
+}

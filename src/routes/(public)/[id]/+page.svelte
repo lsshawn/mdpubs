@@ -1,4 +1,5 @@
 <script lang="ts">
+	import 'katex/dist/katex.min.css';
 	import { onMount, tick, onDestroy, mount } from 'svelte';
 	import { Menu, X, List, Maximize2, Minimize2, ChevronDown, ChevronUp } from 'lucide-svelte';
 	import { fade } from 'svelte/transition';
@@ -1179,6 +1180,14 @@
 	}
 	.flash-animation {
 		animation: flash-it 1.5s ease-in-out;
+	}
+
+	/* KaTeX display math ($$...$$) can be wider than the column on small
+	   screens; scroll it instead of overflowing the page. */
+	:global(.prose .katex-display) {
+		overflow-x: auto;
+		overflow-y: hidden;
+		padding: 0.25rem 0;
 	}
 
 	/* ---------------------------------------------------------------------------

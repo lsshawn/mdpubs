@@ -29,9 +29,15 @@ import { config } from '../config';
 import { resolveNoteOrg } from '$lib/server/org';
 import matter from 'gray-matter';
 import { marked } from 'marked';
+import markedMath from '$lib/server/marked-math';
 import GithubSlugger from 'github-slugger';
 import * as diff from 'diff';
 import { createHash } from 'node:crypto';
+
+// LaTeX math support: $inline$ and $$block$$ are rendered to KaTeX HTML at
+// publish time. throwOnError:false renders bad TeX in red instead of failing
+// the whole note. Pages that display note HTML must load katex.min.css.
+marked.use(markedMath({ throwOnError: false }));
 
 export class InvalidFrontmatterError extends Error {
 	constructor(message: string) {

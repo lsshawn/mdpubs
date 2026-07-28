@@ -283,12 +283,51 @@ function decodeHtmlEntities(text: string): string {
 	const decode = (segment: string) =>
 		segment.replace(/&[#\w]+;/g, (match) => entities[match] || match);
 
+	// Stash KaTeX output verbatim for the same reason as pre/code: KaTeX escapes
+	// literal `<`/`>`/`&` inside its spans and MathML annotation (e.g. `$a < b$`),
+	// and decoding them back would create live markup. Root spans are
+	// `katex`, `katex-display` or `katex-error`; they nest other spans, so match
+	// the closing tag by depth instead of a non-greedy regex.
+	const stash: string[] = [];
+	let prose = '';
+	let cursor = 0;
+	for (;;) {
+		const start = text.indexOf('<span class="katex', cursor);
+		if (start === -1) {
+			prose += text.slice(cursor);
+			break;
+		}
+		prose += text.slice(cursor, start);
+		const tagRegex = /<span\b|<\/span>/g;
+		tagRegex.lastIndex = start;
+		let depth = 0;
+		let end = -1;
+		let tag: RegExpExecArray | null;
+		while ((tag = tagRegex.exec(text)) !== null) {
+			depth += tag[0] === '</span>' ? -1 : 1;
+			if (depth === 0) {
+				end = tagRegex.lastIndex;
+				break;
+			}
+		}
+		if (end === -1) {
+			// Unbalanced markup; keep the rest untouched rather than guess.
+			prose += text.slice(start);
+			break;
+		}
+		stash.push(text.slice(start, end));
+		// U+E000 (private use area) cannot occur in marked/KaTeX output.
+		prose += `\uE000${stash.length - 1}\uE000`;
+		cursor = end;
+	}
+
 	// Preserve <pre>...</pre> blocks and inline <code>...</code> spans verbatim;
 	// decode entities only in the surrounding prose.
-	return text
+	return prose
 		.split(/(<pre\b[\s\S]*?<\/pre>|<code\b[\s\S]*?<\/code>)/gi)
 		.map((segment) => (/^<(?:pre|code)\b/i.test(segment) ? segment : decode(segment)))
-		.join('');
+		.join('')
+		.replace(/\uE000(\d+)\uE000/g, (_match, index: string) => stash[Number(index)]);
 }
 
 /**
