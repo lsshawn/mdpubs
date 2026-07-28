@@ -1,6 +1,7 @@
 import { error } from '@sveltejs/kit';
 import { and, eq, isNull } from 'drizzle-orm';
 import { config } from '$lib/config';
+import { env as publicEnv } from '$env/dynamic/public';
 import { db } from '$lib/server/db';
 import { note as noteTable } from '$lib/server/db/schema';
 import { parseCustomComponentsInHtml } from '$lib/helpers/custom-components-parser';
@@ -29,6 +30,28 @@ async function assertNotPrivate(id: string, currentUserId?: string): Promise<voi
 	if (row?.isPrivate && row.userId !== currentUserId) {
 		throw error(403, 'PRIVATE_NOTE');
 	}
+}
+
+/**
+ * True when this note is being served on an org's custom domain rather than on
+ * mdpubs.com. Note paths are not rerouted (see src/hooks.ts), so the only signal
+ * is the host itself: anything that isn't one of our own hostnames only reaches
+ * the Worker because handleUnknownDomain resolved it to an org.
+ *
+ * Custom-domain pubs are whitelabelled — no "Powered by MdPubs" footer.
+ */
+function isCustomDomainHost(host: string): boolean {
+	const base = (publicEnv.PUBLIC_DOMAIN ?? 'mdpubs.com').toLowerCase();
+	const cnameTarget = (publicEnv.PUBLIC_CNAME_TARGET ?? `origin.${base}`).toLowerCase();
+	const h = host.toLowerCase();
+	return !(
+		h === base ||
+		h === `www.${base}` ||
+		h === cnameTarget ||
+		h.startsWith('localhost') ||
+		h.startsWith('127.0.0.1') ||
+		h.endsWith('.workers.dev')
+	);
 }
 
 export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
@@ -119,6 +142,7 @@ export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
 			rawUrl: isHtml ? `${config.apiUrl}/notes/${params.id}/raw` : null,
 			apiUrl: config.apiUrl,
 			noteId: params.id,
+			isCustomDomain: isCustomDomainHost(url.host),
 			signState,
 			versions,
 			meta: {

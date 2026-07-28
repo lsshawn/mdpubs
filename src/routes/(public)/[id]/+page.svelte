@@ -1026,19 +1026,21 @@
 								{@html note.html}
 							</article>
 
-							<!-- Footer -->
-							<footer class="mt-32 border-t border-base-300 pt-8 print:hidden lg:pb-0 pb-12">
-								<div class="flex flex-col items-center justify-center text-base-content/60">
-									<a
-										href="http://mdpubs.com"
-										class="inline-flex items-center text-xs text-base-content/60 underline transition-colors hover:text-base-content/80"
-									>
-										<span class="mr-2">📝</span>
-										Powered by {config.name}
-									</a>
-									<div class="mt-1 text-xs">{config.description}</div>
-								</div>
-							</footer>
+							<!-- Footer — omitted on org custom domains (whitelabelled) -->
+							{#if !data.isCustomDomain}
+								<footer class="mt-32 border-t border-base-300 pt-8 print:hidden lg:pb-0 pb-12">
+									<div class="flex flex-col items-center justify-center text-base-content/60">
+										<a
+											href="http://mdpubs.com"
+											class="inline-flex items-center text-xs text-base-content/60 underline transition-colors hover:text-base-content/80"
+										>
+											<span class="mr-2">📝</span>
+											Powered by {config.name}
+										</a>
+										<div class="mt-1 text-xs">{config.description}</div>
+									</div>
+								</footer>
+							{/if}
 						</div>
 					</div>
 
