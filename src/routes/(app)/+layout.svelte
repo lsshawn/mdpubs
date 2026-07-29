@@ -8,9 +8,11 @@
 		LogOut,
 		Menu,
 		Pencil,
+		Settings,
 		Users
 	} from 'lucide-svelte';
-	import { page } from '$app/state';
+	import { navigating, page } from '$app/state';
+	import { resolve } from '$app/paths';
 	import CompanySwitcher from '$lib/components/CompanySwitcher.svelte';
 	import type { LayoutData } from './$types';
 
@@ -31,6 +33,13 @@
 		return activeOrg ? `${path}?org=${activeOrg.slug}` : path;
 	}
 
+	/**
+	 * Sidebar nav. Company-scoped entries (Members, Company settings) appear only
+	 * in a company workspace. Personal shows just Notes — companies are reached
+	 * through the switcher above, so a "Companies" entry here was a second door to
+	 * the same place. API keys are per-user, not per-company, so they live in the
+	 * account menu at the bottom rather than in this list.
+	 */
 	let nav = $derived([
 		{ label: 'Notes', href: withOrg('/notes'), icon: FileText, match: '/notes' },
 		...(activeOrg
@@ -51,9 +60,23 @@
 						exact: true
 					}
 				]
-			: [{ label: 'Companies', href: '/orgs', icon: Building2, match: '/orgs', exact: true }]),
-		{ label: 'API keys', href: '/account', icon: KeyRound, match: '/account' }
+			: [])
 	]);
+
+	// Account menu (gear next to the profile name).
+	let accountMenuOpen = $state(false);
+
+	/**
+	 * True while a navigation changes the active workspace, i.e. `?org=` differs
+	 * between the current and target URLs. Scoped this narrowly on purpose: every
+	 * other navigation keeps its own loading affordances, and swapping the whole
+	 * page for a skeleton on ordinary link clicks would be a downgrade.
+	 */
+	let switchingWorkspace = $derived.by(() => {
+		const to = navigating.to?.url;
+		if (!to) return false;
+		return to.searchParams.get('org') !== page.url.searchParams.get('org');
+	});
 
 	function isActive(item: { match: string; exact?: boolean }): boolean {
 		return item.exact ? page.url.pathname === item.match : page.url.pathname.startsWith(item.match);
@@ -92,7 +115,27 @@
 		</header>
 
 		<main class="flex-1 p-4 md:p-8">
-			{@render children()}
+			{#if switchingWorkspace}
+				<!-- Switching companies refetches every scoped load, so the old
+				     workspace's notes would otherwise sit there looking current until
+				     the server answers. A skeleton makes the switch feel immediate and
+				     stops anyone reading stale rows as the new company's. -->
+				<div class="mx-auto max-w-4xl" aria-busy="true" aria-live="polite">
+					<span class="sr-only">Loading workspace…</span>
+					<div class="py-4">
+						<div class="skeleton h-8 w-64"></div>
+						<div class="skeleton mt-2 h-4 w-96"></div>
+					</div>
+					<div class="skeleton mt-4 h-12 w-full max-w-xs"></div>
+					<div class="mt-6 space-y-2">
+						{#each Array(8), i (i)}
+							<div class="skeleton h-12 w-full"></div>
+						{/each}
+					</div>
+				</div>
+			{:else}
+				{@render children()}
+			{/if}
 		</main>
 	</div>
 
@@ -110,24 +153,26 @@
 				<CompanySwitcher orgs={data.orgs} activeOrgId={activeOrg?.id ?? null} />
 			</div>
 
-			<ul class="menu flex-1 gap-1 px-2 py-3">
+			<!-- `w-full` on the menu and its rows so each item's hover/active
+			     background spans the full sidebar width instead of hugging its label. -->
+			<ul class="menu w-full flex-1 gap-1 px-2 py-3">
 				{#each nav as item (item.href)}
-					<li>
+					<li class="w-full">
 						<a
 							href={item.href}
-							class={isActive(item) ? 'active font-medium' : ''}
+							class="flex w-full items-center gap-2 {isActive(item) ? 'active font-medium' : ''}"
 							onclick={() => (drawerOpen = false)}
 						>
-							<item.icon class="h-4 w-4" />
-							{item.label}
+							<item.icon class="h-4 w-4 flex-shrink-0" />
+							<span class="truncate">{item.label}</span>
 						</a>
 					</li>
 				{/each}
 			</ul>
 
-			<!-- Account footer -->
+			<!-- Account footer: identity plus a gear that opens the account menu. -->
 			<div class="border-t border-base-300 p-2">
-				<div class="flex items-center gap-2 px-2 py-2">
+				<div class="relative flex items-center gap-2 px-2 py-2">
 					<CircleUser class="h-8 w-8 flex-shrink-0 text-base-content/60" />
 					<div class="min-w-0 flex-1">
 						<div class="truncate text-sm font-medium">
@@ -137,15 +182,52 @@
 							{data.user?.plan ?? 'free'} plan
 						</div>
 					</div>
+
+					<button
+						type="button"
+						class="btn btn-ghost btn-sm btn-square flex-shrink-0"
+						aria-label="Account menu"
+						aria-haspopup="menu"
+						aria-expanded={accountMenuOpen}
+						onclick={() => (accountMenuOpen = !accountMenuOpen)}
+					>
+						<Settings class="h-4 w-4" />
+					</button>
+
+					{#if accountMenuOpen}
+						<!-- Click-away closes the menu; a plain overlay avoids a global listener. -->
+						<button
+							type="button"
+							class="fixed inset-0 z-10 cursor-default"
+							aria-label="Close account menu"
+							onclick={() => (accountMenuOpen = false)}
+						></button>
+						<!-- Opens upward: the trigger sits at the bottom of the sidebar. -->
+						<ul
+							class="menu absolute right-0 bottom-full z-20 mb-1 w-48 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
+						>
+							<li>
+								<a
+									href={resolve('/(app)/account')}
+									class="flex items-center gap-2"
+									onclick={() => {
+										accountMenuOpen = false;
+										drawerOpen = false;
+									}}
+								>
+									<KeyRound class="h-4 w-4" />
+									API keys
+								</a>
+							</li>
+							<li>
+								<button type="button" class="flex items-center gap-2" onclick={signOut}>
+									<LogOut class="h-4 w-4" />
+									Sign out
+								</button>
+							</li>
+						</ul>
+					{/if}
 				</div>
-				<button
-					type="button"
-					class="btn btn-ghost btn-sm w-full justify-start gap-2"
-					onclick={signOut}
-				>
-					<LogOut class="h-4 w-4" />
-					Sign out
-				</button>
 			</div>
 		</aside>
 	</div>
