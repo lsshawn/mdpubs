@@ -29,7 +29,10 @@ export class FileTooLargeError extends Error {
 }
 
 function imgBase(): string {
-	return (publicEnv.PUBLIC_IMG_BASE ?? 'https://img.mdpubs.com').replace(/\/$/, '');
+	// `||`, not `??`: a var that is present but EMPTY ('') must also fall back.
+	// An empty base produced relative `imageMap` values (`users/…/x.webp`), which
+	// resolve against the note's own URL and 404 instead of hitting the img host.
+	return (publicEnv.PUBLIC_IMG_BASE || 'https://img.mdpubs.com').replace(/\/$/, '');
 }
 
 /**
@@ -47,6 +50,32 @@ export function fileKey(userId: string, noteId: number, originalName: string): s
 /** The plain public URL stored in imageMap for a key. */
 export function publicUrl(key: string): string {
 	return `${imgBase()}/${key}`;
+}
+
+/**
+ * Normalise a stored asset value to an absolute public URL.
+ *
+ * Values written while PUBLIC_IMG_BASE was empty (and rows migrated from the
+ * pre-Cloudflare system) hold a BARE R2 key, which renders as a relative URL
+ * against the note's own origin and 404s. Re-prefix those; already-absolute
+ * values pass through untouched. This is the read-time counterpart to
+ * `publicUrl`, mirroring what `withSignatureImageUrls` does for signatures.
+ */
+export function toPublicUrl(value: string): string {
+	if (/^(https?:)?\/\//i.test(value) || value.startsWith('data:')) return value;
+	return publicUrl(value.replace(/^\/+/, ''));
+}
+
+/** Normalise every value of an imageMap to an absolute public URL. */
+export function normalizeImageMap<T extends Record<string, string>>(
+	map: T | null | undefined
+): Record<string, string> | null | undefined {
+	if (!map) return map;
+	const out: Record<string, string> = {};
+	for (const [k, v] of Object.entries(map)) {
+		out[k] = typeof v === 'string' ? toPublicUrl(v) : v;
+	}
+	return out;
 }
 
 /** Given a stored image URL (or key), the R2 key. */
@@ -114,7 +143,12 @@ export async function uploadFile(
 		await bucket.put(key, body, { httpMetadata: { contentType } });
 		return { success: true, url: publicUrl(key), size };
 	} catch (e) {
-		return { success: false, url: '', size, error: e instanceof Error ? e.message : 'Upload failed' };
+		return {
+			success: false,
+			url: '',
+			size,
+			error: e instanceof Error ? e.message : 'Upload failed'
+		};
 	}
 }
 

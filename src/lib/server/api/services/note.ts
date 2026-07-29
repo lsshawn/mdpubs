@@ -23,7 +23,7 @@ import {
 	NoteLockedError
 } from '../db';
 import type { Note, NoteVersion } from '$lib/server/db/schema';
-import { uploadFile, deleteFiles, deleteFolder } from '$lib/server/storage';
+import { uploadFile, deleteFiles, deleteFolder, normalizeImageMap } from '$lib/server/storage';
 import type { R2Bucket } from '@cloudflare/workers-types';
 import { config } from '../config';
 import { resolveNoteOrg } from '$lib/server/org';
@@ -743,8 +743,10 @@ export class NoteService {
 			contentWithoutToc = content.replace(tocRegex, '').trim();
 		}
 		const parsed = matter(contentWithoutToc);
-		// Prioritize the passed imageMap over frontmatter imageMap
-		const mapForRendering = imageMap || parsed.data.imageMap;
+		// Prioritize the passed imageMap over frontmatter imageMap. Normalise at read
+		// time so rows holding a bare R2 key (written while PUBLIC_IMG_BASE was empty)
+		// still render as absolute URLs instead of 404ing relative to the note.
+		const mapForRendering = normalizeImageMap(imageMap || parsed.data.imageMap);
 
 		let markdownToRender = parsed.content;
 
@@ -885,8 +887,11 @@ export class NoteService {
 	rewriteHtmlAssetUrls(html: string, imageMap?: Record<string, string> | null): string {
 		if (!imageMap || Object.keys(imageMap).length === 0) return html;
 
+		// Same read-time normalisation as the markdown path (see parseMarkdownContent).
+		const normalized = normalizeImageMap(imageMap) as Record<string, string>;
+
 		let out = html;
-		for (const [localPath, mappedUrl] of Object.entries(imageMap)) {
+		for (const [localPath, mappedUrl] of Object.entries(normalized)) {
 			const escapedPath = localPath.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
 			// Match src= or href= whose quoted value ends with the local name and is
 			// not an absolute/remote reference. Group 1 = attr + opening quote.
