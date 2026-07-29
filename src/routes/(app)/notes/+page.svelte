@@ -1,6 +1,9 @@
 <script lang="ts">
 	import 'katex/dist/katex.min.css';
-	import { enhance, type SubmitFunction } from '$app/forms';
+	import { enhance } from '$app/forms';
+	// SvelteKit 2.50 no longer exports `SubmitFunction` by name; derive it from
+	// `enhance`'s own signature so it tracks whatever the installed version uses.
+	type SubmitFunction = NonNullable<Parameters<typeof enhance>[1]>;
 	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { formatDateTime } from '$lib/helpers';
@@ -11,6 +14,25 @@
 	let toast = $state<{ message: string; type: 'success' | 'error' } | null>(null);
 	let noteToDelete: (typeof data.notes)[0] | null = $state(null);
 	let deleteModal: HTMLDialogElement;
+
+	let noteToMove: (typeof data.notes)[0] | null = $state(null);
+	let moveModal: HTMLDialogElement;
+	let moveTargetOrgId = $state('');
+
+	/**
+	 * publicIds moved out of this workspace during this page's lifetime. A moved
+	 * note no longer belongs in a list scoped to one workspace, so it is hidden
+	 * immediately rather than waiting on a reload. Reset whenever `data.notes` is
+	 * replaced by a fresh load, which already excludes them.
+	 */
+	let movedIds = $state(new Set<string>());
+	// A fresh load replaces the array identity and already excludes moved notes,
+	// so the optimistic set is stale at that point.
+	$effect(() => {
+		data.notes;
+		movedIds = new Set();
+	});
+	let visibleNotes = $derived(data.notes.filter((n) => !movedIds.has(n.publicId)));
 
 	let noteToView: Note | null = $state(null);
 	let viewModal: HTMLDialogElement;
@@ -89,6 +111,43 @@
 		};
 	};
 
+	let moving = $state(false);
+	const handleMove: SubmitFunction = ({ formData }) => {
+		moving = true;
+		const movedPublicId = formData.get('id');
+		return async ({ result, update }) => {
+			if (result.type === 'success' || result.type === 'failure') {
+				if (result.data?.success) {
+					showToast(
+						result.data.moved ? 'Note moved.' : 'Note is already in that workspace.',
+						'success'
+					);
+					moveModal?.close();
+					// The list is scoped to a single workspace and the destination is
+					// always a different one (the submit button is disabled otherwise),
+					// so a moved note has left this view — drop the row now instead of
+					// waiting on the reload, which would leave it visible in between.
+					if (result.data.moved && typeof movedPublicId === 'string') {
+						movedIds = new Set(movedIds).add(movedPublicId);
+					}
+				} else if (result.data?.message) {
+					showToast(result.data.message as string, 'error');
+				}
+			}
+			// `invalidateAll: false` keeps our optimistic removal from being clobbered
+			// by a re-run of load while the toast is still up; the next navigation
+			// re-fetches normally.
+			await update({ invalidateAll: false });
+			moving = false;
+		};
+	};
+
+	function openMoveModal(note: (typeof data.notes)[0]) {
+		noteToMove = note;
+		moveTargetOrgId = note.orgId ?? '';
+		moveModal.showModal();
+	}
+
 	function getSearchURL(p: number) {
 		const url = new URL($page.url);
 		url.searchParams.set('page', p.toString());
@@ -147,7 +206,7 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each data.notes as note (note.id)}
+					{#each visibleNotes as note (note.id)}
 						<tr>
 							<td>{note.id}</td>
 							<td>
@@ -170,7 +229,10 @@
 							<td>
 								{@render visibilityBadge(note)}
 							</td>
-							<td class="text-right">
+							<td class="text-right whitespace-nowrap">
+								<button type="button" class="btn btn-sm" onclick={() => openMoveModal(note)}>
+									Move
+								</button>
 								<button
 									type="button"
 									class="btn btn-error btn-sm"
@@ -220,6 +282,46 @@
 		</div>
 	</div>
 {/if}
+
+<dialog id="move_modal" class="modal" bind:this={moveModal}>
+	<div class="modal-box">
+		<h3 class="text-lg font-bold">Move note</h3>
+		{#if noteToMove}
+			<p class="mt-1 text-sm text-base-content/60">
+				"{noteToMove.title || 'Untitled'}" — choose the workspace it should be filed under. This is
+				the same as changing its <code class="rounded bg-base-200 px-1">mdpubs-company</code>
+				frontmatter, so re-syncing from Neovim with the old value will move it back.
+			</p>
+			<form method="POST" action="?/move" use:enhance={handleMove} class="mt-4">
+				<input type="hidden" name="id" value={noteToMove.publicId} />
+				<select name="orgId" class="select select-bordered w-full" bind:value={moveTargetOrgId}>
+					<option value="" disabled={noteToMove.userId !== data.user.id}>
+						Personal (no company)
+					</option>
+					{#each data.orgs as org (org.id)}
+						<option value={org.id}>{org.name}</option>
+					{/each}
+				</select>
+				<div class="modal-action">
+					<button type="button" class="btn" onclick={() => moveModal.close()}>Cancel</button>
+					<button
+						type="submit"
+						class="btn btn-primary"
+						class:btn-disabled={moving || moveTargetOrgId === (noteToMove.orgId ?? '')}
+					>
+						{#if moving}
+							<span class="loading loading-spinner loading-sm"></span>
+						{/if}
+						Move
+					</button>
+				</div>
+			</form>
+		{/if}
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button></button>
+	</form>
+</dialog>
 
 <dialog
 	id="delete_modal"

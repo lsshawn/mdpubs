@@ -3,6 +3,7 @@ import * as table from '$lib/server/db/schema';
 import { fail, redirect } from '@sveltejs/kit';
 import { config } from '$lib/config';
 import { and, eq, sql, isNull, desc } from 'drizzle-orm';
+import { getOrgRole } from '$lib/server/org';
 import type { Actions, PageServerLoad } from './$types';
 
 const PAGE_SIZE = 20;
@@ -89,6 +90,74 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 };
 
 export const actions: Actions = {
+	/**
+	 * Re-file a note under a different company (or back to Personal).
+	 *
+	 * This is the UI equivalent of editing `mdpubs-company` frontmatter and
+	 * re-syncing, so it enforces the same rule as resolveNoteOrg: the caller must
+	 * be a member of the destination org. Access to the note itself is either
+	 * ownership or membership in its *current* org — a shared company library is
+	 * editable by any member, matching what the notes list already shows them.
+	 *
+	 * Moving to Personal (`orgId: null`) is only allowed for the note's own author;
+	 * otherwise a member could pull a colleague's note out of the shared library
+	 * and into their own space.
+	 */
+	move: async ({ request, locals }) => {
+		if (!locals.user) {
+			return fail(401, { message: 'Unauthorized' });
+		}
+
+		const formData = await request.formData();
+		const publicId = formData.get('id');
+		const targetOrgId = formData.get('orgId');
+
+		if (typeof publicId !== 'string' || publicId === '') {
+			return fail(400, { message: 'Invalid note ID' });
+		}
+		if (typeof targetOrgId !== 'string') {
+			return fail(400, { message: 'Invalid destination' });
+		}
+		// '' is the Personal option in the select.
+		const destOrgId = targetOrgId === '' ? null : targetOrgId;
+
+		const [target] = await db
+			.select({ id: table.note.id, userId: table.note.userId, orgId: table.note.orgId })
+			.from(table.note)
+			.where(and(eq(table.note.publicId, publicId), isNull(table.note.deletedAt)))
+			.limit(1);
+
+		if (!target) {
+			return fail(404, { message: 'Note not found' });
+		}
+
+		const isAuthor = target.userId === locals.user.id;
+		if (!isAuthor) {
+			if (!target.orgId || !(await getOrgRole(target.orgId, locals.user.id))) {
+				return fail(403, { message: 'You do not have access to this note' });
+			}
+		}
+
+		if (destOrgId === null) {
+			if (!isAuthor) {
+				return fail(403, { message: 'Only the note’s author can move it to Personal.' });
+			}
+		} else if (!(await getOrgRole(destOrgId, locals.user.id))) {
+			return fail(403, { message: 'You are not a member of that company.' });
+		}
+
+		if (destOrgId === target.orgId) {
+			return { success: true, moved: false };
+		}
+
+		await db
+			.update(table.note)
+			.set({ orgId: destOrgId, updatedAt: new Date() })
+			.where(eq(table.note.id, target.id));
+
+		return { success: true, moved: true };
+	},
+
 	delete: async ({ request, locals, fetch }) => {
 		if (!locals.user || !locals?.session?.id) {
 			return fail(401, { message: 'Unauthorized' });
