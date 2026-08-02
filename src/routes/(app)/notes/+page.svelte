@@ -7,6 +7,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { formatDateTime } from '$lib/helpers';
+	import { SvelteSet } from 'svelte/reactivity';
 	import type { Note } from '$lib/server/db/schema';
 
 	let { data } = $props();
@@ -25,14 +26,110 @@
 	 * immediately rather than waiting on a reload. Reset whenever `data.notes` is
 	 * replaced by a fresh load, which already excludes them.
 	 */
-	let movedIds = $state(new Set<string>());
+	const movedIds = new SvelteSet<string>();
 	// A fresh load replaces the array identity and already excludes moved notes,
 	// so the optimistic set is stale at that point.
 	$effect(() => {
-		data.notes;
-		movedIds = new Set();
+		void data.notes;
+		movedIds.clear();
 	});
 	let visibleNotes = $derived(data.notes.filter((n) => !movedIds.has(n.publicId)));
+
+	/**
+	 * Multi-select. Keyed by publicId (what the bulk actions submit). Pruned
+	 * against the visible rows so a selection can't outlive the notes it refers
+	 * to — after a move, delete, page change or search.
+	 */
+	const selectedIds = new SvelteSet<string>();
+	let selected = $derived(visibleNotes.filter((n) => selectedIds.has(n.publicId)));
+	let allSelected = $derived(visibleNotes.length > 0 && selected.length === visibleNotes.length);
+	// Header checkbox shows a dash when the selection is a strict subset.
+	let someSelected = $derived(selected.length > 0 && !allSelected);
+
+	$effect(() => {
+		const present = new Set(visibleNotes.map((n) => n.publicId));
+		for (const id of selectedIds) {
+			if (!present.has(id)) selectedIds.delete(id);
+		}
+	});
+
+	function toggleOne(publicId: string) {
+		if (selectedIds.has(publicId)) selectedIds.delete(publicId);
+		else selectedIds.add(publicId);
+	}
+
+	function toggleAll() {
+		const wasAll = allSelected;
+		selectedIds.clear();
+		if (!wasAll) for (const n of visibleNotes) selectedIds.add(n.publicId);
+	}
+
+	let bulkMoveModal: HTMLDialogElement;
+	let bulkDeleteModal: HTMLDialogElement;
+	let bulkMoveTargetOrgId = $state('');
+	let bulkHardDeleteArmed = $state(false);
+	// Personal is only a valid bulk destination if every selected note is ours.
+	let canBulkMovePersonal = $derived(selected.every((n) => n.userId === data.user.id));
+
+	let bulkMoving = $state(false);
+	const handleBulkMove: SubmitFunction = ({ formData }) => {
+		bulkMoving = true;
+		const ids = formData.getAll('ids').filter((v): v is string => typeof v === 'string');
+		return async ({ result, update }) => {
+			if (result.type === 'success' || result.type === 'failure') {
+				if (result.data?.success) {
+					const moved = Number(result.data.moved ?? 0);
+					const skipped = Number(result.data.skipped ?? 0);
+					showToast(
+						skipped > 0
+							? `Moved ${moved} note${moved === 1 ? '' : 's'}; skipped ${skipped} you can't move.`
+							: `Moved ${moved} note${moved === 1 ? '' : 's'}.`,
+						'success'
+					);
+					bulkMoveModal?.close();
+					// Moved notes have left this workspace-scoped view; drop them now
+					// rather than waiting on the reload (same reason as the single move).
+					if (moved > 0) {
+						for (const id of ids) movedIds.add(id);
+					}
+					selectedIds.clear();
+				} else if (result.data?.message) {
+					showToast(result.data.message as string, 'error');
+				}
+			}
+			await update({ invalidateAll: false });
+			bulkMoving = false;
+		};
+	};
+
+	let bulkDeleting = $state(false);
+	const handleBulkDelete: SubmitFunction = () => {
+		bulkDeleting = true;
+		bulkHardDeleteArmed = false;
+		return ({ result, update }) => {
+			if (result.type === 'success' || result.type === 'failure') {
+				if (result.data?.success) {
+					const deleted = Number(result.data.deleted ?? 0);
+					// Skipped notes are ones the caller doesn't own — deleting is
+					// author-only, so this is expected, not a failure.
+					const skipped = Number(result.data.failed ?? 0);
+					const verb = result.data.hard ? 'Permanently deleted' : 'Deleted';
+					showToast(
+						skipped > 0
+							? `${verb} ${deleted} note${deleted === 1 ? '' : 's'}; skipped ${skipped} you don't own.`
+							: `${verb} ${deleted} note${deleted === 1 ? '' : 's'}.`,
+						'success'
+					);
+					bulkDeleteModal?.close();
+					selectedIds.clear();
+				} else if (result.data?.message) {
+					showToast(result.data.message as string, 'error');
+				}
+			}
+			update();
+			bulkDeleting = false;
+		};
+	};
 
 	let noteToView: Note | null = $state(null);
 	let viewModal: HTMLDialogElement;
@@ -128,7 +225,7 @@
 					// so a moved note has left this view — drop the row now instead of
 					// waiting on the reload, which would leave it visible in between.
 					if (result.data.moved && typeof movedPublicId === 'string') {
-						movedIds = new Set(movedIds).add(movedPublicId);
+						movedIds.add(movedPublicId);
 					}
 				} else if (result.data?.message) {
 					showToast(result.data.message as string, 'error');
@@ -194,10 +291,56 @@
 			</form>
 		</div>
 
+		{#if selected.length > 0}
+			<div
+				class="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-base-300 bg-base-200 px-4 py-2"
+			>
+				<span class="text-sm font-medium">
+					{selected.length} selected
+				</span>
+				<button type="button" class="btn btn-ghost btn-xs" onclick={() => selectedIds.clear()}>
+					Clear
+				</button>
+				<div class="ml-auto flex gap-2">
+					<button
+						type="button"
+						class="btn btn-sm"
+						onclick={() => {
+							bulkMoveTargetOrgId = canBulkMovePersonal ? '' : (data.orgs[0]?.id ?? '');
+							bulkMoveModal.showModal();
+						}}
+					>
+						Move
+					</button>
+					<button
+						type="button"
+						class="btn btn-error btn-sm"
+						onclick={() => {
+							bulkHardDeleteArmed = false;
+							bulkDeleteModal.showModal();
+						}}
+					>
+						Delete
+					</button>
+				</div>
+			</div>
+		{/if}
+
 		<div class="overflow-x-auto">
 			<table class="table">
 				<thead>
 					<tr>
+						<th class="w-0">
+							<input
+								type="checkbox"
+								class="checkbox checkbox-sm"
+								aria-label="Select all notes"
+								checked={allSelected}
+								indeterminate={someSelected}
+								disabled={visibleNotes.length === 0}
+								onchange={toggleAll}
+							/>
+						</th>
 						<th>ID</th>
 						<th>Title</th>
 						<th>Updated At</th>
@@ -207,7 +350,16 @@
 				</thead>
 				<tbody>
 					{#each visibleNotes as note (note.id)}
-						<tr>
+						<tr class:bg-base-200={selectedIds.has(note.publicId)}>
+							<td class="w-0">
+								<input
+									type="checkbox"
+									class="checkbox checkbox-sm"
+									aria-label="Select note {note.title || 'Untitled'}"
+									checked={selectedIds.has(note.publicId)}
+									onchange={() => toggleOne(note.publicId)}
+								/>
+							</td>
 							<td>{note.id}</td>
 							<td>
 								{#if note.isPrivate}
@@ -248,7 +400,7 @@
 						</tr>
 					{:else}
 						<tr>
-							<td colspan="4" class="text-center">No notes found.</td>
+							<td colspan="6" class="text-center">No notes found.</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -317,6 +469,114 @@
 				</div>
 			</form>
 		{/if}
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button></button>
+	</form>
+</dialog>
+
+<dialog id="bulk_move_modal" class="modal" bind:this={bulkMoveModal}>
+	<div class="modal-box">
+		<h3 class="text-lg font-bold">Move {selected.length} note{selected.length === 1 ? '' : 's'}</h3>
+		<p class="mt-1 text-sm text-base-content/60">
+			Choose the workspace they should be filed under. This is the same as changing each note's
+			<code class="rounded bg-base-200 px-1">mdpubs-company</code> frontmatter, so re-syncing from Neovim
+			with the old value will move them back.
+		</p>
+		{#if !canBulkMovePersonal}
+			<p class="mt-2 text-xs text-base-content/50">
+				Your selection includes notes authored by someone else, so Personal isn't available — only a
+				note's author can move it there.
+			</p>
+		{/if}
+		<form method="POST" action="?/bulkMove" use:enhance={handleBulkMove} class="mt-4">
+			{#each selected as note (note.publicId)}
+				<input type="hidden" name="ids" value={note.publicId} />
+			{/each}
+			<select name="orgId" class="select select-bordered w-full" bind:value={bulkMoveTargetOrgId}>
+				<option value="" disabled={!canBulkMovePersonal}>Personal (no company)</option>
+				{#each data.orgs as org (org.id)}
+					<option value={org.id}>{org.name}</option>
+				{/each}
+			</select>
+			<div class="modal-action">
+				<button type="button" class="btn" onclick={() => bulkMoveModal.close()}>Cancel</button>
+				<button type="submit" class="btn btn-primary" class:btn-disabled={bulkMoving}>
+					{#if bulkMoving}
+						<span class="loading loading-spinner loading-sm"></span>
+					{/if}
+					Move
+				</button>
+			</div>
+		</form>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button></button>
+	</form>
+</dialog>
+
+<dialog
+	id="bulk_delete_modal"
+	class="modal"
+	bind:this={bulkDeleteModal}
+	onclose={() => {
+		bulkHardDeleteArmed = false;
+	}}
+>
+	<div class="modal-box">
+		<h3 class="text-lg font-bold">Confirm Deletion</h3>
+		<p class="py-4">
+			Delete {selected.length} note{selected.length === 1 ? '' : 's'}? Only notes you authored can
+			be deleted — any others in your selection are skipped.
+		</p>
+		<div class="modal-action">
+			<form method="dialog">
+				<button class="btn">Cancel</button>
+			</form>
+			<form method="POST" action="?/bulkDelete" use:enhance={handleBulkDelete}>
+				{#each selected as note (note.publicId)}
+					<input type="hidden" name="ids" value={note.publicId} />
+				{/each}
+				<button type="submit" class="btn btn-error" class:btn-disabled={bulkDeleting}>
+					{#if bulkDeleting}
+						<span class="loading loading-spinner"></span>
+					{/if}
+					Confirm Delete
+				</button>
+			</form>
+		</div>
+		<div class="mt-3 flex flex-col items-center gap-1">
+			<form method="POST" action="?/bulkDelete" use:enhance={handleBulkDelete}>
+				{#each selected as note (note.publicId)}
+					<input type="hidden" name="ids" value={note.publicId} />
+				{/each}
+				<input type="hidden" name="hard" value="true" />
+				{#if bulkHardDeleteArmed}
+					<button type="submit" class="btn btn-error btn-xs" class:btn-disabled={bulkDeleting}>
+						{#if bulkDeleting}
+							<span class="loading loading-spinner loading-xs"></span>
+						{/if}
+						Click again to permanently delete {selected.length}
+					</button>
+				{:else}
+					<button
+						type="button"
+						class="btn btn-ghost btn-xs text-error"
+						class:btn-disabled={bulkDeleting}
+						onclick={() => (bulkHardDeleteArmed = true)}
+					>
+						Hard delete permanently
+					</button>
+				{/if}
+			</form>
+			<span class="text-xs text-base-content/60">
+				{#if bulkHardDeleteArmed}
+					This cannot be undone. Click the red button to permanently remove them.
+				{:else}
+					Removes the notes and their images from the database and Cloudflare. Cannot be restored.
+				{/if}
+			</span>
+		</div>
 	</div>
 	<form method="dialog" class="modal-backdrop">
 		<button></button>

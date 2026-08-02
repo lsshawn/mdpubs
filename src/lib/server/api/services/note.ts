@@ -178,6 +178,25 @@ export class NoteService {
 	}
 
 	/**
+	 * Read `title` from the content's frontmatter. Frontmatter is the author's
+	 * explicit choice, so it wins over whatever title the client sent (which is
+	 * typically derived from the filename). Returns null when absent, blank, or
+	 * unparseable, in which case the caller keeps the request's title.
+	 */
+	private titleFromContent(content: string): string | null {
+		try {
+			const { data } = matter(content || '');
+			const raw = data?.title;
+			if (raw == null) return null;
+			const title = String(raw).trim();
+			return title === '' ? null : title;
+		} catch {
+			// Malformed frontmatter is reported elsewhere; fall back to the request.
+			return null;
+		}
+	}
+
+	/**
 	 * Read `mdpubs-company` from the content's frontmatter and resolve it (with
 	 * the user's default org) to an org id. Returns null for personal notes.
 	 * Throws InvalidAccountError on an explicit but unauthorized/unknown account.
@@ -226,11 +245,15 @@ export class NoteService {
 		// but unauthorized/unknown account.
 		const orgId = await this.resolveOrgForContent(content, userId, defaultOrgId);
 
+		// `title:` frontmatter is the author's explicit choice and overrides the
+		// title the client derived from the filename.
+		const title = this.titleFromContent(content) ?? noteData.title;
+
 		// Create main note record first to get an ID
 		const newNote = await this.db.createNote({
 			userId,
 			orgId,
-			title: noteData.title,
+			title,
 			content: '', // Temp content, will be updated
 			fileExtension: noteData.file_extension,
 			version: 1,
@@ -561,6 +584,11 @@ export class NoteService {
 		};
 
 		if (updateData.title !== undefined) noteUpdateData.title = updateData.title;
+		// Re-read `title:` from the (possibly edited) frontmatter every update, so
+		// renaming it in the file renames the note. Overrides the request's title
+		// for the same reason as on create.
+		const frontmatterTitle = this.titleFromContent(finalContent);
+		if (frontmatterTitle !== null) noteUpdateData.title = frontmatterTitle;
 		noteUpdateData.content = finalContent;
 		noteUpdateData.imageMap = finalImageMap;
 		if (updateData.file_extension !== undefined)
@@ -638,7 +666,10 @@ export class NoteService {
 				console.log(`[NoteService] Hard delete: removed ${removed} R2 object(s) under ${prefix}.`);
 			}
 		} catch (error) {
-			console.error(`[NoteService] Hard delete: failed to purge R2 objects under ${prefix}:`, error);
+			console.error(
+				`[NoteService] Hard delete: failed to purge R2 objects under ${prefix}:`,
+				error
+			);
 		}
 
 		await this.db.hardDeleteNote(noteId);

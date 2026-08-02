@@ -2,8 +2,9 @@ import { db } from '$lib/server/db';
 import * as table from '$lib/server/db/schema';
 import { fail, redirect } from '@sveltejs/kit';
 import { config } from '$lib/config';
-import { and, eq, sql, isNull, desc } from 'drizzle-orm';
+import { and, eq, sql, isNull, desc, inArray } from 'drizzle-orm';
 import { getOrgRole } from '$lib/server/org';
+import { deleteFolder } from '$lib/server/storage';
 import type { Actions, PageServerLoad } from './$types';
 
 const PAGE_SIZE = 20;
@@ -156,6 +157,143 @@ export const actions: Actions = {
 			.where(eq(table.note.id, target.id));
 
 		return { success: true, moved: true };
+	},
+
+	/**
+	 * Bulk re-file. Same rules as `move`, applied per note: membership in the
+	 * destination, plus author-only when the destination is Personal. Notes the
+	 * caller may not move are skipped rather than failing the whole batch, so one
+	 * colleague's note in a selection doesn't block the rest; the count of skips
+	 * comes back for the toast.
+	 */
+	bulkMove: async ({ request, locals }) => {
+		if (!locals.user) {
+			return fail(401, { message: 'Unauthorized' });
+		}
+
+		const formData = await request.formData();
+		const publicIds = formData
+			.getAll('ids')
+			.filter((v): v is string => typeof v === 'string' && v !== '');
+		const targetOrgId = formData.get('orgId');
+
+		if (publicIds.length === 0) {
+			return fail(400, { message: 'No notes selected' });
+		}
+		if (typeof targetOrgId !== 'string') {
+			return fail(400, { message: 'Invalid destination' });
+		}
+		const destOrgId = targetOrgId === '' ? null : targetOrgId;
+
+		// Verify the destination once — it's the same for every note in the batch.
+		if (destOrgId !== null && !(await getOrgRole(destOrgId, locals.user.id))) {
+			return fail(403, { message: 'You are not a member of that company.' });
+		}
+
+		const targets = await db
+			.select({ id: table.note.id, userId: table.note.userId, orgId: table.note.orgId })
+			.from(table.note)
+			.where(and(inArray(table.note.publicId, publicIds), isNull(table.note.deletedAt)));
+
+		const movable: number[] = [];
+		let skipped = 0;
+		for (const target of targets) {
+			const isAuthor = target.userId === locals.user.id;
+			// Access to the note: author, or a member of its current org.
+			if (!isAuthor && (!target.orgId || !(await getOrgRole(target.orgId, locals.user.id)))) {
+				skipped++;
+				continue;
+			}
+			// Only the author may pull a note out into Personal.
+			if (destOrgId === null && !isAuthor) {
+				skipped++;
+				continue;
+			}
+			if (destOrgId === target.orgId) continue; // already there; not a skip
+			movable.push(target.id);
+		}
+
+		if (movable.length > 0) {
+			await db
+				.update(table.note)
+				.set({ orgId: destOrgId, updatedAt: new Date() })
+				.where(inArray(table.note.id, movable));
+		}
+
+		return { success: true, moved: movable.length, skipped };
+	},
+
+	/**
+	 * Bulk delete. `hard=true` purges rows and R2 images; otherwise it's the
+	 * restorable soft delete.
+	 *
+	 * Batched rather than one request per note: ownership is resolved in a single
+	 * query and the writes go out as set-based statements, so cost is a handful of
+	 * round trips regardless of selection size. Deleting is author-only, matching
+	 * noteService.deleteNote/hardDeleteNote — a company library is shared for
+	 * reading and moving, but only the author can destroy a note. Notes the caller
+	 * doesn't own are skipped, so one such note can't fail the whole batch.
+	 */
+	bulkDelete: async ({ request, locals, platform }) => {
+		if (!locals.user) {
+			return fail(401, { message: 'Unauthorized' });
+		}
+
+		const formData = await request.formData();
+		const publicIds = formData
+			.getAll('ids')
+			.filter((v): v is string => typeof v === 'string' && v !== '');
+		const hard = formData.get('hard') === 'true';
+
+		if (publicIds.length === 0) {
+			return fail(400, { message: 'No notes selected' });
+		}
+
+		// Soft delete only applies to live notes; a hard delete also works on
+		// already-soft-deleted ones, matching hardDeleteNote.
+		const scope = [inArray(table.note.publicId, publicIds), eq(table.note.userId, locals.user.id)];
+		if (!hard) scope.push(isNull(table.note.deletedAt));
+
+		const targets = await db
+			.select({ id: table.note.id })
+			.from(table.note)
+			.where(and(...scope));
+
+		const ids = targets.map((t) => t.id);
+		const skipped = publicIds.length - ids.length;
+
+		if (ids.length === 0) {
+			return fail(403, { message: 'None of those notes are yours to delete.' });
+		}
+
+		if (!hard) {
+			await db.update(table.note).set({ deletedAt: new Date() }).where(inArray(table.note.id, ids));
+			return { success: true, deleted: ids.length, failed: skipped, hard };
+		}
+
+		// Purge R2 assets first, concurrently — each note's images live under its
+		// own prefix. Best-effort, exactly as hardDeleteNote treats it: a storage
+		// failure must not leave the rows half-deleted, so log and continue.
+		const bucket = platform?.env?.BUCKET;
+		if (bucket) {
+			await Promise.all(
+				ids.map((id) =>
+					deleteFolder(bucket, `users/${locals.user!.id}/notes/${id}/`).catch((error) => {
+						console.error(`[bulkDelete] Failed to purge R2 objects for note ${id}:`, error);
+					})
+				)
+			);
+		}
+
+		// Children first, note rows last — libSQL doesn't enforce the cascade over
+		// the remote protocol (see db.hardDeleteNote).
+		await db.delete(table.signatureEvent).where(inArray(table.signatureEvent.noteId, ids));
+		await db.delete(table.signature).where(inArray(table.signature.noteId, ids));
+		await db.delete(table.signatureRequest).where(inArray(table.signatureRequest.noteId, ids));
+		await db.delete(table.noteVersion).where(inArray(table.noteVersion.noteId, ids));
+		await db.delete(table.note).where(inArray(table.note.id, ids));
+
+		return { success: true, deleted: ids.length, failed: skipped, hard };
 	},
 
 	delete: async ({ request, locals, fetch }) => {
