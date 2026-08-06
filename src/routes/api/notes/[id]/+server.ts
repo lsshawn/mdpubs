@@ -6,8 +6,17 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { z } from 'zod';
 import { requireApiAuth, optionalApiAuth, isAuthError } from '$lib/server/api/auth';
-import { parseNoteBody, resolveNoteId, UploadTooLargeError, BadRequestError } from '$lib/server/api/http';
-import { NoteService, InvalidFrontmatterError, InvalidAccountError } from '$lib/server/api/services/note';
+import {
+	parseNoteBody,
+	resolveNoteId,
+	UploadTooLargeError,
+	BadRequestError
+} from '$lib/server/api/http';
+import {
+	NoteService,
+	InvalidFrontmatterError,
+	InvalidAccountError
+} from '$lib/server/api/services/note';
 import { signService } from '$lib/server/api/services/sign';
 import { NotFoundError, NoteNotOwnedError, NoteLockedError } from '$lib/server/api/db';
 
@@ -86,7 +95,8 @@ export async function GET(event: RequestEvent): Promise<Response> {
 		}
 		return json(note);
 	} catch (error) {
-		if (error instanceof NotFoundError || error instanceof NoteNotOwnedError) return notFoundOrPrivate();
+		if (error instanceof NotFoundError || error instanceof NoteNotOwnedError)
+			return notFoundOrPrivate();
 		console.error('Error getting note:', error);
 		return json({ error: 'Failed to retrieve note' }, { status: 500 });
 	}
@@ -109,11 +119,17 @@ export async function PUT(event: RequestEvent): Promise<Response> {
 			return json({ error: 'Invalid input', issues: validation.error.issues }, { status: 400 });
 		}
 
+		// ?silent=true — autosave from the web editor: write the note but don't mint a
+		// `note_versions` row (see UpdateNoteRequest.skipVersion). Restricted to
+		// session auth: an API-key write is a deliberate sync from the nvim plugin or
+		// CLI, and those ARE the revision history we want to keep.
+		const silent = event.url.searchParams.get('silent') === 'true' && !auth.usedApiKey;
+
 		const updatedNote = await noteService.updateNote(
 			bucket,
 			noteId,
 			user.id,
-			{ ...validation.data, files },
+			{ ...validation.data, files, skipVersion: silent },
 			user.defaultOrgId
 		);
 		return json(updatedNote);
@@ -122,10 +138,13 @@ export async function PUT(event: RequestEvent): Promise<Response> {
 			return json({ error: "Note not found or doesn't belong to you" }, { status: 404 });
 		}
 		if (error instanceof NoteLockedError) return json({ error: error.message }, { status: 409 });
-		if (error instanceof UploadTooLargeError) return json({ error: error.message }, { status: 413 });
+		if (error instanceof UploadTooLargeError)
+			return json({ error: error.message }, { status: 413 });
 		if (error instanceof BadRequestError) return json({ error: error.message }, { status: 400 });
-		if (error instanceof InvalidFrontmatterError) return json({ error: error.message }, { status: 400 });
-		if (error instanceof InvalidAccountError) return json({ error: error.message }, { status: 403 });
+		if (error instanceof InvalidFrontmatterError)
+			return json({ error: error.message }, { status: 400 });
+		if (error instanceof InvalidAccountError)
+			return json({ error: error.message }, { status: 403 });
 		const message = error instanceof Error ? error.message : '';
 		if (message.includes('too large')) return json({ error: message }, { status: 413 });
 		console.error('Error updating note:', error);

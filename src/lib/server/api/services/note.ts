@@ -74,6 +74,18 @@ export interface UpdateNoteRequest {
 	tags?: string[];
 	isPrivate?: boolean;
 	files?: Record<string, { data: ArrayBuffer; type: string }>;
+	/**
+	 * Skip the `note_versions` row for this update.
+	 *
+	 * The web editor autosaves on a debounce, which would otherwise mint a version
+	 * every few seconds and bury the real, human-meaningful revisions (nvim syncs,
+	 * explicit saves) under hundreds of keystroke snapshots. Silent updates still
+	 * bump `notes.version` so the counter stays monotonic and concurrent writers
+	 * can be detected — only the history row is skipped.
+	 *
+	 * Never set this for API-key writes: the nvim plugin's syncs ARE the history.
+	 */
+	skipVersion?: boolean;
 }
 
 export interface NoteVersionWithDiff extends NoteVersion {
@@ -602,16 +614,19 @@ export class NoteService {
 
 		const updatedNote = await this.db.updateNote(noteId, noteUpdateData);
 
-		// Create new version record
-		await this.db.createNoteVersion({
-			noteId,
-			version: newVersion,
-			title: updatedNote.title,
-			content: finalContent,
-			fileExtension: updatedNote.fileExtension,
-			userId,
-			createdAt: now
-		});
+		// Create new version record. Skipped for autosave (see skipVersion) so the
+		// history stays a list of meaningful revisions rather than keystroke snapshots.
+		if (!updateData.skipVersion) {
+			await this.db.createNoteVersion({
+				noteId,
+				version: newVersion,
+				title: updatedNote.title,
+				content: finalContent,
+				fileExtension: updatedNote.fileExtension,
+				userId,
+				createdAt: now
+			});
+		}
 
 		return updatedNote;
 	}

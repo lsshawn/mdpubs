@@ -24,6 +24,13 @@ export type ApiAuth = {
 	user: User | null; // null only for the admin key
 	isAdmin: boolean;
 	isReadOnly: boolean;
+	/**
+	 * True when the caller authenticated with an API key or a token in the
+	 * X-API-Key/Bearer header (i.e. the nvim plugin or CLI), false for a
+	 * browser cookie session. Routes use this to keep browser-only affordances —
+	 * such as version-skipping autosave — off the programmatic sync path.
+	 */
+	usedApiKey: boolean;
 };
 
 function getToken(request: Request): string | undefined {
@@ -41,7 +48,7 @@ function getToken(request: Request): string | undefined {
 async function authenticate(token: string, method: string): Promise<ApiAuth | Response> {
 	const adminAPIKey = env.ADMIN_API_KEY;
 	if (adminAPIKey && token === adminAPIKey) {
-		return { user: null, isAdmin: true, isReadOnly: false };
+		return { user: null, isAdmin: true, isReadOnly: false, usedApiKey: true };
 	}
 
 	const isReadOnlyKey = token.startsWith('ro_');
@@ -50,12 +57,15 @@ async function authenticate(token: string, method: string): Promise<ApiAuth | Re
 		if (isReadOnlyKey) {
 			user = await userService.getUserByReadOnlyAPIKey(token);
 			if (method !== 'GET') {
-				return json({ error: 'Read-only API key can only be used for GET requests' }, { status: 403 });
+				return json(
+					{ error: 'Read-only API key can only be used for GET requests' },
+					{ status: 403 }
+				);
 			}
 		} else {
 			user = await userService.getUserByAPIKey(token);
 		}
-		return { user, isAdmin: false, isReadOnly: isReadOnlyKey };
+		return { user, isAdmin: false, isReadOnly: isReadOnlyKey, usedApiKey: true };
 	} catch (error) {
 		if (!(error instanceof InvalidAPIKeyError)) {
 			console.error('API key authentication error:', error);
@@ -77,7 +87,9 @@ async function authenticate(token: string, method: string): Promise<ApiAuth | Re
 				.where(eq(userSchema.id, sess.userId))
 				.limit(1);
 			if (userResult.length > 0) {
-				return { user: userResult[0], isAdmin: false, isReadOnly: false };
+				// A session token passed in a header is still a browser-issued session, but it
+				// arrived via the programmatic path; treat it as a key for safety.
+				return { user: userResult[0], isAdmin: false, isReadOnly: false, usedApiKey: true };
 			}
 		}
 	} catch (error) {
@@ -95,11 +107,13 @@ async function authenticate(token: string, method: string): Promise<ApiAuth | Re
  * Load the full User row for a cookie-authenticated session user. `locals.user`
  * is a narrowed projection; the API services need the full row.
  */
-async function fullUserFromLocals(
-	locals: RequestEvent['locals']
-): Promise<User | null> {
+async function fullUserFromLocals(locals: RequestEvent['locals']): Promise<User | null> {
 	if (!locals.user) return null;
-	const [row] = await db.select().from(userSchema).where(eq(userSchema.id, locals.user.id)).limit(1);
+	const [row] = await db
+		.select()
+		.from(userSchema)
+		.where(eq(userSchema.id, locals.user.id))
+		.limit(1);
 	return row ?? null;
 }
 
@@ -114,7 +128,7 @@ export async function requireApiAuth(event: RequestEvent): Promise<ApiAuth | Res
 
 	// Cookie-session fallback (same-origin browser requests, e.g. the dashboard).
 	const user = await fullUserFromLocals(event.locals);
-	if (user) return { user, isAdmin: false, isReadOnly: false };
+	if (user) return { user, isAdmin: false, isReadOnly: false, usedApiKey: false };
 
 	return json(
 		{
@@ -135,9 +149,9 @@ export async function optionalApiAuth(event: RequestEvent): Promise<ApiAuth | Re
 	if (token) return authenticate(token, event.request.method);
 
 	const user = await fullUserFromLocals(event.locals);
-	if (user) return { user, isAdmin: false, isReadOnly: false };
+	if (user) return { user, isAdmin: false, isReadOnly: false, usedApiKey: false };
 
-	return { user: null, isAdmin: false, isReadOnly: false };
+	return { user: null, isAdmin: false, isReadOnly: false, usedApiKey: false };
 }
 
 /** Type guard: did the resolver hand back an error Response? */

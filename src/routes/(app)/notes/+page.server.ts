@@ -92,6 +92,73 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 export const actions: Actions = {
 	/**
+	 * Create an empty note and redirect straight into the editor.
+	 *
+	 * Goes through NoteService.createNote (rather than a bare insert) so the free
+	 * plan's note limit, publicId generation, and `mdpubs-company` org resolution
+	 * all behave exactly as they do for an nvim sync. The starter body carries a
+	 * `title:` frontmatter key because that is what the store reads the title back
+	 * from on every update.
+	 */
+	create: async ({ locals, url, platform }) => {
+		if (!locals.user) {
+			return fail(401, { message: 'Unauthorized' });
+		}
+
+		const bucket = platform?.env?.BUCKET;
+		if (!bucket) {
+			return fail(500, { message: 'Storage is not configured' });
+		}
+
+		// Create it in whichever workspace the sidebar is currently showing, so a
+		// note started from a company view is filed there.
+		const orgSlug = url.searchParams.get('org');
+		let org: { slug: string } | null = null;
+		if (orgSlug) {
+			const [row] = await db
+				.select({ slug: table.organization.slug })
+				.from(table.orgMember)
+				.innerJoin(table.organization, eq(table.orgMember.orgId, table.organization.id))
+				.where(
+					and(
+						eq(table.orgMember.userId, locals.user.id),
+						eq(table.organization.slug, orgSlug.toLowerCase())
+					)
+				)
+				.limit(1);
+			org = row ?? null;
+		}
+
+		const frontmatter = [
+			'---',
+			'title: Untitled',
+			...(org ? [`mdpubs-company: ${org.slug}`] : []),
+			'---',
+			'',
+			''
+		].join('\n');
+
+		let created;
+		try {
+			const { NoteService } = await import('$lib/server/api/services/note');
+			created = await new NoteService().createNote(
+				bucket,
+				locals.user.id,
+				locals.user.plan || 'free',
+				{ title: 'Untitled', content: frontmatter, file_extension: 'md', tags: [] },
+				locals.user.defaultOrgId
+			);
+		} catch (e) {
+			const message = e instanceof Error ? e.message : 'Could not create note';
+			return fail(400, { message });
+		}
+
+		// Outside the try: SvelteKit signals redirects by throwing, so redirecting
+		// inside it would be caught as a creation failure.
+		return redirect(303, `/notes/${created.publicId}/edit`);
+	},
+
+	/**
 	 * Re-file a note under a different company (or back to Personal).
 	 *
 	 * This is the UI equivalent of editing `mdpubs-company` frontmatter and

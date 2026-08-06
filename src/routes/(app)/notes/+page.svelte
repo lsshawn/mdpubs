@@ -172,6 +172,23 @@
 	}
 
 	let deleting = $state(false);
+	let creating = $state(false);
+	/**
+	 * The action redirects into the new note's editor on success, so the only case
+	 * to handle here is failure (note limit reached, storage unconfigured) — a
+	 * redirect result is applied by `enhance` itself.
+	 */
+	const handleCreate: SubmitFunction = () => {
+		creating = true;
+		return async ({ result, update }) => {
+			if (result.type === 'failure' && result.data?.message) {
+				showToast(result.data.message as string, 'error');
+			}
+			await update();
+			creating = false;
+		};
+	};
+
 	const handleDelete: SubmitFunction = () => {
 		deleting = true;
 		return ({ result, update }) => {
@@ -259,9 +276,21 @@
 
 <div class="mx-auto max-w-4xl text-base-content">
 	<section class="container mx-auto py-4">
-		<h1 class="text-2xl leading-tight font-bold text-base-content md:text-3xl">
-			{data.activeOrg ? `${data.activeOrg.name} notes` : 'My notes'}
-		</h1>
+		<div class="flex items-start gap-3">
+			<h1 class="flex-1 text-2xl leading-tight font-bold text-base-content md:text-3xl">
+				{data.activeOrg ? `${data.activeOrg.name} notes` : 'My notes'}
+			</h1>
+			<!--
+				Creates the note server-side then redirects into the editor, so the
+				editor always opens against a real note (it needs an id for autosave,
+				preview, and asset upload).
+			-->
+			<form method="POST" action="?/create" use:enhance={handleCreate}>
+				<button type="submit" class="btn btn-primary btn-sm" disabled={creating}>
+					{creating ? 'Creating…' : 'New note'}
+				</button>
+			</form>
+		</div>
 		<p class="mt-1 text-sm text-base-content/60">
 			{#if data.activeOrg}
 				Everything published to <code class="rounded bg-base-200 px-1"
@@ -382,6 +411,17 @@
 								{@render visibilityBadge(note)}
 							</td>
 							<td class="text-right whitespace-nowrap">
+								<!--
+									Editing is author-only (the editor's load enforces the same rule),
+									so a colleague's note in a shared company library shows no Edit
+									button rather than a link to a 404.
+								-->
+								{#if note.userId === data.user.id}
+									<a
+										href={resolve('/(app)/notes/[id]/edit', { id: note.publicId })}
+										class="btn btn-sm">Edit</a
+									>
+								{/if}
 								<button type="button" class="btn btn-sm" onclick={() => openMoveModal(note)}>
 									Move
 								</button>
