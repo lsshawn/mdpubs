@@ -4,14 +4,35 @@
 	import { fade, scale } from 'svelte/transition';
 
 	let {
-		message,
-		email,
-		name
+		message = $bindable(),
+		email = $bindable(),
+		name = $bindable(),
+		variant = 'floating'
 	}: {
 		message: string;
 		email: string;
 		name: string;
+		/**
+		 * `floating` is the original bottom-right FAB, used from `md` up.
+		 * `navbar` renders just the trigger, sized to sit inline in a mobile top
+		 * bar — on a phone the FAB covered content and sat over the browser's own
+		 * bottom chrome, so it moves into the navbar instead.
+		 */
+		variant?: 'floating' | 'navbar';
 	} = $props();
+
+	let isSignedIn = $derived(!!page.data.user?.email);
+
+	/**
+	 * Keep the posted email pinned to the session address while signed in. The
+	 * parent seeds `email` once at layout construction, so without this a user who
+	 * signs in (or switches account) mid-session would post the stale value — and
+	 * with the input hidden they'd have no way to see or correct it.
+	 */
+	$effect(() => {
+		const sessionEmail = page.data.user?.email;
+		if (sessionEmail && email !== sessionEmail) email = sessionEmail;
+	});
 
 	let isOpen = $state(false);
 
@@ -85,10 +106,22 @@
 	}
 </script>
 
-<div class="fixed right-4 bottom-4 z-50 flex flex-col items-end">
+<!--
+	`navbar` anchors the panel below the trigger (it lives at the top of the
+	screen); `floating` keeps the original above-the-button placement. Both use the
+	same panel markup — only the wrapper positioning differs.
+-->
+<div
+	class={variant === 'navbar'
+		? 'relative flex flex-col items-end'
+		: 'fixed right-4 bottom-4 z-50 hidden flex-col items-end md:flex'}
+>
 	{#if isOpen}
 		<div
-			class="bg-base-100 mb-2 w-80 rounded-lg border p-4 shadow-lg sm:w-96"
+			class="bg-base-100 w-80 rounded-lg border border-base-300 p-4 shadow-lg sm:w-96 {variant ===
+			'navbar'
+				? 'absolute top-full right-0 z-50 mt-2 max-w-[calc(100vw-2rem)]'
+				: 'mb-2'}"
 			transition:scale={{ duration: 150, start: 0.95 }}
 		>
 			{#if status === 'success'}
@@ -111,29 +144,50 @@
 						<p class="text-error mt-1 text-sm">{fieldErrors.message[0]}</p>
 					{/if}
 
-					<input
-						type="email"
-						bind:value={email}
-						placeholder="Your email"
-						class="input input-bordered mt-2 w-full"
-						class:input-error={fieldErrors.email}
-						disabled={status === 'submitting'}
-						aria-label="Your email"
-					/>
-					{#if fieldErrors.email}
-						<p class="text-error mt-1 text-sm">{fieldErrors.email[0]}</p>
-					{/if}
-					<input
-						type="text"
-						bind:value={name}
-						placeholder="Your name (optional)"
-						class="input input-bordered mt-2 w-full"
-						class:input-error={name && fieldErrors.name}
-						disabled={status === 'submitting'}
-						aria-label="Your name (optional)"
-					/>
-					{#if name && fieldErrors.name}
-						<p class="text-error mt-1 text-sm">{fieldErrors.name[0]}</p>
+					<!--
+						Signed-in users never fill these in: the email is already known from
+						the session (and is what `email` is seeded with), and the server
+						stamps `userId` from the session regardless of what's posted. Asking
+						again is friction plus a chance to enter a contradicting address, so
+						the fields only appear for anonymous visitors — where the API's
+						schema genuinely requires an email to reply to.
+					-->
+					{#if !isSignedIn}
+						<input
+							type="email"
+							bind:value={email}
+							placeholder="Your email"
+							class="input input-bordered mt-2 w-full"
+							class:input-error={fieldErrors.email}
+							disabled={status === 'submitting'}
+							aria-label="Your email"
+						/>
+						{#if fieldErrors.email}
+							<p class="text-error mt-1 text-sm">{fieldErrors.email[0]}</p>
+						{/if}
+						<input
+							type="text"
+							bind:value={name}
+							placeholder="Your name (optional)"
+							class="input input-bordered mt-2 w-full"
+							class:input-error={name && fieldErrors.name}
+							disabled={status === 'submitting'}
+							aria-label="Your name (optional)"
+						/>
+						{#if name && fieldErrors.name}
+							<p class="text-error mt-1 text-sm">{fieldErrors.name[0]}</p>
+						{/if}
+					{:else}
+						<p class="mt-2 text-xs text-base-content/50">
+							Replying to {page.data.user.email}
+						</p>
+						<!--
+							A signed-in user whose session email somehow failed validation
+							still needs to see why the submit bounced.
+						-->
+						{#if fieldErrors.email}
+							<p class="text-error mt-1 text-sm">{fieldErrors.email[0]}</p>
+						{/if}
 					{/if}
 
 					{#if name && status === 'error' && errorMessage}
@@ -159,7 +213,9 @@
 	{/if}
 
 	<button
-		class="btn btn-primary btn-sm inline-grid w-24 place-items-center shadow-lg"
+		class="btn btn-primary btn-sm inline-grid place-items-center {variant === 'navbar'
+			? 'w-20'
+			: 'w-24 shadow-lg'}"
 		onclick={toggle}
 		aria-label={isOpen ? 'Close feedback form' : 'Open feedback form'}
 	>

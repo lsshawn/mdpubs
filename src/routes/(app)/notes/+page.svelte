@@ -312,19 +312,55 @@
 	</header>
 
 	<!--
-		The workspace explainer is orientation, not something to re-read on every
-		visit, so it stays out of the way at the top and never competes with the
-		list on a phone screen.
+		One fixed-height row that swaps contents rather than two rows that appear and
+		disappear: selecting a note replaces the workspace description with the bulk
+		actions in place, so the list below never jumps. `h-8` is sized to the tallest
+		occupant (the `btn-xs`/`btn-sm` bulk row) and is reserved even when the row
+		shows only the description, which is why there is no shift in either
+		direction.
 	-->
-	<p class="mt-1 text-sm text-base-content/50">
-		{#if data.activeOrg}
-			Shared library — everything filed under <code class="rounded bg-base-200 px-1"
-				>{data.activeOrg.slug}</code
-			>.
+	<div class="mt-1 flex h-8 items-center">
+		{#if selected.length > 0}
+			<div class="flex w-full items-center gap-2">
+				<span class="text-sm font-medium">{selected.length} selected</span>
+				<button type="button" class="btn btn-ghost btn-xs" onclick={() => selectedIds.clear()}>
+					Clear
+				</button>
+				<div class="ml-auto flex gap-2">
+					<button
+						type="button"
+						class="btn btn-ghost btn-xs sm:btn-sm"
+						onclick={() => {
+							bulkMoveTargetOrgId = canBulkMovePersonal ? '' : (data.orgs[0]?.id ?? '');
+							bulkMoveModal.showModal();
+						}}
+					>
+						Move
+					</button>
+					<button
+						type="button"
+						class="btn btn-ghost btn-xs text-error sm:btn-sm"
+						onclick={() => {
+							bulkHardDeleteArmed = false;
+							bulkDeleteModal.showModal();
+						}}
+					>
+						Delete
+					</button>
+				</div>
+			</div>
 		{:else}
-			Your personal notes.
+			<p class="truncate text-sm text-base-content/50">
+				{#if data.activeOrg}
+					Shared library — everything filed under <code class="rounded bg-base-200 px-1"
+						>{data.activeOrg.slug}</code
+					>.
+				{:else}
+					Your personal notes.
+				{/if}
+			</p>
 		{/if}
-	</p>
+	</div>
 
 	<!--
 		Search sits directly above the list it filters. The submit button is gone —
@@ -347,43 +383,6 @@
 			/>
 		</label>
 	</form>
-
-	{#if selected.length > 0}
-		<!--
-			Sticky so the actions stay reachable while scrolling a long selection on a
-			phone, where the bar would otherwise scroll off the top.
-		-->
-		<div
-			class="sticky top-14 z-10 mt-3 flex items-center gap-2 rounded-lg border border-base-300 bg-base-100 px-3 py-2 shadow-sm lg:top-2"
-		>
-			<span class="text-sm font-medium">{selected.length} selected</span>
-			<button type="button" class="btn btn-ghost btn-xs" onclick={() => selectedIds.clear()}>
-				Clear
-			</button>
-			<div class="ml-auto flex gap-2">
-				<button
-					type="button"
-					class="btn btn-ghost btn-sm"
-					onclick={() => {
-						bulkMoveTargetOrgId = canBulkMovePersonal ? '' : (data.orgs[0]?.id ?? '');
-						bulkMoveModal.showModal();
-					}}
-				>
-					Move
-				</button>
-				<button
-					type="button"
-					class="btn btn-ghost btn-sm text-error"
-					onclick={() => {
-						bulkHardDeleteArmed = false;
-						bulkDeleteModal.showModal();
-					}}
-				>
-					Delete
-				</button>
-			</div>
-		</div>
-	{/if}
 
 	{#if visibleNotes.length === 0}
 		<div class="mt-10 py-12 text-center">

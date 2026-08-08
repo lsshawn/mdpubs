@@ -2,11 +2,62 @@
 
 @plugin '@tailwindcss/typography';
 
+/*
+	`night` needs `--prefersdark` to be reachable at all: DaisyUI only emits it
+	under `[data-theme="night"]`, and nothing in the app sets that attribute, so
+	before this a dark-preferring browser silently got the *light* palette. That
+	mismatch is what made buttons and tabs look washed out — they were light-theme
+	colours sitting on a dark-rendered page.
+
+	(The old list also named `light` twice, so the third entry was dead.)
+*/
 @plugin 'daisyui' {
 	themes:
 		light --default,
-		night,
-		light;
+		night --prefersdark;
+}
+
+/*
+	Ghost buttons are the workhorse control in the dashboard (row actions, bulk
+	bar, pagination), but DaisyUI renders them fully transparent until hover — on
+	`night` that leaves an unreadable icon floating on the page background with no
+	hit target to aim at. Give them a faint surface and a border so they read as
+	controls at rest, and a clearly brighter one on hover/focus.
+*/
+[data-theme='night'] .btn-ghost:not(.btn-disabled):not(:disabled) {
+	background-color: color-mix(in oklch, var(--color-base-content) 8%, transparent);
+	border-color: color-mix(in oklch, var(--color-base-content) 14%, transparent);
+}
+
+[data-theme='night'] .btn-ghost:not(.btn-disabled):not(:disabled):hover,
+[data-theme='night'] .btn-ghost:not(.btn-disabled):not(:disabled):focus-visible {
+	background-color: color-mix(in oklch, var(--color-base-content) 18%, transparent);
+	border-color: color-mix(in oklch, var(--color-base-content) 28%, transparent);
+}
+
+/*
+	`night`'s base-100/200/300 sit within ~3% lightness of each other, so borders
+	and dividers drawn in base-300 are invisible against base-100 — table rows and
+	the bulk-action bar lose their edges. Lift the separation to something the eye
+	can actually resolve.
+*/
+[data-theme='night'] {
+	--color-base-300: oklch(28% 0.034 265.754);
+}
+
+/*
+	Tabs: the inactive/active pair is near-indistinguishable on `night` because
+	both land on similar dark surfaces. Make the active tab carry the accent and
+	the inactive ones recede.
+*/
+[data-theme='night'] .tab:not(.tab-active) {
+	color: color-mix(in oklch, var(--color-base-content) 60%, transparent);
+}
+
+[data-theme='night'] .tab.tab-active {
+	background-color: color-mix(in oklch, var(--color-base-content) 12%, transparent);
+	color: var(--color-base-content);
+	font-weight: 500;
 }
 
 /* Base font size for the whole app (16px). DaisyUI/Tailwind size everything

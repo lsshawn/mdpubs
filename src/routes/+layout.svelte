@@ -84,6 +84,10 @@
 				</a>
 			</div>
 			<div class="flex items-center gap-2">
+				<!-- Mobile-only: the floating widget is suppressed below `md`. -->
+				<div class="md:hidden">
+					<FeedbackWidget bind:message bind:email bind:name variant="navbar" />
+				</div>
 				<a
 					href={resolve('/notes')}
 					role="button"
@@ -109,6 +113,12 @@
 		{@render children()}
 	</main>
 	{#if page.route.id !== '/(public)/[id]'}
+		<!--
+			Floating variant is desktop-only — the component hides its own root below
+			`md`. On mobile the trigger lives in the navbar instead (public navbar
+			above, dashboard top bar in (app)/+layout.svelte), where it can't cover
+			content or clash with the browser's bottom chrome.
+		-->
 		<FeedbackWidget bind:message bind:email bind:name />
 	{/if}
 </div>

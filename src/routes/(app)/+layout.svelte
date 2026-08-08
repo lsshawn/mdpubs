@@ -14,9 +14,16 @@
 	import { navigating, page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import CompanySwitcher from '$lib/components/CompanySwitcher.svelte';
+	import FeedbackWidget from '$lib/components/FeedbackWidget.svelte';
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: Snippet } = $props();
+
+	// Local to this shell — the root layout owns its own copy for the floating
+	// (desktop) widget, and the two are never mounted at the same breakpoint.
+	let feedbackMessage = $state('');
+	let feedbackEmail = $state(data.user?.email ?? '');
+	let feedbackName = $state('');
 
 	/**
 	 * The active workspace comes from `?org=<slug>` so it survives reloads and
@@ -112,6 +119,20 @@
 				<Pencil class="h-5 w-5 text-primary" />
 				<span class="font-bold">MdPubs</span>
 			</a>
+			<!--
+				Feedback lives here on mobile rather than as a floating button: the FAB
+				sat over the note list and collided with the browser's own bottom bar.
+				The root layout renders the floating version only from `md` up, so the
+				two never appear at once.
+			-->
+			<div class="ml-auto">
+				<FeedbackWidget
+					bind:message={feedbackMessage}
+					bind:email={feedbackEmail}
+					bind:name={feedbackName}
+					variant="navbar"
+				/>
+			</div>
 		</header>
 
 		<main class="flex-1 p-4 md:p-8">
