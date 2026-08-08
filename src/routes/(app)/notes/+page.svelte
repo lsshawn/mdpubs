@@ -889,6 +889,11 @@
 		A private note has no public URL, so its title opens the read-only modal
 		instead. Both render as plain text that only underlines on hover — a list of
 		blue underlined links reads as noise when every row is one.
+
+		The title carries inline markdown (`**bold**`, `*em*`, `code`, `~~del~~`),
+		rendered server-side into `titleHtml` by renderTitleMarkdown and limited to
+		those four tags. It is inline-only on purpose: a block parse would wrap the
+		title in <p> and break `truncate`. Empty titles fall back to 'Untitled'.
 	-->
 	{#if note.isPrivate}
 		<button
@@ -896,7 +901,9 @@
 			class="block w-full truncate text-left font-medium hover:underline"
 			onclick={() => showViewModal(note)}
 		>
-			{note.title || 'Untitled'}
+			<span class="note-title"
+				>{#if note.titleHtml}{@html note.titleHtml}{:else}Untitled{/if}</span
+			>
 		</button>
 	{:else}
 		<a
@@ -905,7 +912,9 @@
 			target="_blank"
 			rel="noopener noreferrer"
 		>
-			{note.title || 'Untitled'}
+			<span class="note-title"
+				>{#if note.titleHtml}{@html note.titleHtml}{:else}Untitled{/if}</span
+			>
 		</a>
 	{/if}
 {/snippet}
@@ -915,3 +924,34 @@
 		{note?.isPrivate ? 'private' : 'public'}
 	</div>
 {/snippet}
+
+<style>
+	/*
+		Titles are injected with {@html}, which Svelte's scoped styles can't reach —
+		hence :global() under a wrapper class. Only the four tags renderTitleMarkdown
+		can emit are styled.
+
+		`font-medium` on the link/button already sets the row's weight, so <strong>
+		is bumped to 700 to stay visually distinct from an unformatted title.
+	*/
+	.note-title :global(strong) {
+		font-weight: 700;
+	}
+
+	/*
+		`code` needs a surface to read as code, but the full DaisyUI badge treatment
+		is too loud at list density: keep it to a faint tint and a smaller size that
+		still sits on the row's baseline without changing line height.
+	*/
+	.note-title :global(code) {
+		border-radius: 0.25rem;
+		background-color: color-mix(in oklch, var(--color-base-content) 10%, transparent);
+		padding: 0.1em 0.3em;
+		font-size: 0.9em;
+		font-family: var(--font-mono, ui-monospace, monospace);
+	}
+
+	.note-title :global(del) {
+		opacity: 0.7;
+	}
+</style>

@@ -5,6 +5,7 @@ import { config } from '$lib/config';
 import { and, eq, sql, isNull, desc, inArray } from 'drizzle-orm';
 import { getOrgRole } from '$lib/server/org';
 import { deleteFolder } from '$lib/server/storage';
+import { renderTitleMarkdown } from '$lib/server/title-markdown';
 import type { Actions, PageServerLoad } from './$types';
 
 const PAGE_SIZE = 20;
@@ -73,7 +74,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const totalPages = Math.ceil(totalNotes / PAGE_SIZE);
 
 	return {
-		notes,
+		// `titleHtml` is the title's inline markdown, rendered and allowlisted here
+		// rather than in the component: it is injected with {@html}, so it must be
+		// produced by the server-side sanitizer and never assembled on the client.
+		// The raw `title` stays on the row for aria-labels and confirmation copy.
+		notes: notes.map((note) => ({ ...note, titleHtml: renderTitleMarkdown(note.title) })),
 		currentPage: page,
 		totalPages,
 		totalNotes,
