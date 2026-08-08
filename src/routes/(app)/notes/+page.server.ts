@@ -15,7 +15,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	const page = Number(url.searchParams.get('page') ?? '1');
-	const searchId = url.searchParams.get('search');
 
 	/**
 	 * Workspace scoping (sidebar company switcher). `?org=<slug>` shows that
@@ -55,13 +54,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		// Personal: this user's notes that aren't filed under any company.
 		whereClauses.push(eq(table.note.userId, locals.user.id), isNull(table.note.orgId));
 	}
-	if (searchId) {
-		const id = parseInt(searchId, 10);
-		if (!isNaN(id)) {
-			whereClauses.push(eq(table.note.id, id));
-		}
-	}
-
 	const notesQuery = db
 		.select()
 		.from(table.note)
@@ -85,7 +77,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		currentPage: page,
 		totalPages,
 		totalNotes,
-		search: searchId ?? '',
 		activeOrg
 	};
 };

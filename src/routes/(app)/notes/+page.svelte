@@ -8,7 +8,7 @@
 	import { page } from '$app/stores';
 	import { formatDate } from '$lib/helpers';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { FolderInput, Pencil, Search, Trash2 } from 'lucide-svelte';
+	import { FolderInput, MoreVertical, Pencil, Trash2 } from 'lucide-svelte';
 	import type { Note } from '$lib/server/db/schema';
 
 	let { data } = $props();
@@ -39,7 +39,7 @@
 	/**
 	 * Multi-select. Keyed by publicId (what the bulk actions submit). Pruned
 	 * against the visible rows so a selection can't outlive the notes it refers
-	 * to — after a move, delete, page change or search.
+	 * to — after a move, delete, or page change.
 	 */
 	const selectedIds = new SvelteSet<string>();
 	let selected = $derived(visibleNotes.filter((n) => selectedIds.has(n.publicId)));
@@ -47,11 +47,20 @@
 	// Header checkbox shows a dash when the selection is a strict subset.
 	let someSelected = $derived(selected.length > 0 && !allSelected);
 
+	/**
+	 * publicId of the row whose mobile action menu is open, or null. Only one is
+	 * ever open — opening another replaces it.
+	 */
+	let openMenuId = $state<string | null>(null);
+
 	$effect(() => {
 		const present = new Set(visibleNotes.map((n) => n.publicId));
 		for (const id of selectedIds) {
 			if (!present.has(id)) selectedIds.delete(id);
 		}
+		// A menu whose row has gone (moved, deleted, page change) would otherwise
+		// stay mounted with no anchor.
+		if (openMenuId !== null && !present.has(openMenuId)) openMenuId = null;
 	});
 
 	function toggleOne(publicId: string) {
@@ -272,20 +281,10 @@
 		return note.userId === data.user.id;
 	}
 
-	/** The notes list for the current workspace with no search applied. */
-	function clearSearchURL() {
-		const base = resolve('/(app)/notes');
-		return data.activeOrg ? `${base}?org=${data.activeOrg.slug}` : base;
-	}
-
-	function getSearchURL(p: number) {
+	/** Same URL with `page` swapped, preserving `org` and anything else present. */
+	function getPageURL(p: number) {
 		const url = new URL($page.url);
 		url.searchParams.set('page', p.toString());
-		if (data.search) {
-			url.searchParams.set('search', data.search);
-		} else {
-			url.searchParams.delete('search');
-		}
 		return url.href;
 	}
 </script>
@@ -362,39 +361,9 @@
 		{/if}
 	</div>
 
-	<!--
-		Search sits directly above the list it filters. The submit button is gone —
-		Enter submits, and the magnifier is decoration inside the field, which keeps
-		one control on the row instead of two.
-	-->
-	<form method="GET" class="mt-5">
-		<!-- Keep the active workspace when searching; a bare GET would drop it. -->
-		{#if data.activeOrg}
-			<input type="hidden" name="org" value={data.activeOrg.slug} />
-		{/if}
-		<label class="input input-sm input-bordered flex w-full items-center gap-2 sm:max-w-xs">
-			<Search class="h-4 w-4 flex-shrink-0 text-base-content/40" />
-			<input
-				type="search"
-				name="search"
-				placeholder="Search by note ID"
-				class="grow"
-				value={data.search}
-			/>
-		</label>
-	</form>
-
 	{#if visibleNotes.length === 0}
 		<div class="mt-10 py-12 text-center">
-			<p class="text-sm text-base-content/60">
-				{data.search ? 'No notes match that ID.' : 'Nothing here yet.'}
-			</p>
-			{#if data.search}
-				<!-- Drops `search` but keeps the workspace, so clearing doesn't also
-				     bounce a company view back to Personal. -->
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-				<a href={clearSearchURL()} class="btn btn-ghost btn-sm mt-3">Clear search</a>
-			{/if}
+			<p class="text-sm text-base-content/60">Nothing here yet.</p>
 		</div>
 	{:else}
 		<!--
@@ -403,11 +372,11 @@
 			table returns, since scanning many notes by column is what it's good at.
 		-->
 		<ul class="mt-3 divide-y divide-base-300 border-y border-base-300 md:hidden">
-			{#each visibleNotes as note (note.id)}
-				<li class="flex items-start gap-3 py-3" class:bg-base-200={selectedIds.has(note.publicId)}>
+			{#each visibleNotes as note, i (note.id)}
+				<li class="flex items-center gap-3 py-3" class:bg-base-200={selectedIds.has(note.publicId)}>
 					<input
 						type="checkbox"
-						class="checkbox checkbox-sm mt-1 flex-shrink-0"
+						class="checkbox checkbox-sm flex-shrink-0"
 						aria-label="Select note {note.title || 'Untitled'}"
 						checked={selectedIds.has(note.publicId)}
 						onchange={() => toggleOne(note.publicId)}
@@ -422,39 +391,88 @@
 						</div>
 					</div>
 					<!--
-						Full-size hit targets on touch, and always visible — a hover-reveal
-						row would be unusable on a phone.
+						Three inline buttons cost ~120px of a phone's width, squeezing the
+						title into a stub. One trigger collapses that to ~40px and gives the
+						row back to the title.
+
+						`dropdown-end` right-aligns the menu under the trigger, which sits at
+						the row's right edge — without it the menu would hang off-screen.
+						The last rows open upward instead, so a menu near the bottom of a
+						full page isn't clipped by the viewport.
 					-->
-					<div class="flex flex-shrink-0 items-center">
-						{#if canEdit(note)}
-							<a
-								href={resolve('/(app)/notes/[id]/edit', { id: note.publicId })}
-								class="btn btn-ghost btn-sm btn-square"
-								aria-label="Edit {note.title || 'Untitled'}"
-							>
-								<Pencil class="h-4 w-4" />
-							</a>
-						{/if}
+					<div
+						class="dropdown dropdown-end flex-shrink-0"
+						class:dropdown-top={i >= visibleNotes.length - 2 && visibleNotes.length > 3}
+					>
 						<button
 							type="button"
 							class="btn btn-ghost btn-sm btn-square"
-							aria-label="Move {note.title || 'Untitled'}"
-							onclick={() => openMoveModal(note)}
+							aria-label="Actions for {note.title || 'Untitled'}"
+							aria-haspopup="menu"
+							aria-expanded={openMenuId === note.publicId}
+							onclick={() => (openMenuId = openMenuId === note.publicId ? null : note.publicId)}
 						>
-							<FolderInput class="h-4 w-4" />
+							<MoreVertical class="h-4 w-4" />
 						</button>
-						<button
-							type="button"
-							class="btn btn-ghost btn-sm btn-square text-error"
-							aria-label="Delete {note.title || 'Untitled'}"
-							onclick={() => {
-								noteToDelete = note;
-								hardDeleteArmed = false;
-								deleteModal.showModal();
-							}}
-						>
-							<Trash2 class="h-4 w-4" />
-						</button>
+
+						{#if openMenuId === note.publicId}
+							<!--
+								Explicit open state + a click-away overlay, matching
+								CompanySwitcher and the sidebar account menu. DaisyUI's
+								CSS-only `:focus-within` dropdown is unreliable on touch —
+								tapping an item can blur the trigger and close the menu before
+								the click lands.
+							-->
+							<button
+								type="button"
+								class="fixed inset-0 z-10 cursor-default"
+								aria-label="Close actions menu"
+								onclick={() => (openMenuId = null)}
+							></button>
+							<ul
+								class="menu dropdown-content z-20 w-44 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
+							>
+								{#if canEdit(note)}
+									<li>
+										<a
+											href={resolve('/(app)/notes/[id]/edit', { id: note.publicId })}
+											class="flex items-center gap-2"
+										>
+											<Pencil class="h-4 w-4" />
+											Edit
+										</a>
+									</li>
+								{/if}
+								<li>
+									<button
+										type="button"
+										class="flex items-center gap-2"
+										onclick={() => {
+											openMenuId = null;
+											openMoveModal(note);
+										}}
+									>
+										<FolderInput class="h-4 w-4" />
+										Move
+									</button>
+								</li>
+								<li>
+									<button
+										type="button"
+										class="flex items-center gap-2 text-error"
+										onclick={() => {
+											openMenuId = null;
+											noteToDelete = note;
+											hardDeleteArmed = false;
+											deleteModal.showModal();
+										}}
+									>
+										<Trash2 class="h-4 w-4" />
+										Delete
+									</button>
+								</li>
+							</ul>
+						{/if}
 					</div>
 				</li>
 			{/each}
@@ -562,7 +580,7 @@
 		<div class="mt-6 flex items-center justify-center gap-4 text-sm">
 			{#if data.currentPage > 1}
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-				<a href={getSearchURL(data.currentPage - 1)} class="btn btn-ghost btn-sm">Previous</a>
+				<a href={getPageURL(data.currentPage - 1)} class="btn btn-ghost btn-sm">Previous</a>
 			{:else}
 				<span class="btn btn-ghost btn-sm btn-disabled">Previous</span>
 			{/if}
@@ -571,7 +589,7 @@
 			</span>
 			{#if data.currentPage < data.totalPages}
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-				<a href={getSearchURL(data.currentPage + 1)} class="btn btn-ghost btn-sm">Next</a>
+				<a href={getPageURL(data.currentPage + 1)} class="btn btn-ghost btn-sm">Next</a>
 			{:else}
 				<span class="btn btn-ghost btn-sm btn-disabled">Next</span>
 			{/if}
