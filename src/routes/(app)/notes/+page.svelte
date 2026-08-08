@@ -6,8 +6,9 @@
 	type SubmitFunction = NonNullable<Parameters<typeof enhance>[1]>;
 	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
-	import { formatDateTime } from '$lib/helpers';
+	import { formatDate } from '$lib/helpers';
 	import { SvelteSet } from 'svelte/reactivity';
+	import { FolderInput, Pencil, Search, Trash2 } from 'lucide-svelte';
 	import type { Note } from '$lib/server/db/schema';
 
 	let { data } = $props();
@@ -262,6 +263,21 @@
 		moveModal.showModal();
 	}
 
+	/**
+	 * A note's own page: its editor when we authored it, otherwise the public view
+	 * (a colleague's note in a shared company library isn't ours to edit) or the
+	 * read-only modal when it's private and so has no public URL.
+	 */
+	function canEdit(note: (typeof data.notes)[0]) {
+		return note.userId === data.user.id;
+	}
+
+	/** The notes list for the current workspace with no search applied. */
+	function clearSearchURL() {
+		const base = resolve('/(app)/notes');
+		return data.activeOrg ? `${base}?org=${data.activeOrg.slug}` : base;
+	}
+
 	function getSearchURL(p: number) {
 		const url = new URL($page.url);
 		url.searchParams.set('page', p.toString());
@@ -275,196 +291,293 @@
 </script>
 
 <div class="mx-auto max-w-4xl text-base-content">
-	<section class="container mx-auto py-4">
-		<div class="flex items-start gap-3">
-			<h1 class="flex-1 text-2xl leading-tight font-bold text-base-content md:text-3xl">
-				{data.activeOrg ? `${data.activeOrg.name} notes` : 'My notes'}
-			</h1>
-			<!--
-				Creates the note server-side then redirects into the editor, so the
-				editor always opens against a real note (it needs an id for autosave,
-				preview, and asset upload).
-			-->
-			<form method="POST" action="?/create" use:enhance={handleCreate}>
-				<button type="submit" class="btn btn-primary btn-sm" disabled={creating}>
-					{creating ? 'Creating…' : 'New note'}
-				</button>
-			</form>
-		</div>
-		<p class="mt-1 text-sm text-base-content/60">
-			{#if data.activeOrg}
-				Everything published to <code class="rounded bg-base-200 px-1"
-					>mdpubs-company: {data.activeOrg.slug}</code
-				> by any member.
-			{:else}
-				Your personal notes — not filed under a company.
-			{/if}
-		</p>
-	</section>
-
-	<section class="container mx-auto">
-		<div class="mb-4">
-			<form method="GET" class="flex gap-2">
-				<!-- Keep the active workspace when searching; a bare GET would drop it. -->
-				{#if data.activeOrg}
-					<input type="hidden" name="org" value={data.activeOrg.slug} />
-				{/if}
-				<input
-					type="search"
-					name="search"
-					placeholder="Search by Note ID"
-					class="input input-bordered w-full max-w-xs"
-					value={data.search}
-				/>
-				<button type="submit" class="btn btn-primary">Search</button>
-			</form>
-		</div>
-
-		{#if selected.length > 0}
-			<div
-				class="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-base-300 bg-base-200 px-4 py-2"
-			>
-				<span class="text-sm font-medium">
-					{selected.length} selected
-				</span>
-				<button type="button" class="btn btn-ghost btn-xs" onclick={() => selectedIds.clear()}>
-					Clear
-				</button>
-				<div class="ml-auto flex gap-2">
-					<button
-						type="button"
-						class="btn btn-sm"
-						onclick={() => {
-							bulkMoveTargetOrgId = canBulkMovePersonal ? '' : (data.orgs[0]?.id ?? '');
-							bulkMoveModal.showModal();
-						}}
-					>
-						Move
-					</button>
-					<button
-						type="button"
-						class="btn btn-error btn-sm"
-						onclick={() => {
-							bulkHardDeleteArmed = false;
-							bulkDeleteModal.showModal();
-						}}
-					>
-						Delete
-					</button>
-				</div>
-			</div>
+	<header class="flex flex-wrap items-center gap-x-3 gap-y-2 py-1">
+		<h1 class="text-xl leading-tight font-semibold tracking-tight md:text-2xl">
+			{data.activeOrg ? data.activeOrg.name : 'My notes'}
+		</h1>
+		{#if data.totalNotes > 0}
+			<span class="text-sm text-base-content/40">{data.totalNotes}</span>
 		{/if}
 
-		<div class="overflow-x-auto">
-			<table class="table">
-				<thead>
-					<tr>
-						<th class="w-0">
+		<!--
+			Creates the note server-side then redirects into the editor, so the
+			editor always opens against a real note (it needs an id for autosave,
+			preview, and asset upload).
+		-->
+		<form method="POST" action="?/create" use:enhance={handleCreate} class="ml-auto">
+			<button type="submit" class="btn btn-primary btn-sm" disabled={creating}>
+				{creating ? 'Creating…' : 'New note'}
+			</button>
+		</form>
+	</header>
+
+	<!--
+		The workspace explainer is orientation, not something to re-read on every
+		visit, so it stays out of the way at the top and never competes with the
+		list on a phone screen.
+	-->
+	<p class="mt-1 text-sm text-base-content/50">
+		{#if data.activeOrg}
+			Shared library — everything filed under <code class="rounded bg-base-200 px-1"
+				>{data.activeOrg.slug}</code
+			>.
+		{:else}
+			Your personal notes.
+		{/if}
+	</p>
+
+	<!--
+		Search sits directly above the list it filters. The submit button is gone —
+		Enter submits, and the magnifier is decoration inside the field, which keeps
+		one control on the row instead of two.
+	-->
+	<form method="GET" class="mt-5">
+		<!-- Keep the active workspace when searching; a bare GET would drop it. -->
+		{#if data.activeOrg}
+			<input type="hidden" name="org" value={data.activeOrg.slug} />
+		{/if}
+		<label class="input input-sm input-bordered flex w-full items-center gap-2 sm:max-w-xs">
+			<Search class="h-4 w-4 flex-shrink-0 text-base-content/40" />
+			<input
+				type="search"
+				name="search"
+				placeholder="Search by note ID"
+				class="grow"
+				value={data.search}
+			/>
+		</label>
+	</form>
+
+	{#if selected.length > 0}
+		<!--
+			Sticky so the actions stay reachable while scrolling a long selection on a
+			phone, where the bar would otherwise scroll off the top.
+		-->
+		<div
+			class="sticky top-14 z-10 mt-3 flex items-center gap-2 rounded-lg border border-base-300 bg-base-100 px-3 py-2 shadow-sm lg:top-2"
+		>
+			<span class="text-sm font-medium">{selected.length} selected</span>
+			<button type="button" class="btn btn-ghost btn-xs" onclick={() => selectedIds.clear()}>
+				Clear
+			</button>
+			<div class="ml-auto flex gap-2">
+				<button
+					type="button"
+					class="btn btn-ghost btn-sm"
+					onclick={() => {
+						bulkMoveTargetOrgId = canBulkMovePersonal ? '' : (data.orgs[0]?.id ?? '');
+						bulkMoveModal.showModal();
+					}}
+				>
+					Move
+				</button>
+				<button
+					type="button"
+					class="btn btn-ghost btn-sm text-error"
+					onclick={() => {
+						bulkHardDeleteArmed = false;
+						bulkDeleteModal.showModal();
+					}}
+				>
+					Delete
+				</button>
+			</div>
+		</div>
+	{/if}
+
+	{#if visibleNotes.length === 0}
+		<div class="mt-10 py-12 text-center">
+			<p class="text-sm text-base-content/60">
+				{data.search ? 'No notes match that ID.' : 'Nothing here yet.'}
+			</p>
+			{#if data.search}
+				<!-- Drops `search` but keeps the workspace, so clearing doesn't also
+				     bounce a company view back to Personal. -->
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+				<a href={clearSearchURL()} class="btn btn-ghost btn-sm mt-3">Clear search</a>
+			{/if}
+		</div>
+	{:else}
+		<!--
+			Two presentations of one list. Below `md` a table can only be reached by
+			horizontal scrolling, so each note becomes a stacked row; from `md` up the
+			table returns, since scanning many notes by column is what it's good at.
+		-->
+		<ul class="mt-3 divide-y divide-base-300 border-y border-base-300 md:hidden">
+			{#each visibleNotes as note (note.id)}
+				<li class="flex items-start gap-3 py-3" class:bg-base-200={selectedIds.has(note.publicId)}>
+					<input
+						type="checkbox"
+						class="checkbox checkbox-sm mt-1 flex-shrink-0"
+						aria-label="Select note {note.title || 'Untitled'}"
+						checked={selectedIds.has(note.publicId)}
+						onchange={() => toggleOne(note.publicId)}
+					/>
+					<div class="min-w-0 flex-1">
+						{@render noteTitle(note)}
+						<div class="mt-1 flex items-center gap-2 text-xs text-base-content/50">
+							<span>{formatDate(note.updatedAt)}</span>
+							{#if note.isPrivate}
+								<span>· Private</span>
+							{/if}
+						</div>
+					</div>
+					<!--
+						Full-size hit targets on touch, and always visible — a hover-reveal
+						row would be unusable on a phone.
+					-->
+					<div class="flex flex-shrink-0 items-center">
+						{#if canEdit(note)}
+							<a
+								href={resolve('/(app)/notes/[id]/edit', { id: note.publicId })}
+								class="btn btn-ghost btn-sm btn-square"
+								aria-label="Edit {note.title || 'Untitled'}"
+							>
+								<Pencil class="h-4 w-4" />
+							</a>
+						{/if}
+						<button
+							type="button"
+							class="btn btn-ghost btn-sm btn-square"
+							aria-label="Move {note.title || 'Untitled'}"
+							onclick={() => openMoveModal(note)}
+						>
+							<FolderInput class="h-4 w-4" />
+						</button>
+						<button
+							type="button"
+							class="btn btn-ghost btn-sm btn-square text-error"
+							aria-label="Delete {note.title || 'Untitled'}"
+							onclick={() => {
+								noteToDelete = note;
+								hardDeleteArmed = false;
+								deleteModal.showModal();
+							}}
+						>
+							<Trash2 class="h-4 w-4" />
+						</button>
+					</div>
+				</li>
+			{/each}
+		</ul>
+
+		<table class="mt-3 hidden w-full table-fixed border-collapse text-sm md:table">
+			<!--
+				Fixed layout with explicit widths on every column but the title: the
+				title then absorbs all remaining space and the meta columns stop
+				jittering between pages as ID and date lengths change.
+			-->
+			<thead>
+				<tr class="border-b border-base-300 text-left text-xs font-medium text-base-content/50">
+					<th class="w-9 py-2 pl-1 font-medium">
+						<input
+							type="checkbox"
+							class="checkbox checkbox-sm align-middle"
+							aria-label="Select all notes"
+							checked={allSelected}
+							indeterminate={someSelected}
+							onchange={toggleAll}
+						/>
+					</th>
+					<th class="py-2 pr-3 font-medium">Title</th>
+					<th class="w-24 py-2 pr-3 font-medium">Visibility</th>
+					<th class="w-28 py-2 pr-3 font-medium">Updated</th>
+					<th class="w-28 py-2 font-medium"><span class="sr-only">Actions</span></th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each visibleNotes as note (note.id)}
+					<!--
+						`group` drives the hover-reveal on the action buttons: quiet rows
+						while scanning, controls the moment the pointer lands on one. They
+						stay in the DOM (opacity only) so tabbing still reaches them, and
+						`focus-within` shows them for keyboard users.
+					-->
+					<tr
+						class="group border-b border-base-300/60 hover:bg-base-200/50"
+						class:bg-base-200={selectedIds.has(note.publicId)}
+					>
+						<td class="py-2 pl-1">
 							<input
 								type="checkbox"
-								class="checkbox checkbox-sm"
-								aria-label="Select all notes"
-								checked={allSelected}
-								indeterminate={someSelected}
-								disabled={visibleNotes.length === 0}
-								onchange={toggleAll}
+								class="checkbox checkbox-sm align-middle"
+								aria-label="Select note {note.title || 'Untitled'}"
+								checked={selectedIds.has(note.publicId)}
+								onchange={() => toggleOne(note.publicId)}
 							/>
-						</th>
-						<th>ID</th>
-						<th>Title</th>
-						<th>Updated At</th>
-						<th>Is Private?</th>
-						<th class="text-right">Actions</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each visibleNotes as note (note.id)}
-						<tr class:bg-base-200={selectedIds.has(note.publicId)}>
-							<td class="w-0">
-								<input
-									type="checkbox"
-									class="checkbox checkbox-sm"
-									aria-label="Select note {note.title || 'Untitled'}"
-									checked={selectedIds.has(note.publicId)}
-									onchange={() => toggleOne(note.publicId)}
-								/>
-							</td>
-							<td>{note.id}</td>
-							<td>
-								{#if note.isPrivate}
-									<button
-										type="button"
-										class="link p-0 text-left"
-										onclick={() => showViewModal(note)}>{note.title || 'Untitled'}</button
-									>
-								{:else}
-									<a
-										href={resolve('/(public)/[id]', { id: note.publicId })}
-										class="link"
-										target="_blank"
-										rel="noopener noreferrer">{note.title || 'Untitled'}</a
-									>
-								{/if}
-							</td>
-							<td>{formatDateTime(note.updatedAt)}</td>
-							<td>
-								{@render visibilityBadge(note)}
-							</td>
-							<td class="text-right whitespace-nowrap">
+						</td>
+						<td class="min-w-0 py-2 pr-3">{@render noteTitle(note)}</td>
+						<td class="py-2 pr-3 text-xs text-base-content/50">
+							{note.isPrivate ? 'Private' : 'Public'}
+						</td>
+						<td class="py-2 pr-3 text-xs whitespace-nowrap text-base-content/50">
+							{formatDate(note.updatedAt)}
+						</td>
+						<td class="py-2">
+							<div
+								class="flex items-center justify-end opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+							>
 								<!--
-									Editing is author-only (the editor's load enforces the same rule),
-									so a colleague's note in a shared company library shows no Edit
-									button rather than a link to a 404.
+									Editing is author-only (the editor's load enforces the same
+									rule), so a colleague's note in a shared company library shows
+									no Edit button rather than a link to a 404.
 								-->
-								{#if note.userId === data.user.id}
+								{#if canEdit(note)}
 									<a
 										href={resolve('/(app)/notes/[id]/edit', { id: note.publicId })}
-										class="btn btn-sm">Edit</a
+										class="btn btn-ghost btn-xs btn-square"
+										aria-label="Edit {note.title || 'Untitled'}"
 									>
+										<Pencil class="h-3.5 w-3.5" />
+									</a>
 								{/if}
-								<button type="button" class="btn btn-sm" onclick={() => openMoveModal(note)}>
-									Move
+								<button
+									type="button"
+									class="btn btn-ghost btn-xs btn-square"
+									aria-label="Move {note.title || 'Untitled'}"
+									onclick={() => openMoveModal(note)}
+								>
+									<FolderInput class="h-3.5 w-3.5" />
 								</button>
 								<button
 									type="button"
-									class="btn btn-error btn-sm"
+									class="btn btn-ghost btn-xs btn-square text-error"
+									aria-label="Delete {note.title || 'Untitled'}"
 									onclick={() => {
 										noteToDelete = note;
 										hardDeleteArmed = false;
 										deleteModal.showModal();
 									}}
 								>
-									Delete
+									<Trash2 class="h-3.5 w-3.5" />
 								</button>
-							</td>
-						</tr>
-					{:else}
-						<tr>
-							<td colspan="6" class="text-center">No notes found.</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
+							</div>
+						</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	{/if}
 
-		{#if data.totalPages > 1}
-			<div class="join mt-4 flex justify-center">
-				{#if data.currentPage > 1}
-					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-					<a href={getSearchURL(data.currentPage - 1)} class="join-item btn">«</a>
-				{:else}
-					<button class="join-item btn btn-disabled">«</button>
-				{/if}
-				<button class="join-item btn">Page {data.currentPage} of {data.totalPages}</button>
-				{#if data.currentPage < data.totalPages}
-					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-					<a href={getSearchURL(data.currentPage + 1)} class="join-item btn">»</a>
-				{:else}
-					<button class="join-item btn btn-disabled">»</button>
-				{/if}
-			</div>
-		{/if}
-	</section>
+	{#if data.totalPages > 1}
+		<div class="mt-6 flex items-center justify-center gap-4 text-sm">
+			{#if data.currentPage > 1}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+				<a href={getSearchURL(data.currentPage - 1)} class="btn btn-ghost btn-sm">Previous</a>
+			{:else}
+				<span class="btn btn-ghost btn-sm btn-disabled">Previous</span>
+			{/if}
+			<span class="text-xs text-base-content/50">
+				{data.currentPage} / {data.totalPages}
+			</span>
+			{#if data.currentPage < data.totalPages}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+				<a href={getSearchURL(data.currentPage + 1)} class="btn btn-ghost btn-sm">Next</a>
+			{:else}
+				<span class="btn btn-ghost btn-sm btn-disabled">Next</span>
+			{/if}
+		</div>
+	{/if}
 </div>
 
 {#if toast}
@@ -753,6 +866,32 @@
 		</form>
 	{/if}
 </dialog>
+
+{#snippet noteTitle(note: (typeof data.notes)[0])}
+	<!--
+		A private note has no public URL, so its title opens the read-only modal
+		instead. Both render as plain text that only underlines on hover — a list of
+		blue underlined links reads as noise when every row is one.
+	-->
+	{#if note.isPrivate}
+		<button
+			type="button"
+			class="block w-full truncate text-left font-medium hover:underline"
+			onclick={() => showViewModal(note)}
+		>
+			{note.title || 'Untitled'}
+		</button>
+	{:else}
+		<a
+			href={resolve('/(public)/[id]', { id: note.publicId })}
+			class="block truncate font-medium hover:underline"
+			target="_blank"
+			rel="noopener noreferrer"
+		>
+			{note.title || 'Untitled'}
+		</a>
+	{/if}
+{/snippet}
 
 {#snippet visibilityBadge(note: Note)}
 	<div class={`badge ${note?.isPrivate ? 'badge-neutral' : 'badge-primary'}  badge-outline`}>
