@@ -3,18 +3,15 @@
 @plugin '@tailwindcss/typography';
 
 /*
-	`night` needs `--prefersdark` to be reachable at all: DaisyUI only emits it
-	under `[data-theme="night"]`, and nothing in the app sets that attribute, so
-	before this a dark-preferring browser silently got the *light* palette. That
-	mismatch is what made buttons and tabs look washed out — they were light-theme
-	colours sitting on a dark-rendered page.
-
-	(The old list also named `light` twice, so the third entry was dead.)
+	`light` is the default for everyone, including browsers that prefer dark —
+	`night` is opt-in and only applies under an explicit `[data-theme="night"]`.
+	(Don't add `--prefersdark` back: that hands a dark-preferring browser the
+	night palette automatically, which is not what we want as the baseline.)
 */
 @plugin 'daisyui' {
 	themes:
 		light --default,
-		night --prefersdark;
+		night;
 }
 
 /*
