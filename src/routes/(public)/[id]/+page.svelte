@@ -26,6 +26,7 @@
 	let activeSection = $state('');
 	let scrollCleanup: (() => void) | null = null;
 	let clickOutsideCleanup: (() => void) | null = null;
+	let hashChangeCleanup: (() => void) | null = null;
 
 	// State for quoting
 	let quoteButtonVisible = $state(false);
@@ -334,6 +335,9 @@
 			// Update active section if changed
 			if (activeId && activeId !== activeSection) {
 				activeSection = activeId;
+				if (Date.now() >= suppressSpyHashUntil) {
+					syncHash((activeId as string).substring(1));
+				}
 			}
 		};
 
@@ -391,6 +395,9 @@
 		if (clickOutsideCleanup) {
 			clickOutsideCleanup();
 		}
+		if (hashChangeCleanup) {
+			hashChangeCleanup();
+		}
 		if (quoteListenersCleanup) {
 			quoteListenersCleanup();
 		}
@@ -410,10 +417,39 @@
 
 		// Add click event listeners for anchor links
 		addSectionLinkHandlers();
+
+		// Respond to the hash being changed outside our own navigation
+		// (address bar edit, external link to the same page).
+		const onHashChange = () => {
+			const id = window.location.hash.substring(1);
+			if (!id) return;
+			activeSection = `#${id}`;
+			scrollToSection(id);
+		};
+		window.addEventListener('hashchange', onHashChange);
+		hashChangeCleanup = () => window.removeEventListener('hashchange', onHashChange);
+	}
+
+	// While a programmatic smooth scroll is in flight the scroll spy sees
+	// intermediate sections, so it must not overwrite the target hash.
+	let suppressSpyHashUntil = 0;
+
+	// Reflect the current section in the URL without adding history entries or
+	// triggering the browser's own jump-to-anchor behaviour.
+	function syncHash(sectionId: string | null) {
+		if (typeof window === 'undefined') return;
+		const hash = sectionId ? `#${sectionId}` : '';
+		if (window.location.hash === hash) return;
+		const url = window.location.pathname + window.location.search + hash;
+		window.history.replaceState(window.history.state, '', url);
 	}
 
 	function scrollToSection(sectionId: string) {
 		const element = safeQueryById(sectionId);
+		if (element) {
+			suppressSpyHashUntil = Date.now() + 1000;
+			syncHash(sectionId);
+		}
 
 		if (element) {
 			const isMobile = window.innerWidth < 1024;
