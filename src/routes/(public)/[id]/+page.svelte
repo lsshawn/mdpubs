@@ -839,15 +839,18 @@
 				</a>
 				<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			{/if}
-			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-			<a
-				href="https://mdpubs.com"
-				target="_blank"
-				rel="noopener"
-				class="inline-flex items-center rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-lg ring-1 ring-gray-200 transition-colors hover:text-gray-900"
-			>
-				Hosted on MdPubs
-			</a>
+			<!-- Omitted on org custom domains (whitelabelled), same as the footer below. -->
+			{#if !data.isCustomDomain}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+				<a
+					href="https://mdpubs.com"
+					target="_blank"
+					rel="noopener"
+					class="inline-flex items-center rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-lg ring-1 ring-gray-200 transition-colors hover:text-gray-900"
+				>
+					Hosted on MdPubs
+				</a>
+			{/if}
 		</div>
 	</div>
 {:else}
