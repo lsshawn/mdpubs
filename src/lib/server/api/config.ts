@@ -21,8 +21,27 @@ export const config = {
 	htmlPub: {
 		// Origins allowed to frame raw HTML pubs (CSP frame-ancestors). Override via
 		// PUBLIC_UI_ORIGIN (space-separated) per-env.
+		//
+		// An HTML pub renders as an iframe pointing at /api/notes/:id/raw, so every
+		// origin a pub can be VIEWED on must be listed here or the browser refuses
+		// to display the frame (blank iframe + a console CSP error, no server error).
+		// That includes each branded custom domain, which is why the house domains
+		// are in the default rather than only on mdpubs.com.
+		//
+		// Adding a new tenant domain is a manual step: extend PUBLIC_UI_ORIGIN in
+		// wrangler.jsonc and redeploy. Until that happens, HTML pubs on the new
+		// domain render blank while markdown pubs (no iframe) look fine.
 		get frameAncestor(): string {
-			return env.PUBLIC_UI_ORIGIN || 'https://mdpubs.com https://www.mdpubs.com';
+			return (
+				env.PUBLIC_UI_ORIGIN ||
+				[
+					'https://mdpubs.com',
+					'https://www.mdpubs.com',
+					// Branded customer domains (Cloudflare for SaaS custom hostnames).
+					'https://doc.carbongpt.ai',
+					'https://doc.108labs.ai'
+				].join(' ')
+			);
 		}
 	}
 } as const;

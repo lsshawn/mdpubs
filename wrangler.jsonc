@@ -65,6 +65,14 @@
 		// (SaaS routes via the zone Fallback Origin setting, not the customer's
 		// CNAME target), so re-pointing them is cleanup, not a break-fix.
 		"PUBLIC_CNAME_TARGET": "origin.mdpubs.com",
+		// Origins allowed to frame raw HTML pubs (CSP frame-ancestors on
+		// /api/notes/:id/raw). Space-separated. An HTML pub is rendered in an iframe,
+		// so EVERY branded domain a pub can be opened on must appear here — a missing
+		// entry shows a blank iframe with only a console CSP error to explain it.
+		// Markdown pubs are unaffected (no iframe). Add a tenant's domain here and
+		// redeploy when onboarding it. Mirrors the default in
+		// src/lib/server/api/config.ts; set explicitly so prod is greppable.
+		"PUBLIC_UI_ORIGIN": "https://mdpubs.com https://www.mdpubs.com https://doc.carbongpt.ai https://doc.108labs.ai",
 		// Public base URL for note images. The R2 bucket `neonote` must be connected
 		// to this custom domain (R2 → Settings → Public access → Connect Domain).
 		// imageMap stores `${PUBLIC_IMG_BASE}/<key>`; delivery resizes via Cloudflare
