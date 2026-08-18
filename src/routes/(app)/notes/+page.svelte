@@ -5,10 +5,12 @@
 	// `enhance`'s own signature so it tracks whatever the installed version uses.
 	type SubmitFunction = NonNullable<Parameters<typeof enhance>[1]>;
 	import { resolve } from '$app/paths';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { untrack } from 'svelte';
 	import { formatDate } from '$lib/helpers';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { FolderInput, MoreVertical, Pencil, Trash2 } from 'lucide-svelte';
+	import { FolderInput, MoreVertical, Pencil, Search, Trash2, X } from 'lucide-svelte';
 	import type { Note } from '$lib/server/db/schema';
 
 	let { data } = $props();
@@ -141,7 +143,9 @@
 		};
 	};
 
-	let noteToView: Note | null = $state(null);
+	// A list row, not a full `Note`: the load strips `content` (the whole body has
+	// no business in the list payload) and the modal fetches it over the API anyway.
+	let noteToView: (typeof data.notes)[0] | null = $state(null);
 	let viewModal: HTMLDialogElement;
 	type NoteContent = { html: string; content: string | null };
 	let noteContent = $state<NoteContent | null>(null);
@@ -281,11 +285,66 @@
 		return note.userId === data.user.id;
 	}
 
-	/** Same URL with `page` swapped, preserving `org` and anything else present. */
+	/** Same URL with `page` swapped, preserving `org`, `q`, and anything else present. */
 	function getPageURL(p: number) {
 		const url = new URL($page.url);
 		url.searchParams.set('page', p.toString());
 		return url.href;
+	}
+
+	/**
+	 * Search. The filtering itself is server-side (the list is paginated, so a
+	 * client-side filter would only ever see the current 20 rows); this input just
+	 * drives `?q=` and lets `load` re-run.
+	 *
+	 * Debounced rather than submitted, so results follow typing without a round
+	 * trip per keystroke. `keepFocus` is what makes that bearable — a bare goto
+	 * would move focus to the body mid-word — and `replaceState` keeps the back
+	 * button pointing at wherever the user came from instead of at every
+	 * intermediate query they typed through.
+	 */
+	// Seeded from the URL by the effect below rather than inline, which would only
+	// capture `data`'s initial value.
+	let searchInput = $state('');
+	let searchTimer: ReturnType<typeof setTimeout> | undefined;
+
+	// Keep the box in step when the query changes from outside it: a back/forward
+	// navigation, or clearing the search from the empty state.
+	$effect(() => {
+		const fromUrl = data.query ?? '';
+		untrack(() => {
+			// Mid-debounce the box is intentionally ahead of the URL; don't fight it.
+			if (searchTimer === undefined) searchInput = fromUrl;
+		});
+	});
+
+	function runSearch(value: string) {
+		const url = new URL($page.url);
+		if (value) url.searchParams.set('q', value);
+		else url.searchParams.delete('q');
+		// A narrower result set almost never has the page the user was on.
+		url.searchParams.delete('page');
+		// The destination is this same route with a different query, so there is no
+		// route id for `resolve` to take; navigating by mutated URL is what
+		// CompanySwitcher does for the `org` param for the same reason.
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		goto(url, { keepFocus: true, replaceState: true, noScroll: true });
+	}
+
+	function onSearchInput() {
+		clearTimeout(searchTimer);
+		const value = searchInput.trim();
+		searchTimer = setTimeout(() => {
+			searchTimer = undefined;
+			runSearch(value);
+		}, 250);
+	}
+
+	function clearSearch() {
+		clearTimeout(searchTimer);
+		searchTimer = undefined;
+		searchInput = '';
+		runSearch('');
 	}
 </script>
 
@@ -299,11 +358,59 @@
 		{/if}
 
 		<!--
+			`order-last` below `sm` drops the field onto its own full-width line under
+			the title and New-note button, where a search box is actually usable on a
+			phone; from `sm` up it sits inline and takes the slack between them.
+
+			A real <form> so Enter submits (and so it works with JS off): the GET
+			lands on this same page with `?q=`, which is exactly what the debounced
+			`goto` does. `org` rides along in a hidden field or the workspace would
+			reset to Personal on submit.
+		-->
+		<form
+			method="GET"
+			class="order-last w-full sm:order-none sm:ml-auto sm:w-56"
+			onsubmit={(e) => {
+				e.preventDefault();
+				clearTimeout(searchTimer);
+				searchTimer = undefined;
+				runSearch(searchInput.trim());
+			}}
+		>
+			{#if data.activeOrg}
+				<input type="hidden" name="org" value={data.activeOrg.slug} />
+			{/if}
+			<label class="input input-sm w-full">
+				<Search class="h-3.5 w-3.5 opacity-50" />
+				<input
+					type="search"
+					name="q"
+					class="grow"
+					placeholder="Search notes"
+					aria-label="Search notes by title or body"
+					autocomplete="off"
+					bind:value={searchInput}
+					oninput={onSearchInput}
+				/>
+				{#if searchInput}
+					<button
+						type="button"
+						class="opacity-50 hover:opacity-100"
+						aria-label="Clear search"
+						onclick={clearSearch}
+					>
+						<X class="h-3.5 w-3.5" />
+					</button>
+				{/if}
+			</label>
+		</form>
+
+		<!--
 			Creates the note server-side then redirects into the editor, so the
 			editor always opens against a real note (it needs an id for autosave,
 			preview, and asset upload).
 		-->
-		<form method="POST" action="?/create" use:enhance={handleCreate} class="ml-auto">
+		<form method="POST" action="?/create" use:enhance={handleCreate} class="ml-auto sm:ml-0">
 			<button type="submit" class="btn btn-primary btn-sm" disabled={creating}>
 				{creating ? 'Creating…' : 'New note'}
 			</button>
@@ -350,7 +457,10 @@
 			</div>
 		{:else}
 			<p class="truncate text-sm text-base-content/50">
-				{#if data.activeOrg}
+				{#if data.query}
+					{data.totalNotes}
+					{data.totalNotes === 1 ? 'result' : 'results'} for “{data.query}”
+				{:else if data.activeOrg}
 					Shared library — everything filed under <code class="rounded bg-base-200 px-1"
 						>{data.activeOrg.slug}</code
 					>.
@@ -363,7 +473,16 @@
 
 	{#if visibleNotes.length === 0}
 		<div class="mt-10 py-12 text-center">
-			<p class="text-sm text-base-content/60">Nothing here yet.</p>
+			{#if data.query}
+				<p class="text-sm text-base-content/60">
+					No notes match “{data.query}”.
+				</p>
+				<button type="button" class="btn btn-ghost btn-sm mt-2" onclick={clearSearch}>
+					Clear search
+				</button>
+			{:else}
+				<p class="text-sm text-base-content/60">Nothing here yet.</p>
+			{/if}
 		</div>
 	{:else}
 		<!--
@@ -383,6 +502,7 @@
 					/>
 					<div class="min-w-0 flex-1">
 						{@render noteTitle(note)}
+						{@render noteSnippet(note)}
 						<div class="mt-1 flex items-center gap-2 text-xs text-base-content/50">
 							<span>{formatDate(note.updatedAt)}</span>
 							{#if note.isPrivate}
@@ -523,14 +643,21 @@
 								onchange={() => toggleOne(note.publicId)}
 							/>
 						</td>
-						<td class="min-w-0 py-2 pr-3">{@render noteTitle(note)}</td>
-						<td class="py-2 pr-3 text-xs text-base-content/50">
+						<td class="min-w-0 py-2 pr-3 align-top">
+							{@render noteTitle(note)}{@render noteSnippet(note)}
+						</td>
+						<!--
+							`align-top` on the meta columns: a search result's title cell is
+							two lines taller than the others, and vertically centred dates
+							beside it read as belonging to the snippet rather than the row.
+						-->
+						<td class="py-2 pr-3 align-top text-xs text-base-content/50">
 							{note.isPrivate ? 'Private' : 'Public'}
 						</td>
-						<td class="py-2 pr-3 text-xs whitespace-nowrap text-base-content/50">
+						<td class="py-2 pr-3 align-top text-xs whitespace-nowrap text-base-content/50">
 							{formatDate(note.updatedAt)}
 						</td>
-						<td class="py-2">
+						<td class="py-2 align-top">
 							<div
 								class="flex items-center justify-end opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
 							>
@@ -884,6 +1011,35 @@
 	{/if}
 </dialog>
 
+{#snippet noteSnippet(note: (typeof data.notes)[0])}
+	<!--
+		Body excerpt, shown only while searching. Built server-side around the first
+		occurrence of the query, with matches wrapped in <mark>.
+
+		{@html} here is safe ONLY because highlightText escapes the body itself and
+		emits <mark> as the sole tag — a note body is unsanitised author markdown
+		with no allowlist behind it, so it must never be interpolated raw.
+
+		`line-clamp-2` is the two-line cap; the server already trims to roughly that
+		much, so the clamp is the guard for wide characters and narrow viewports
+		rather than the main limit.
+	-->
+	{#if note.snippetHtml}
+		<p class="note-snippet mt-0.5 line-clamp-2 text-xs leading-snug text-base-content/50">
+			<!--
+				A snippet with no <mark> in it needs to say why, or it reads as a broken
+				highlight. Two cases produce one: the query matched the title, or it
+				matched only metadata the prose doesn't repeat (a tag, a company slug).
+			-->
+			{#if note.snippetSource === 'title'}
+				<span class="mr-1 opacity-60">Title match ·</span>
+			{:else if note.snippetSource === 'metadata'}
+				<span class="mr-1 opacity-60">Tags ·</span>
+			{/if}{@html note.snippetHtml}
+		</p>
+	{/if}
+{/snippet}
+
 {#snippet noteTitle(note: (typeof data.notes)[0])}
 	<!--
 		A private note has no public URL, so its title opens the read-only modal
@@ -919,7 +1075,9 @@
 	{/if}
 {/snippet}
 
-{#snippet visibilityBadge(note: Note)}
+<!-- Only reads `isPrivate`, so it takes that rather than a whole `Note` — the
+	list rows no longer carry `content`. -->
+{#snippet visibilityBadge(note: Pick<Note, 'isPrivate'>)}
 	<div class={`badge ${note?.isPrivate ? 'badge-neutral' : 'badge-primary'}  badge-outline`}>
 		{note?.isPrivate ? 'private' : 'public'}
 	</div>
@@ -953,5 +1111,22 @@
 
 	.note-title :global(del) {
 		opacity: 0.7;
+	}
+
+	/*
+		Search-match highlight, in titles and body snippets alike. The browser
+		default is a fixed yellow that ignores the theme and goes unreadable in dark
+		mode, so both colours come from DaisyUI tokens instead.
+
+		A tint rather than a solid fill: at list density a saturated block on every
+		match reads as noise, and the snippet text is already dimmed to /50 — the
+		mark lifts back to full contrast, which is what actually draws the eye.
+	*/
+	.note-title :global(mark),
+	.note-snippet :global(mark) {
+		border-radius: 0.2rem;
+		background-color: color-mix(in oklch, var(--color-warning) 30%, transparent);
+		padding: 0.05em 0.15em;
+		color: var(--color-base-content);
 	}
 </style>

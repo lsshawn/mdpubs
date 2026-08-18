@@ -2,13 +2,134 @@ import { db } from '$lib/server/db';
 import * as table from '$lib/server/db/schema';
 import { fail, redirect } from '@sveltejs/kit';
 import { config } from '$lib/config';
-import { and, eq, sql, isNull, desc, inArray } from 'drizzle-orm';
+import { and, eq, or, like, sql, isNull, desc, inArray } from 'drizzle-orm';
 import { getOrgRole } from '$lib/server/org';
 import { deleteFolder } from '$lib/server/storage';
-import { renderTitleMarkdown } from '$lib/server/title-markdown';
+import { renderTitleMarkdown, highlightTitleHtml, highlightText } from '$lib/server/title-markdown';
 import type { Actions, PageServerLoad } from './$types';
 
 const PAGE_SIZE = 20;
+
+/** Longest query we'll run through the body scan; anything more is a paste, not a search. */
+const MAX_QUERY_LENGTH = 100;
+/** Characters of body text either side of the match in a result snippet. */
+const SNIPPET_CONTEXT = 90;
+
+/** Escape LIKE's own wildcards so a literal `%` or `_` matches itself. */
+function escapeLike(value: string) {
+	return value.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+/**
+ * Strip the parts of a note's markdown that would make a snippet unreadable —
+ * frontmatter, fences, markup — down to a single line of prose.
+ *
+ * Deliberately crude: this is preview text, not a render, and it runs over
+ * every matched note on the page. It only needs to be good enough that the
+ * matched phrase reads in context.
+ */
+function toPlainText(content: string) {
+	return content
+		.replace(/^---\n[\s\S]*?\n---\n?/, '') // YAML frontmatter
+		.replace(/```[\s\S]*?```/g, ' ') // fenced code
+		.replace(/!\[[^\]]*\]\([^)]*\)/g, ' ') // images
+		.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // links → their text
+		.replace(/<[^>]+>/g, ' ') // inline HTML
+		.replace(/^[>#\-*+\s]+/gm, ' ') // block markers and list bullets
+		.replace(/[*_`~]/g, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+/**
+ * Pull the note's METADATA — YAML frontmatter and the HTML-comment directives
+ * an exported doc carries instead — as one flat string.
+ *
+ * These are the regions `toPlainText` deliberately throws away, and they are
+ * where `tags:`, `mdpubs-company:` and friends live. A note can match the SQL
+ * on one of those alone, so they have to be searchable separately or the row
+ * would show a snippet with nothing highlighted in it.
+ */
+function extractMetadata(content: string) {
+	const lines: string[] = [];
+
+	const frontmatter = content.match(/^---\n([\s\S]*?)\n---/);
+	if (frontmatter) lines.push(...frontmatter[1].split('\n'));
+
+	// Exported HTML keeps the same keys in comments: <!-- mdpubs-company: x -->
+	for (const m of content.matchAll(/<!--([\s\S]*?)-->/g)) lines.push(...m[1].split('\n'));
+
+	// Kept as separate lines, joined with a separator rather than a space: a
+	// metadata excerpt is a list of keys, not a sentence, and running them
+	// together produced snippets like "mdpubs: aB3xY mdpubs-account: cgpt" that
+	// read as one meaningless string.
+	//
+	// Blank lines, YAML's `---` fences and `#` comments drop out as pure noise,
+	// and list items are folded back onto the key above them so a `tags:` match
+	// reads "tags: cgpt enetmedi" rather than "tags: · - cgpt · - enetmedi".
+	const keys: string[] = [];
+	for (const line of lines.map((l) => l.trim())) {
+		if (line === '' || line === '---' || line.startsWith('#')) continue;
+		if (line.startsWith('- ') && keys.length > 0) keys[keys.length - 1] += ` ${line.slice(2)}`;
+		else keys.push(line);
+	}
+	return keys.join(' · ');
+}
+
+/** Where in the note the query was found. Drives what the row shows. */
+type SnippetSource = 'body' | 'metadata' | 'title';
+
+/**
+ * A ~2-line excerpt centred on the first occurrence of `query`, plus where that
+ * occurrence came from.
+ *
+ * Three outcomes, and the caller needs to tell them apart — a snippet with no
+ * visible match is confusing unless the row says why:
+ *
+ *  - `body`: the ordinary case, excerpt centred on the match.
+ *  - `metadata`: matched only in frontmatter/directives (a tag, a company
+ *    slug). The excerpt is the matching metadata line, since quoting prose that
+ *    doesn't contain the query would be a lie.
+ *  - `title`: matched only in the title. Shows the note's opening as context.
+ *
+ * Returned as plain text; the caller escapes and highlights it.
+ */
+function buildSnippet(
+	content: string | null,
+	query: string
+): { text: string; source: SnippetSource } | null {
+	if (!content) return null;
+	const needle = query.toLowerCase();
+
+	const text = toPlainText(content);
+	const at = text ? text.toLowerCase().indexOf(needle) : -1;
+
+	if (at !== -1) {
+		const start = Math.max(0, at - SNIPPET_CONTEXT);
+		const end = Math.min(text.length, at + query.length + SNIPPET_CONTEXT);
+		const excerpt = `${start > 0 ? '…' : ''}${text.slice(start, end).trim()}${end < text.length ? '…' : ''}`;
+		return { text: excerpt, source: 'body' };
+	}
+
+	// Not in the prose — check the regions toPlainText stripped before falling
+	// back, so a tags-only or company-only match still shows its match.
+	const meta = extractMetadata(content);
+	const metaAt = meta.toLowerCase().indexOf(needle);
+	if (metaAt !== -1) {
+		const start = Math.max(0, metaAt - SNIPPET_CONTEXT);
+		const end = Math.min(meta.length, metaAt + query.length + SNIPPET_CONTEXT);
+		const excerpt = `${start > 0 ? '…' : ''}${meta.slice(start, end).trim()}${end < meta.length ? '…' : ''}`;
+		return { text: excerpt, source: 'metadata' };
+	}
+
+	if (!text) return null;
+	// Title-only match: the note's opening is the most useful thing to show.
+	return {
+		text:
+			text.length > SNIPPET_CONTEXT * 2 ? `${text.slice(0, SNIPPET_CONTEXT * 2).trimEnd()}…` : text,
+		source: 'title'
+	};
+}
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!locals.user) {
@@ -16,6 +137,20 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	const page = Number(url.searchParams.get('page') ?? '1');
+
+	/**
+	 * Search (`?q=`). Filtering happens in SQL rather than in the component
+	 * because the list is paginated — a client-side filter would only ever search
+	 * the 20 rows of the current page.
+	 *
+	 * Title *and* body: `notes.content` holds the note's markdown, so a
+	 * case-insensitive LIKE over both is one query. There is no full-text index,
+	 * so this is a scan; acceptable because it is always bounded by the workspace
+	 * clauses below (one user's notes, or one org's). If libraries grow past a few
+	 * thousand notes this is the thing to replace with an FTS5 table.
+	 */
+	const rawQuery = (url.searchParams.get('q') ?? '').trim();
+	const query = rawQuery.slice(0, MAX_QUERY_LENGTH);
 
 	/**
 	 * Workspace scoping (sidebar company switcher). `?org=<slug>` shows that
@@ -55,6 +190,20 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		// Personal: this user's notes that aren't filed under any company.
 		whereClauses.push(eq(table.note.userId, locals.user.id), isNull(table.note.orgId));
 	}
+
+	if (query) {
+		// `lower()` on both sides rather than relying on LIKE's own case folding,
+		// which SQLite only applies to ASCII — an accented or non-Latin query would
+		// otherwise be case-sensitive.
+		const pattern = `%${escapeLike(query.toLowerCase())}%`;
+		whereClauses.push(
+			or(
+				like(sql`lower(${table.note.title})`, sql`${pattern} escape '\\'`),
+				like(sql`lower(${table.note.content})`, sql`${pattern} escape '\\'`)
+			)!
+		);
+	}
+
 	const notesQuery = db
 		.select()
 		.from(table.note)
@@ -78,7 +227,29 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		// rather than in the component: it is injected with {@html}, so it must be
 		// produced by the server-side sanitizer and never assembled on the client.
 		// The raw `title` stays on the row for aria-labels and confirmation copy.
-		notes: notes.map((note) => ({ ...note, titleHtml: renderTitleMarkdown(note.title) })),
+		//
+		// `snippetHtml` is present only while searching — `content` is the whole
+		// note body and has no business being shipped to the client for an
+		// unfiltered list. Both HTML fields are built here, never on the client:
+		// they are injected with {@html}, so escaping is this file's job.
+		notes: notes.map(({ content, ...note }) => {
+			const titleHtml = renderTitleMarkdown(note.title);
+			const snippet = query ? buildSnippet(content, query) : null;
+			return {
+				...note,
+				// Match highlighting is applied AFTER the allowlist pass, so the
+				// <mark> tags are ours and a literal <mark> typed into a title is
+				// still stripped.
+				titleHtml: query ? highlightTitleHtml(titleHtml, query) : titleHtml,
+				// Plain text in, HTML out: highlightText escapes the body itself and
+				// emits only <mark>, which is what lets this be rendered with {@html}.
+				snippetHtml: snippet === null ? null : highlightText(snippet.text, query),
+				// Lets the row explain a snippet with no visible match — matched in
+				// the title, or only in frontmatter/tags.
+				snippetSource: snippet?.source ?? null
+			};
+		}),
+		query,
 		currentPage: page,
 		totalPages,
 		totalNotes,
