@@ -219,6 +219,42 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const [notes, totalNotesResult] = await Promise.all([notesQuery, countQuery]);
 
+	/**
+	 * Which of these notes have signatures, and who signed each slot.
+	 *
+	 * One query for the whole page rather than per row, and scoped to the 20 ids
+	 * actually being rendered — this drives the row's "Signatures" menu, so it
+	 * only needs the slots that exist, not the full audit trail.
+	 */
+	const noteIds = notes.map((n) => n.id);
+	const signaturesByNoteId = new Map<
+		number,
+		{ id: number; signerName: string; signerEmail: string; signerIndex: number }[]
+	>();
+	if (noteIds.length > 0) {
+		const rows = await db
+			.select({
+				id: table.signature.id,
+				noteId: table.signature.noteId,
+				signerName: table.signature.signerName,
+				signerEmail: table.signature.signerEmail,
+				signerIndex: table.signature.signerIndex
+			})
+			.from(table.signature)
+			.where(inArray(table.signature.noteId, noteIds))
+			.orderBy(table.signature.signerIndex);
+		for (const r of rows) {
+			const list = signaturesByNoteId.get(r.noteId) ?? [];
+			list.push({
+				id: r.id,
+				signerName: r.signerName,
+				signerEmail: r.signerEmail,
+				signerIndex: r.signerIndex
+			});
+			signaturesByNoteId.set(r.noteId, list);
+		}
+	}
+
 	const totalNotes = totalNotesResult[0].count;
 	const totalPages = Math.ceil(totalNotes / PAGE_SIZE);
 
@@ -246,7 +282,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				snippetHtml: snippet === null ? null : highlightText(snippet.text, query),
 				// Lets the row explain a snippet with no visible match — matched in
 				// the title, or only in frontmatter/tags.
-				snippetSource: snippet?.source ?? null
+				snippetSource: snippet?.source ?? null,
+				// Empty for the overwhelming majority of notes; a non-empty list is
+				// what makes the row's Signatures menu appear.
+				signatures: signaturesByNoteId.get(note.id) ?? []
 			};
 		}),
 		query,
@@ -528,6 +567,75 @@ export const actions: Actions = {
 		await db.delete(table.note).where(inArray(table.note.id, ids));
 
 		return { success: true, deleted: ids.length, failed: skipped, hard };
+	},
+
+	/**
+	 * Void signatures on a note so it can be signed again.
+	 *
+	 * `signerIndex` reopens one slot; omitting it reopens the whole document
+	 * (which also unlocks it for editing). See SignService.reopen for why the
+	 * signing request survives a single-slot reopen but not a full one.
+	 *
+	 * Author-only, matching delete: a signed agreement is the author's to
+	 * withdraw, not any company-library member's. The reason string is optional
+	 * but ends up in the append-only audit trail, so the UI asks for it.
+	 */
+	reopenSignature: async ({ request, locals, platform }) => {
+		if (!locals.user) {
+			return fail(401, { message: 'Unauthorized' });
+		}
+
+		const formData = await request.formData();
+		const publicId = formData.get('id');
+		const rawIndex = formData.get('signerIndex');
+		const reason = String(formData.get('reason') || '').trim();
+
+		if (typeof publicId !== 'string' || publicId === '') {
+			return fail(400, { message: 'Invalid note ID' });
+		}
+
+		// '' / absent = reopen for everyone.
+		let signerIndex: number | undefined;
+		if (typeof rawIndex === 'string' && rawIndex !== '') {
+			const parsed = Number(rawIndex);
+			if (!Number.isInteger(parsed) || parsed < 0) {
+				return fail(400, { message: 'Invalid signer' });
+			}
+			signerIndex = parsed;
+		}
+
+		const [target] = await db
+			.select()
+			.from(table.note)
+			.where(and(eq(table.note.publicId, publicId), isNull(table.note.deletedAt)))
+			.limit(1);
+
+		if (!target) {
+			return fail(404, { message: 'Note not found' });
+		}
+		if (target.userId !== locals.user.id) {
+			return fail(403, { message: 'Only the note’s author can reopen signing.' });
+		}
+
+		const { signService, SignError } = await import('$lib/server/api/services/sign');
+		try {
+			const { voided } = await signService.reopen({
+				note: target,
+				signerIndex,
+				reason: reason || undefined,
+				actorEmail: locals.user.email ?? undefined,
+				// Purges the voided marks from storage. Optional — a missing binding
+				// just leaves them orphaned rather than failing the reopen.
+				bucket: platform?.env?.BUCKET
+			});
+			return { success: true, reopened: voided, all: signerIndex === undefined };
+		} catch (e) {
+			// SignError carries a message written for the signer/owner; anything else
+			// is ours and shouldn't leak.
+			if (e instanceof SignError) return fail(400, { message: e.message });
+			console.error('[reopenSignature]', e);
+			return fail(500, { message: 'Could not reopen signing for this note.' });
+		}
 	},
 
 	delete: async ({ request, locals, fetch }) => {

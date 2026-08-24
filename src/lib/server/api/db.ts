@@ -386,6 +386,36 @@ class DatabaseConnection {
 		return result[0];
 	}
 
+	/**
+	 * Void ONE signature so its slot reopens for that signer.
+	 *
+	 * A hard delete, not a flag: `sign()` decides who may sign from the set of
+	 * existing `signerIndex` values, so the row has to be gone for the slot to be
+	 * claimable again. The audit trail in `signature_events` is what preserves the
+	 * history — it is append-only and is never touched by this.
+	 */
+	async deleteSignature(id: number): Promise<Signature | null> {
+		const result = await db.delete(signature).where(eq(signature.id, id)).returning();
+		return result[0] || null;
+	}
+
+	/** Void every signature on a note, reopening the document for all parties. */
+	async deleteSignaturesByNoteId(noteId: number): Promise<Signature[]> {
+		return await db.delete(signature).where(eq(signature.noteId, noteId)).returning();
+	}
+
+	/**
+	 * Drop the note's signing request, discarding the signed-content snapshot.
+	 *
+	 * Only correct once every signature is gone: the remaining signatures bind to
+	 * this row's `contentHash`, and the FK cascades. Used by a full reopen, where
+	 * the point is to let the owner edit the document and re-snapshot it on the
+	 * next signature.
+	 */
+	async deleteSignatureRequest(noteId: number): Promise<void> {
+		await db.delete(signatureRequest).where(eq(signatureRequest.noteId, noteId));
+	}
+
 	/** True if any signature exists for the note — the lock-on-first-signature gate. */
 	async noteHasSignatures(noteId: number): Promise<boolean> {
 		const result = await db

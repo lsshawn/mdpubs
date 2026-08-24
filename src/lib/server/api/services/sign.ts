@@ -28,9 +28,11 @@
 
 import { createHash } from 'node:crypto';
 import { database, NotFoundError, NoteNotOwnedError } from '../db';
-import { uploadFile, publicUrl } from '$lib/server/storage';
+import { uploadFile, publicUrl, deleteFiles } from '$lib/server/storage';
 import type { R2Bucket } from '@cloudflare/workers-types';
+import { nanoid } from 'nanoid';
 import { NoteService } from './note';
+import { isBlankSignaturePng } from './png';
 import type { Note, Signature } from '$lib/server/db/schema';
 
 // Stateless helpers only (stripLeadingFrontmatter, isHtmlFile). NoteService holds
@@ -355,6 +357,16 @@ class SignService {
 		const config = this.parseConfig(note);
 		if (!config.enabled) throw new SignError('This document is not open for signing.');
 
+		// Reject an empty canvas BEFORE any write. SignPanel's own `hasDrawn` guard
+		// is client state and does not survive a direct POST (or a stray tap), and a
+		// blank image that lands in the DB locks the document against edits with an
+		// unusable signature on it — undoing that needs the reopen action below.
+		if (await isBlankSignaturePng(signatureImagePng)) {
+			throw new SignError(
+				'Your signature looks blank. Please draw your signature in the box and try again.'
+			);
+		}
+
 		const normEmail = this.normEmail(email);
 		const existingSigs = await database.getSignaturesByNoteId(note.id);
 		const signedIndexes = new Set(existingSigs.map((s) => s.signerIndex));
@@ -468,7 +480,7 @@ class SignService {
 				bucket,
 				note.userId,
 				note.id,
-				`signature-${normEmail.replace(/[^a-z0-9]/gi, '_')}-${signerIndex}.png`,
+				signatureFileName(normEmail, signerIndex),
 				signatureImagePng,
 				'image/png'
 			);
@@ -522,6 +534,306 @@ class SignService {
 	}
 
 	/**
+	 * Apply a signature ON BEHALF of a signer, from an image they supplied
+	 * out-of-band (emailed a scan, sent a photo of a wet signature).
+	 *
+	 * This exists so the alternative — quietly overwriting the R2 object behind an
+	 * existing signature — never has to be considered. That would leave the audit
+	 * trail asserting the signer drew a mark they never drew, in the exact record
+	 * whose purpose is to prove they did. Here the claim recorded is the true one:
+	 * the signer provided this image, and the OWNER applied it, with `provenance`
+	 * saying how it arrived and `appliedBy` naming who did it. Same visual result,
+	 * a record that survives being read closely.
+	 *
+	 * Deliberately NOT a way to bypass a signer: the caller must be the note's
+	 * author (enforced at the route), `provenance` is required, and the usual
+	 * slot/turn/hash rules all still apply — this only substitutes for the drawing
+	 * gesture, not for consent.
+	 */
+	async applyOnBehalf(params: {
+		bucket: R2Bucket;
+		note: Note;
+		signerIndex: number;
+		signatureImagePng: ArrayBuffer;
+		/** How the image reached the owner. Recorded verbatim in the trail. */
+		provenance: string;
+		/** Who applied it (the authenticated owner's email). */
+		appliedBy: string;
+		name?: string;
+		email?: string;
+		fieldValues?: Record<string, string>;
+		ipAddress?: string;
+		location?: string;
+		userAgent?: string;
+	}): Promise<SignState> {
+		const {
+			bucket,
+			note,
+			signerIndex,
+			signatureImagePng,
+			provenance,
+			appliedBy,
+			name,
+			email,
+			fieldValues,
+			ipAddress,
+			location,
+			userAgent
+		} = params;
+
+		if (!provenance.trim()) {
+			throw new SignError('A provenance note is required to apply a signature on someone’s behalf.');
+		}
+
+		const config = this.parseConfig(note);
+		if (!config.enabled) throw new SignError('This document is not open for signing.');
+
+		const slot = config.signers[signerIndex];
+		if (!slot) throw new SignError('That signer slot does not exist on this document.');
+
+		// An unusable image is just as bad applied this way as drawn.
+		if (await isBlankSignaturePng(signatureImagePng)) {
+			throw new SignError('That signature image looks blank.');
+		}
+
+		const existingSigs = await database.getSignaturesByNoteId(note.id);
+		if (existingSigs.some((sig) => sig.signerIndex === signerIndex)) {
+			throw new SignError(
+				'That slot is already signed. Reopen it first if the signature needs replacing.'
+			);
+		}
+
+		const body = this.canonicalBody(note);
+		const contentHash = this.hashContent(body);
+
+		let request = await database.getSignatureRequestByNoteId(note.id);
+		if (request) {
+			if (request.contentHash !== contentHash) {
+				throw new SignError(
+					'This document was changed after signing started and can no longer be signed.'
+				);
+			}
+		} else {
+			request = await database.createSignatureRequest({
+				noteId: note.id,
+				contentHash,
+				signedContent: body,
+				signOrder: config.order,
+				signers: config.signers
+			});
+			await database.recordSignatureEvent({
+				noteId: note.id,
+				requestId: request.id,
+				action: 'request_created',
+				contentHash,
+				ipAddress,
+				userAgent
+			});
+		}
+
+		// Sequential order still binds: applying out of turn would misrepresent the
+		// order the parties actually committed in.
+		if (config.order === 'sequential') {
+			const signedIndexes = new Set(existingSigs.map((sig) => sig.signerIndex));
+			const nextIndex = config.signers.findIndex((_, i) => !signedIndexes.has(i));
+			if (signerIndex !== nextIndex) {
+				const waitingFor = config.signers[nextIndex];
+				throw new SignError(
+					`It is not that signer's turn yet. Waiting for ${waitingFor?.name || 'the previous signer'}.`
+				);
+			}
+		}
+
+		const finalName = (slot.open ? name?.trim() : slot.name) || slot.name;
+		if (!finalName) throw new SignError('A signer name is required.');
+		const finalEmail = slot.email || email?.trim() || '';
+
+		const storedFields: Record<string, string> = {};
+		for (const f of config.fields) {
+			const val = (fieldValues?.[f.label] ?? '').trim();
+			if (!val) {
+				if (f.required) throw new SignError(`Please fill in the "${f.label}" field.`);
+				continue;
+			}
+			storedFields[f.label] = val;
+		}
+
+		const normEmail = this.normEmail(finalEmail);
+		let signatureImageKey: string | null = null;
+		try {
+			const upload = await uploadFile(
+				bucket,
+				note.userId,
+				note.id,
+				signatureFileName(normEmail, signerIndex),
+				signatureImagePng,
+				'image/png'
+			);
+			if (upload.success) signatureImageKey = upload.url;
+		} catch (err) {
+			console.error('[SignService] Failed to upload on-behalf signature image:', err);
+		}
+		// Unlike a drawn signature, the image IS the substance of what was supplied
+		// here — without it there is nothing to apply on the signer's behalf.
+		if (!signatureImageKey) {
+			throw new SignError('Could not store the signature image. Nothing was recorded.');
+		}
+
+		await database.createSignature({
+			requestId: request.id,
+			noteId: note.id,
+			signerName: finalName,
+			signerEmail: finalEmail,
+			signerIndex,
+			contentHash,
+			signatureImageKey,
+			fields: config.fields.length ? storedFields : null,
+			signedAt: new Date(),
+			// No signer request to attribute: the owner's connection made this call,
+			// and recording their IP as the signer's would be the same kind of false
+			// detail this method exists to avoid.
+			ipAddress: null,
+			location: null,
+			userAgent: null
+		});
+
+		await database.recordSignatureEvent({
+			noteId: note.id,
+			requestId: request.id,
+			action: 'signed_on_behalf',
+			signerEmail: finalEmail,
+			contentHash,
+			ipAddress,
+			location,
+			userAgent,
+			detail:
+				`Signature for ${finalName}${finalEmail ? ` <${finalEmail}>` : ''} (slot ${signerIndex}) ` +
+				`applied by ${appliedBy} from an image supplied by the signer. ` +
+				`Not drawn in-session; no signer IP/user-agent recorded. Provenance: ${provenance.trim()}`
+		});
+
+		const state = await this.getState(note);
+		if (state.complete) {
+			await database.recordSignatureEvent({
+				noteId: note.id,
+				requestId: request.id,
+				action: 'completed',
+				contentHash,
+				ipAddress,
+				userAgent
+			});
+		}
+		return state;
+	}
+
+	/**
+	 * Void signatures so the document can be signed again — the owner's remedy for
+	 * a bad signature (a blank canvas, the wrong person in an open slot, a signer
+	 * who asks to redo theirs).
+	 *
+	 * Two scopes:
+	 *  - one signer (`signerIndex`): just that slot reopens. The signing request,
+	 *    and therefore the signed-content snapshot and hash, is deliberately KEPT,
+	 *    so the remaining signatures stay bound to the same bytes they signed and
+	 *    the re-signature binds to them too. The note stays edit-locked.
+	 *  - all signers: every signature goes, and with nothing left bound to it the
+	 *    request is dropped too. That unlocks the note for editing, so the next
+	 *    signature re-snapshots whatever the content is by then.
+	 *
+	 * Never mutates `signature_events`. The voids are appended to it instead, so
+	 * the trail still shows the blank signature arriving and being withdrawn — the
+	 * evidence value of the audit log depends on it being append-only.
+	 *
+	 * Returns how many signatures were voided.
+	 */
+	async reopen(params: {
+		note: Note;
+		signerIndex?: number;
+		reason?: string;
+		actorEmail?: string;
+		/**
+		 * When given, the voided signatures' images are deleted from storage. Safe
+		 * because signature object names are unique per signature
+		 * (`signatureFileName`), so nothing else references them — and leaving them
+		 * behind would accumulate unreachable marks of voided signatures.
+		 */
+		bucket?: R2Bucket;
+		ipAddress?: string;
+		location?: string;
+		userAgent?: string;
+	}): Promise<{ voided: number; state: SignState }> {
+		const { note, signerIndex, reason, actorEmail, bucket, ipAddress, location, userAgent } =
+			params;
+
+		const request = await database.getSignatureRequestByNoteId(note.id);
+		const existing = await database.getSignaturesByNoteId(note.id);
+		if (existing.length === 0) {
+			throw new SignError('Nobody has signed this document yet, so there is nothing to reopen.');
+		}
+
+		const all = signerIndex === undefined;
+		const targets = all ? existing : existing.filter((s) => s.signerIndex === signerIndex);
+		if (targets.length === 0) {
+			throw new SignError('That signer has not signed this document.');
+		}
+
+		for (const sig of targets) {
+			await database.deleteSignature(sig.id);
+			await database.recordSignatureEvent({
+				noteId: note.id,
+				requestId: request?.id ?? null,
+				action: 'signature_voided',
+				signerEmail: sig.signerEmail,
+				contentHash: sig.contentHash,
+				ipAddress,
+				location,
+				userAgent,
+				detail: [
+					`Signature by ${sig.signerName}${sig.signerEmail ? ` <${sig.signerEmail}>` : ''}`,
+					`(slot ${sig.signerIndex})`,
+					'voided',
+					actorEmail ? `by ${actorEmail}` : null,
+					'— signing reopened.',
+					reason ? `Reason: ${reason}` : null
+				]
+					.filter(Boolean)
+					.join(' ')
+			});
+		}
+
+		// Best-effort image cleanup, after the rows are gone: a storage failure must
+		// not leave signatures voided in the DB but the call reported as failed.
+		if (bucket) {
+			const urls = targets.map((sig) => sig.signatureImageKey).filter((k): k is string => !!k);
+			if (urls.length > 0) {
+				try {
+					await deleteFiles(bucket, urls);
+				} catch (err) {
+					console.error('[SignService] Failed to delete voided signature images:', err);
+				}
+			}
+		}
+
+		// Only once NOTHING binds to the snapshot any more. With signatures left,
+		// dropping it would cascade them away and strand their content hash.
+		if (all && request) {
+			await database.deleteSignatureRequest(note.id);
+			await database.recordSignatureEvent({
+				noteId: note.id,
+				requestId: null,
+				action: 'request_voided',
+				contentHash: request.contentHash,
+				ipAddress,
+				location,
+				userAgent,
+				detail: 'All signatures voided; the document is unlocked and open for signing again.'
+			});
+		}
+
+		return { voided: targets.length, state: await this.getState(note) };
+	}
+
+	/**
 	 * The lock-on-first-signature gate. Returns true if edits to this note must be
 	 * rejected because at least one signature already exists.
 	 */
@@ -572,6 +884,29 @@ class SignService {
 		}
 		return state;
 	}
+}
+
+/**
+ * Object name for a signature image.
+ *
+ * The random suffix is load-bearing, for two reasons that both bit us when the
+ * name was just `signature-<email>-<slot>`:
+ *
+ *  - The image host serves assets `immutable, max-age=1y`. Note images can do
+ *    that safely because their key is a hash of the filename, so new content
+ *    means a new key. A signature key built only from (email, slot) is reused by
+ *    a re-signature, so the edge kept serving the OLD mark for a year.
+ *  - `uploadFile` skips the `put` when an object already exists at the key with
+ *    the same byte size (a sound dedupe for hash-named images). A replacement
+ *    signature that happened to match the old one's size was therefore dropped
+ *    silently, leaving the DB row pointing at the previous mark.
+ *
+ * A fresh name per signature makes both impossible: every signature has its own
+ * immutable URL, and nothing is ever overwritten in place.
+ */
+function signatureFileName(email: string, signerIndex: number): string {
+	const safeEmail = email.replace(/[^a-z0-9]/gi, '_');
+	return `signature-${safeEmail}-${signerIndex}-${nanoid(10)}.png`;
 }
 
 export class SignError extends Error {

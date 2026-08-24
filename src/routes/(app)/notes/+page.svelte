@@ -10,7 +10,15 @@
 	import { untrack } from 'svelte';
 	import { formatDate } from '$lib/helpers';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { FolderInput, MoreVertical, Pencil, Search, Trash2, X } from 'lucide-svelte';
+	import {
+		FolderInput,
+		MoreVertical,
+		Pencil,
+		PenLine,
+		Search,
+		Trash2,
+		X
+	} from 'lucide-svelte';
 	import type { Note } from '$lib/server/db/schema';
 
 	let { data } = $props();
@@ -55,6 +63,9 @@
 	 */
 	let openMenuId = $state<string | null>(null);
 
+	/** Same, for the desktop row's reopen-signing dropdown. */
+	let openSignMenuId = $state<string | null>(null);
+
 	$effect(() => {
 		const present = new Set(visibleNotes.map((n) => n.publicId));
 		for (const id of selectedIds) {
@@ -63,6 +74,7 @@
 		// A menu whose row has gone (moved, deleted, page change) would otherwise
 		// stay mounted with no anchor.
 		if (openMenuId !== null && !present.has(openMenuId)) openMenuId = null;
+		if (openSignMenuId !== null && !present.has(openSignMenuId)) openSignMenuId = null;
 	});
 
 	function toggleOne(publicId: string) {
@@ -275,6 +287,56 @@
 		moveTargetOrgId = note.orgId ?? '';
 		moveModal.showModal();
 	}
+
+	/**
+	 * Reopen-signing modal. `reopenTarget.signerIndex === null` means "everyone",
+	 * which also unlocks the note for editing — worth spelling out in the modal,
+	 * since it is the difference between fixing one bad signature and voiding a
+	 * fully executed agreement.
+	 */
+	let reopenTarget = $state<{
+		note: (typeof data.notes)[0];
+		signerIndex: number | null;
+		signerName: string;
+	} | null>(null);
+	let reopenModal: HTMLDialogElement;
+	let reopenReason = $state('');
+	let reopening = $state(false);
+
+	function openReopenModal(
+		note: (typeof data.notes)[0],
+		signature: { signerIndex: number; signerName: string } | null
+	) {
+		reopenTarget = signature
+			? { note, signerIndex: signature.signerIndex, signerName: signature.signerName }
+			: { note, signerIndex: null, signerName: 'all parties' };
+		reopenReason = '';
+		reopenModal.showModal();
+	}
+
+	const handleReopen: SubmitFunction = () => {
+		reopening = true;
+		return async ({ result, update }) => {
+			if (result.type === 'success' || result.type === 'failure') {
+				if (result.data?.success) {
+					const n = result.data.reopened as number;
+					showToast(
+						result.data.all
+							? `Signing reopened — ${n} signature${n === 1 ? '' : 's'} voided. The note is editable again.`
+							: 'Signature voided. That signer can sign again.',
+						'success'
+					);
+					reopenModal?.close();
+				} else if (result.data?.message) {
+					showToast(result.data.message as string, 'error');
+				}
+			}
+			// Unlike move/delete there is no optimistic row change to protect, and the
+			// row's signature list is now stale — let load re-run.
+			await update();
+			reopening = false;
+		};
+	};
 
 	/**
 	 * A note's own page: its editor when we authored it, otherwise the public view
@@ -576,6 +638,46 @@
 										Move
 									</button>
 								</li>
+								{#if canEdit(note) && note.signatures.length > 0}
+									<!--
+										Only rendered for a note that actually has signatures, so the
+										menu stays two items long for ordinary notes. Each signer gets
+										their own entry: reopening one slot is the common repair (a
+										blank or wrong signature), and picking the person by name is
+										clearer than a submenu.
+									-->
+									<li class="menu-title px-2 pt-1 text-xs">Reopen signing</li>
+									{#each note.signatures as sig (sig.id)}
+										<li>
+											<button
+												type="button"
+												class="flex items-center gap-2"
+												onclick={() => {
+													openMenuId = null;
+													openReopenModal(note, sig);
+												}}
+											>
+												<PenLine class="h-4 w-4" />
+												<span class="truncate">{sig.signerName || sig.signerEmail || 'Signer'}</span>
+											</button>
+										</li>
+									{/each}
+									{#if note.signatures.length > 1}
+										<li>
+											<button
+												type="button"
+												class="flex items-center gap-2"
+												onclick={() => {
+													openMenuId = null;
+													openReopenModal(note, null);
+												}}
+											>
+												<PenLine class="h-4 w-4" />
+												All parties
+											</button>
+										</li>
+									{/if}
+								{/if}
 								<li>
 									<button
 										type="button"
@@ -623,7 +725,7 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each visibleNotes as note (note.id)}
+				{#each visibleNotes as note, i (note.id)}
 					<!--
 						`group` drives the hover-reveal on the action buttons: quiet rows
 						while scanning, controls the moment the pointer lands on one. They
@@ -674,6 +776,74 @@
 									>
 										<Pencil class="h-3.5 w-3.5" />
 									</a>
+								{/if}
+								<!--
+									Signed notes only. The row's buttons are hover-revealed, so this
+									uses the same explicit-open dropdown as the mobile menu rather
+									than `:focus-within` — a menu that closed on hover-out would be
+									unusable.
+								-->
+								{#if canEdit(note) && note.signatures.length > 0}
+									<div
+										class="dropdown dropdown-end"
+										class:dropdown-top={i >= visibleNotes.length - 2 && visibleNotes.length > 3}
+									>
+										<button
+											type="button"
+											class="btn btn-ghost btn-xs btn-square"
+											aria-label="Reopen signing for {note.title || 'Untitled'}"
+											aria-haspopup="menu"
+											aria-expanded={openSignMenuId === note.publicId}
+											onclick={() =>
+												(openSignMenuId =
+													openSignMenuId === note.publicId ? null : note.publicId)}
+										>
+											<PenLine class="h-3.5 w-3.5" />
+										</button>
+										{#if openSignMenuId === note.publicId}
+											<button
+												type="button"
+												class="fixed inset-0 z-10 cursor-default"
+												aria-label="Close signing menu"
+												onclick={() => (openSignMenuId = null)}
+											></button>
+											<ul
+												class="menu dropdown-content z-20 w-52 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
+											>
+												<li class="menu-title px-2 text-xs">Reopen signing</li>
+												{#each note.signatures as sig (sig.id)}
+													<li>
+														<button
+															type="button"
+															class="flex items-center gap-2"
+															onclick={() => {
+																openSignMenuId = null;
+																openReopenModal(note, sig);
+															}}
+														>
+															<span class="truncate"
+																>{sig.signerName || sig.signerEmail || 'Signer'}</span
+															>
+														</button>
+													</li>
+												{/each}
+												{#if note.signatures.length > 1}
+													<li>
+														<button
+															type="button"
+															class="flex items-center gap-2 text-error"
+															onclick={() => {
+																openSignMenuId = null;
+																openReopenModal(note, null);
+															}}
+														>
+															All parties
+														</button>
+													</li>
+												{/if}
+											</ul>
+										{/if}
+									</div>
 								{/if}
 								<button
 									type="button"
@@ -731,6 +901,64 @@
 		</div>
 	</div>
 {/if}
+
+<dialog id="reopen_modal" class="modal" bind:this={reopenModal}>
+	<div class="modal-box">
+		<h3 class="text-lg font-bold">
+			{reopenTarget?.signerIndex === null ? 'Reopen for all parties' : 'Reopen this signature'}
+		</h3>
+		{#if reopenTarget}
+			{#if reopenTarget.signerIndex === null}
+				<p class="mt-1 text-sm text-base-content/60">
+					Voids every signature on "{reopenTarget.note.title || 'Untitled'}" and unlocks it for
+					editing. The next signature will bind to whatever the content is at that point, so a
+					fully executed agreement has to be signed again from scratch.
+				</p>
+			{:else}
+				<p class="mt-1 text-sm text-base-content/60">
+					Voids <strong>{reopenTarget.signerName}</strong>'s signature on "{reopenTarget.note
+						.title || 'Untitled'}" so they can sign again. Everyone else's stays valid and the note
+					stays locked, so the document they signed does not change.
+				</p>
+			{/if}
+			<p class="mt-2 text-xs text-base-content/50">
+				The void is written to the signing audit trail, which is append-only — the original
+				signature stays on record as withdrawn rather than disappearing.
+			</p>
+			<form method="POST" action="?/reopenSignature" use:enhance={handleReopen} class="mt-4">
+				<input type="hidden" name="id" value={reopenTarget.note.publicId} />
+				<input
+					type="hidden"
+					name="signerIndex"
+					value={reopenTarget.signerIndex === null ? '' : reopenTarget.signerIndex}
+				/>
+				<label class="form-control">
+					<span class="label-text text-xs">Reason (recorded in the audit trail)</span>
+					<input
+						type="text"
+						name="reason"
+						bind:value={reopenReason}
+						placeholder="e.g. submitted a blank signature"
+						class="input input-bordered input-sm w-full"
+						maxlength="200"
+					/>
+				</label>
+				<div class="modal-action">
+					<button type="button" class="btn" onclick={() => reopenModal.close()}>Cancel</button>
+					<button type="submit" class="btn btn-warning" class:btn-disabled={reopening}>
+						{#if reopening}
+							<span class="loading loading-spinner loading-sm"></span>
+						{/if}
+						{reopenTarget.signerIndex === null ? 'Void all signatures' : 'Void signature'}
+					</button>
+				</div>
+			</form>
+		{/if}
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button>close</button>
+	</form>
+</dialog>
 
 <dialog id="move_modal" class="modal" bind:this={moveModal}>
 	<div class="modal-box">

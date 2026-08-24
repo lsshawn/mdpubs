@@ -333,6 +333,9 @@ export const signatureEvent = sqliteTable(
 			.references(() => note.id, { onDelete: 'cascade' }),
 		requestId: integer('request_id'),
 		// 'request_created' | 'viewed' | 'signed' | 'completed' | 'edit_blocked'
+		// | 'signature_voided' | 'request_voided' | 'signed_on_behalf'  (an owner reopening
+		// signing — see SignService.reopen. Events are never deleted, so a voided
+		// signature stays visible in the trail alongside the void that removed it.)
 		action: text('action').notNull(),
 		signerEmail: text('signer_email'),
 		contentHash: text('content_hash'),
