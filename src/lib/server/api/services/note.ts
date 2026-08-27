@@ -39,6 +39,49 @@ import { createHash } from 'node:crypto';
 // the whole note. Pages that display note HTML must load katex.min.css.
 marked.use(markedMath({ throwOnError: false }));
 
+/**
+ * Maps a YouTube/Vimeo watch URL to its player-embed URL, or null when the href
+ * isn't a recognised video host. Used by the image renderer so
+ * `![Video](https://youtu.be/ID)` becomes a real embed instead of a broken
+ * <img> (a watch URL has no file extension, so the <video> branch never fires).
+ */
+function toEmbedUrl(href: string): string | null {
+	try {
+		const u = new URL(href);
+		const host = u.hostname.replace(/^www\./, '');
+		if (host === 'youtu.be') {
+			const id = u.pathname.slice(1).split('/')[0];
+			if (/^[\w-]+$/.test(id)) return `https://www.youtube-nocookie.com/embed/${id}`;
+		}
+		if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtube-nocookie.com') {
+			const v = u.searchParams.get('v');
+			if (v && /^[\w-]+$/.test(v)) return `https://www.youtube-nocookie.com/embed/${v}`;
+			const m = u.pathname.match(/^\/(?:embed|shorts|live|v)\/([\w-]+)/);
+			if (m) return `https://www.youtube-nocookie.com/embed/${m[1]}`;
+		}
+		if (host === 'vimeo.com' || host === 'player.vimeo.com') {
+			const parts = u.pathname.split('/').filter(Boolean);
+			const id = parts[parts.length - 1];
+			if (/^\d+$/.test(id)) return `https://player.vimeo.com/video/${id}`;
+		}
+	} catch {
+		// Not an absolute URL — not an embeddable video.
+	}
+	return null;
+}
+
+/** Wraps an embed URL in a responsive 16:9 iframe. `text` becomes the title. */
+function renderVideoEmbed(embedUrl: string, text?: string): string {
+	const title = (text || 'Video').replace(/"/g, '&quot;');
+	return (
+		`<div class="mdpubs-embed my-6 aspect-video w-full overflow-hidden rounded-lg">` +
+		`<iframe class="h-full w-full" src="${embedUrl}" title="${title}" loading="lazy" ` +
+		`frameborder="0" referrerpolicy="strict-origin-when-cross-origin" ` +
+		`allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" ` +
+		`allowfullscreen></iframe></div>`
+	);
+}
+
 export class InvalidFrontmatterError extends Error {
 	constructor(message: string) {
 		super(message);
@@ -828,6 +871,9 @@ export class NoteService {
 			const realText = isToken ? token!.text : text;
 
 			if (realHref) {
+				// ![alt](youtube/vimeo url) — embed the player.
+				const embedUrl = toEmbedUrl(realHref);
+				if (embedUrl) return renderVideoEmbed(embedUrl, realText || realTitle || undefined);
 				try {
 					// Use URL parsing to robustly check the path extension, ignoring query strings.
 					const url = new URL(realHref, 'http://dummy.base'); // A base is needed for relative URLs
