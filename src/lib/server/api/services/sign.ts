@@ -33,6 +33,7 @@ import type { R2Bucket } from '@cloudflare/workers-types';
 import { nanoid } from 'nanoid';
 import { NoteService } from './note';
 import { isBlankSignaturePng } from './png';
+import { pickSigningSlot } from '$lib/helpers/sign-slot';
 import type { Note, Signature } from '$lib/server/db/schema';
 
 // Stateless helpers only (stripLeadingFrontmatter, isHtmlFile). NoteService holds
@@ -66,6 +67,8 @@ export interface SignConfig {
 }
 
 export interface SignStateSigner extends Signer {
+	/** The declared name/label from frontmatter; unlike `name`, unchanged after signing. */
+	label: string;
 	index: number;
 	signed: boolean;
 	signedAt: number | null;
@@ -290,6 +293,7 @@ class SignService {
 				...s,
 				// For a signed open slot, surface the name/email the signer actually
 				// entered rather than the placeholder label.
+				label: s.name,
 				name: sig ? sig.signerName : s.name,
 				email: sig ? sig.signerEmail : s.email,
 				index,
@@ -338,6 +342,8 @@ class SignService {
 		name: string;
 		email: string;
 		signatureImagePng: ArrayBuffer;
+		/** The slot the signer's sign box represents. Omitted by older clients. */
+		signerIndex?: number;
 		fieldValues?: Record<string, string>;
 		ipAddress?: string;
 		location?: string;
@@ -349,6 +355,7 @@ class SignService {
 			name,
 			email,
 			signatureImagePng,
+			signerIndex: requestedIndex,
 			fieldValues,
 			ipAddress,
 			location,
@@ -371,25 +378,17 @@ class SignService {
 		const existingSigs = await database.getSignaturesByNoteId(note.id);
 		const signedIndexes = new Set(existingSigs.map((s) => s.signerIndex));
 
-		// Resolve which slot this signer fills.
-		//  - A slot with a declared email is matched by that email.
-		//  - A slot WITHOUT a declared email (open slot, or a name-only fixed signer)
-		//    is claimed positionally: the next unsigned emailless slot in order.
-		let signerIndex = config.signers.findIndex(
-			(s, i) => !!s.email && !signedIndexes.has(i) && this.normEmail(s.email) === normEmail
-		);
-		if (signerIndex === -1) {
-			// No email match — claim the next unsigned emailless slot (open or name-only).
-			signerIndex = config.signers.findIndex((s, i) => !s.email && !signedIndexes.has(i));
-		}
-		if (signerIndex === -1) {
-			// Either this email isn't a declared signer and there's no positional slot
-			// left, or the matching declared slot was already signed.
+		// Resolve which slot this signer fills (see pickSigningSlot).
+		const picked = pickSigningSlot(config.signers, signedIndexes, normEmail, requestedIndex);
+		if ('error' in picked) {
 			const alreadyThisEmail =
-				!!normEmail && existingSigs.some((s) => this.normEmail(s.signerEmail) === normEmail);
+				requestedIndex === undefined &&
+				!!normEmail &&
+				existingSigs.some((s) => this.normEmail(s.signerEmail) === normEmail);
 			if (alreadyThisEmail) throw new SignError('You have already signed this document.');
-			throw new SignError('There are no signing slots left for this document.');
+			throw new SignError(picked.error);
 		}
+		const signerIndex = picked.index;
 
 		// Guard: a (non-empty) email may not sign two different slots of the same
 		// document. Empty emails are allowed to repeat (they're positional).
@@ -582,7 +581,9 @@ class SignService {
 		} = params;
 
 		if (!provenance.trim()) {
-			throw new SignError('A provenance note is required to apply a signature on someone’s behalf.');
+			throw new SignError(
+				'A provenance note is required to apply a signature on someone’s behalf.'
+			);
 		}
 
 		const config = this.parseConfig(note);

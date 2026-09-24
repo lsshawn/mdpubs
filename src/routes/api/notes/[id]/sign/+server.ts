@@ -34,7 +34,8 @@ export async function GET(event: RequestEvent): Promise<Response> {
 		state = await signService.withSignatureImageUrls(note, state);
 		return json(state);
 	} catch (error) {
-		if (error instanceof NotFoundError || error instanceof NoteNotOwnedError) return notFoundOrPrivate();
+		if (error instanceof NotFoundError || error instanceof NoteNotOwnedError)
+			return notFoundOrPrivate();
 		console.error('Error getting sign state:', error);
 		return json({ error: 'Failed to get signing status' }, { status: 500 });
 	}
@@ -60,6 +61,9 @@ export async function POST(event: RequestEvent): Promise<Response> {
 		const name = String(formData.get('name') || '').trim();
 		const email = String(formData.get('email') || '').trim();
 		const sigValue = formData.get('signature');
+		const rawIndex = formData.get('signerIndex');
+		const signerIndex =
+			typeof rawIndex === 'string' && rawIndex.trim() !== '' ? Number(rawIndex) : undefined;
 
 		// Custom field values arrive as `field:<Label>` entries.
 		const fieldValues: Record<string, string> = {};
@@ -109,6 +113,7 @@ export async function POST(event: RequestEvent): Promise<Response> {
 			name,
 			email,
 			signatureImagePng,
+			signerIndex,
 			fieldValues,
 			ipAddress,
 			location,
@@ -117,7 +122,8 @@ export async function POST(event: RequestEvent): Promise<Response> {
 		state = await signService.withSignatureImageUrls(note, state);
 		return json(state);
 	} catch (error) {
-		if (error instanceof NotFoundError || error instanceof NoteNotOwnedError) return notFoundOrPrivate();
+		if (error instanceof NotFoundError || error instanceof NoteNotOwnedError)
+			return notFoundOrPrivate();
 		if (error instanceof SignError) return json({ error: error.message }, { status: 409 });
 		console.error('Error signing note:', error);
 		return json({ error: 'Failed to sign document' }, { status: 500 });

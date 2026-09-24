@@ -10,9 +10,12 @@
 	 * order among anchors (first anchor -> first signer, etc.) via `slotIndex`.
 	 */
 	import { tick } from 'svelte';
+	import { drawSignatureImage } from '$lib/helpers/signature-image';
+	import { resolveSignSlot } from '$lib/helpers/sign-slot';
 
 	type SignStateSigner = {
 		name: string;
+		label?: string;
 		email: string;
 		index: number;
 		signed: boolean;
@@ -65,17 +68,9 @@
 	let hasDrawn = $state(false);
 	let ctx: CanvasRenderingContext2D | null = null;
 
-	// Resolve which slot this anchor represents. Prefer a label match; else use the
-	// anchor's ordinal position among sign-here anchors.
-	const slot = $derived.by(() => {
-		const norm = (s: string) => s.trim().toLowerCase();
-		const byLabel = signState.signers.find((s) => norm(s.name) === norm(label));
-		if (byLabel) return byLabel;
-		return signState.signers[slotIndex] ?? null;
-	});
-	const canSignNow = $derived(
-		!!slot && !slot.signed && slot.isTurn && signState.contentMatches
-	);
+	// Resolve which slot this anchor represents (see resolveSignSlot).
+	const slot = $derived(resolveSignSlot(signState.signers, label, slotIndex));
+	const canSignNow = $derived(!!slot && !slot.signed && slot.isTurn && signState.contentMatches);
 
 	function fmtDate(ts: number | null): string {
 		if (!ts) return '';
@@ -151,6 +146,29 @@
 		ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
 		hasDrawn = false;
 	}
+	let dragOver = $state(false);
+
+	async function loadSignatureFile(file: File | undefined) {
+		if (!file || !canvasEl) return;
+		errorMsg = null;
+		try {
+			await drawSignatureImage(canvasEl, file);
+			hasDrawn = true;
+		} catch (err) {
+			errorMsg = err instanceof Error ? err.message : 'Could not read that image.';
+		}
+	}
+	function uploadSignature(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		loadSignatureFile(file);
+	}
+	function dropSignature(e: DragEvent) {
+		e.preventDefault();
+		dragOver = false;
+		loadSignatureFile(e.dataTransfer?.files?.[0]);
+	}
 	function canvasToBlob(): Promise<Blob | null> {
 		return new Promise((resolve) => {
 			if (!canvasEl) return resolve(null);
@@ -160,7 +178,7 @@
 
 	async function submit() {
 		errorMsg = null;
-		if (!hasDrawn) return (errorMsg = 'Please draw your signature.');
+		if (!hasDrawn) return (errorMsg = 'Please draw or upload your signature.');
 		// Only an open slot asks for name/email here; a named slot supplies its own.
 		if (slot?.open && !name.trim()) return (errorMsg = 'Please enter your name.');
 		for (const f of signState.fields) {
@@ -174,6 +192,7 @@
 		try {
 			const fd = new FormData();
 			fd.append('name', name.trim());
+			if (slot) fd.append('signerIndex', String(slot.index));
 			fd.append('email', email.trim());
 			fd.append('signature', blob, 'signature.png');
 			for (const f of signState.fields) {
@@ -206,11 +225,7 @@
 	{#if slot}
 		<!-- Drawn mark (if signed) sitting on the signature rule. -->
 		{#if slot.signed && slot.signatureImageUrl}
-			<img
-				src={slot.signatureImageUrl}
-				alt="Signature of {slot.name}"
-				class="print-sign-mark"
-			/>
+			<img src={slot.signatureImageUrl} alt="Signature of {slot.name}" class="print-sign-mark" />
 		{:else if slot.signed}
 			<div class="print-sign-cursive">{slot.name}</div>
 		{:else}
@@ -219,7 +234,10 @@
 		<div class="print-sign-rule"></div>
 		<div class="print-sign-fields">
 			<div><span class="print-sign-label">Name:</span> {slot.signed ? slot.name : ''}</div>
-			<div><span class="print-sign-label">Date:</span> {slot.signed ? fmtDate(slot.signedAt) : ''}</div>
+			<div>
+				<span class="print-sign-label">Date:</span>
+				{slot.signed ? fmtDate(slot.signedAt) : ''}
+			</div>
 			{#if slot.email}
 				<div><span class="print-sign-label">Email:</span> {slot.email}</div>
 			{/if}
@@ -301,11 +319,15 @@
 			<div class="space-y-2">
 				<!-- Signature pad first, then the identifying fields. -->
 				<div class="flex items-center justify-start gap-2">
-					<span class="text-xs font-medium text-gray-600">Draw your signature</span>
-					<button
-						type="button"
-						onclick={clearPad}
-						class="text-[11px] text-error">Clear</button
+					<span class="text-xs font-medium text-gray-600">Draw or upload your signature</span>
+					<button type="button" onclick={clearPad} class="text-[11px] text-error">Clear</button>
+					<label class="btn btn-outline btn-sm"
+						>Upload<input
+							type="file"
+							accept="image/*"
+							class="hidden"
+							onchange={uploadSignature}
+						/></label
 					>
 				</div>
 				<canvas
@@ -314,7 +336,15 @@
 					onpointermove={moveDraw}
 					onpointerup={endDraw}
 					onpointerleave={endDraw}
-					class="h-28 w-full touch-none rounded-lg border border-dashed border-gray-300 bg-gray-50"
+					ondragover={(e) => {
+						e.preventDefault();
+						dragOver = true;
+					}}
+					ondragleave={() => (dragOver = false)}
+					ondrop={dropSignature}
+					class="h-28 w-full touch-none rounded-lg border border-dashed {dragOver
+						? 'border-primary bg-primary/10'
+						: 'border-gray-300 bg-gray-50'}"
 				></canvas>
 				{#if slot?.open}
 					<!-- Unknown party: capture who they are (name only; add other

@@ -86,7 +86,10 @@
 	"r2_buckets": [
 		{
 			"binding": "BUCKET",
-			"bucket_name": "neonote"
+			"bucket_name": "neonote",
+			// Dev uses the real bucket (dev already talks to the prod DB). Local R2
+			// stored uploads that the saved img.mdpubs.com URLs could never reach.
+			"remote": true
 		}
 	],
 	// Cloudflare Images binding for on-the-fly resize/WebP (replaces server-side

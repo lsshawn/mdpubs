@@ -10,6 +10,7 @@
 	 * HTML-pub view. It is fully self-contained and talks straight to the API.
 	 */
 	import { tick } from 'svelte';
+	import { drawSignatureImage } from '$lib/helpers/signature-image';
 
 	type SignStateSigner = {
 		name: string;
@@ -94,9 +95,7 @@
 			const body = await res.json();
 			if (res.ok) {
 				// 'request_created' is an internal bookkeeping event, not signer-facing.
-				auditEvents = (body.events || []).filter(
-					(e: AuditEvent) => e.action !== 'request_created'
-				);
+				auditEvents = (body.events || []).filter((e: AuditEvent) => e.action !== 'request_created');
 				auditIsOwner = !!body.isOwner;
 			}
 		} catch {
@@ -147,9 +146,7 @@
 	 * name, else by index among anchors). Returns null if the doc has no anchors.
 	 */
 	function currentSignerAnchor(): HTMLElement | null {
-		const anchors = Array.from(
-			document.querySelectorAll<HTMLElement>('[data-mdpubs-sign-here]')
-		);
+		const anchors = Array.from(document.querySelectorAll<HTMLElement>('[data-mdpubs-sign-here]'));
 		if (anchors.length === 0) return null;
 		const target = nextSigner;
 		if (target) {
@@ -236,6 +233,29 @@
 		hasDrawn = false;
 	}
 
+	let dragOver = $state(false);
+
+	async function loadSignatureFile(file: File | undefined) {
+		if (!file || !canvasEl) return;
+		errorMsg = null;
+		try {
+			await drawSignatureImage(canvasEl, file);
+			hasDrawn = true;
+		} catch (err) {
+			errorMsg = err instanceof Error ? err.message : 'Could not read that image.';
+		}
+	}
+	function uploadSignature(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		loadSignatureFile(file);
+	}
+	function dropSignature(e: DragEvent) {
+		e.preventDefault();
+		dragOver = false;
+		loadSignatureFile(e.dataTransfer?.files?.[0]);
+	}
 	function canvasToBlob(): Promise<Blob | null> {
 		return new Promise((resolve) => {
 			if (!canvasEl) return resolve(null);
@@ -246,7 +266,7 @@
 	async function submit() {
 		errorMsg = null;
 		if (!hasDrawn) {
-			errorMsg = 'Please draw your signature.';
+			errorMsg = 'Please draw or upload your signature.';
 			return;
 		}
 		// Only an open slot asks for name/email; a named slot supplies its own.
@@ -270,6 +290,7 @@
 		try {
 			const fd = new FormData();
 			fd.append('name', name.trim());
+			if (nextSigner) fd.append('signerIndex', String(nextSigner.index));
 			fd.append('email', email.trim());
 			fd.append('signature', blob, 'signature.png');
 			for (const f of signState.fields) {
@@ -392,7 +413,9 @@
 							{/if}
 							{#if auditIsOwner && (ev.ipAddress || ev.location)}
 								<div class="text-[10px] text-gray-400">
-									{#if ev.ipAddress}IP {ev.ipAddress}{/if}{#if ev.ipAddress && ev.location} · {/if}{#if ev.location}{ev.location}{/if}
+									{#if ev.ipAddress}IP {ev.ipAddress}{/if}{#if ev.ipAddress && ev.location}
+										·
+									{/if}{#if ev.location}{ev.location}{/if}
 								</div>
 							{/if}
 						</li>
@@ -486,7 +509,9 @@
 							Signing as <span class="font-medium">{nextSigner.name}</span>. Enter your name below.
 						</p>
 						<div>
-							<label for="sign-name" class="mb-1 block text-xs font-medium text-gray-600">Name</label>
+							<label for="sign-name" class="mb-1 block text-xs font-medium text-gray-600"
+								>Name</label
+							>
 							<input
 								id="sign-name"
 								type="text"
@@ -502,8 +527,12 @@
 					{/if}
 					{#each signState.fields as field (field.label)}
 						<div>
-							<label class="mb-1 block text-xs font-medium text-gray-600" for="sign-field-{field.label}"
-								>{field.label}{#if !field.required}<span class="text-gray-400"> (optional)</span>{/if}</label
+							<label
+								class="mb-1 block text-xs font-medium text-gray-600"
+								for="sign-field-{field.label}"
+								>{field.label}{#if !field.required}<span class="text-gray-400">
+										(optional)</span
+									>{/if}</label
 							>
 							<input
 								id="sign-field-{field.label}"
@@ -516,12 +545,22 @@
 					{/each}
 					<div>
 						<div class="mb-1 flex items-center justify-between">
-							<span class="text-xs font-medium text-gray-600">Draw your signature</span>
-							<button
-								type="button"
-								onclick={clearPad}
-								class="text-[11px] text-gray-400 hover:text-gray-700">Clear</button
-							>
+							<span class="text-xs font-medium text-gray-600">Draw or upload your signature</span>
+							<div class="flex items-center gap-2">
+								<button
+									type="button"
+									onclick={clearPad}
+									class="text-[11px] text-gray-400 hover:text-gray-700">Clear</button
+								>
+								<label class="btn btn-outline btn-sm"
+									>Upload<input
+										type="file"
+										accept="image/*"
+										class="hidden"
+										onchange={uploadSignature}
+									/></label
+								>
+							</div>
 						</div>
 						<canvas
 							bind:this={canvasEl}
@@ -529,7 +568,15 @@
 							onpointermove={moveDraw}
 							onpointerup={endDraw}
 							onpointerleave={endDraw}
-							class="h-32 w-full touch-none rounded-lg border border-dashed border-gray-300 bg-gray-50"
+							ondragover={(e) => {
+								e.preventDefault();
+								dragOver = true;
+							}}
+							ondragleave={() => (dragOver = false)}
+							ondrop={dropSignature}
+							class="h-32 w-full touch-none rounded-lg border border-dashed {dragOver
+								? 'border-primary bg-primary/10'
+								: 'border-gray-300 bg-gray-50'}"
 						></canvas>
 					</div>
 
