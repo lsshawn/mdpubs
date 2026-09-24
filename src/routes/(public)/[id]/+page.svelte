@@ -1308,6 +1308,14 @@
 			page-break-inside: avoid; /* legacy alias for older print engines */
 		}
 
+		/* ...except blocks that can legitimately be taller than a page. Keeping
+		   those atomic would push them past the page end and clip them. */
+		:global(.prose pre),
+		:global(.prose blockquote) {
+			break-inside: auto;
+			page-break-inside: auto;
+		}
+
 		/* Keep a heading with the content that follows it — no orphaned headings
 		   at the bottom of a page, and no page break immediately after one. */
 		:global(.prose h1),
@@ -1322,9 +1330,71 @@
 		}
 
 		/* Images must never overflow the printable width. */
-		:global(.prose img) {
+		:global(.prose img),
+		:global(.prose svg),
+		:global(.prose video),
+		:global(.prose canvas) {
 			max-width: 100% !important;
 			height: auto !important;
+		}
+
+		/* On screen the table is a horizontally-scrollable block sized to its
+		   content (`display:block; width:max-content`). Paper has no scrollbar,
+		   so anything past the printable width is simply cut off. Put tables back
+		   into normal table layout, constrained to the page width, and let cells
+		   wrap. `table-layout: fixed` distributes columns evenly instead of
+		   letting one long cell blow out the width. */
+		:global(.prose table) {
+			display: table !important;
+			width: 100% !important;
+			max-width: 100% !important;
+			min-width: 0 !important;
+			table-layout: fixed !important;
+			overflow: visible !important;
+		}
+		:global(.prose thead),
+		:global(.prose tbody),
+		:global(.prose tfoot),
+		:global(.prose tr) {
+			max-width: 100% !important;
+		}
+		:global(.prose th),
+		:global(.prose td) {
+			white-space: normal !important;
+			overflow-wrap: anywhere !important;
+			word-break: break-word !important;
+			max-width: 100% !important;
+		}
+		/* Any wrapper the renderer put around a wide table/figure. */
+		:global(.prose figure),
+		:global(.prose .table-wrapper),
+		:global(.prose [class*='overflow-x']) {
+			overflow: visible !important;
+			max-width: 100% !important;
+			width: auto !important;
+		}
+
+		/* Same problem for code blocks: wrap instead of clipping the right edge. */
+		:global(.prose pre) {
+			max-width: 100% !important;
+			overflow: visible !important;
+			white-space: pre-wrap !important;
+			overflow-wrap: anywhere !important;
+			word-break: break-word !important;
+		}
+		:global(.prose pre code) {
+			white-space: pre-wrap !important;
+			overflow-wrap: anywhere !important;
+		}
+
+		/* A tall table can legitimately need more than one page; forcing it whole
+		   would otherwise push it off the end. Repeat the header on each page. */
+		:global(.prose table) {
+			break-inside: auto;
+			page-break-inside: auto;
+		}
+		:global(.prose thead) {
+			display: table-header-group;
 		}
 	}
 </style>
