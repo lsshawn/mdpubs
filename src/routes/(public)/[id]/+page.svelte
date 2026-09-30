@@ -966,8 +966,10 @@
 						</aside>
 					{/if}
 
-					<!-- Main Content Area -->
-					<div class="flex-1">
+					<!-- Main Content Area. min-w-0: a flex item never shrinks below its
+					     widest child by default, so one wide table or <pre> pushed the
+					     whole page past the phone's edge. -->
+					<div class="min-w-0 flex-1">
 						<!-- Mobile TOC Button -->
 						{#if note?.toc?.length > 0}
 							<div
