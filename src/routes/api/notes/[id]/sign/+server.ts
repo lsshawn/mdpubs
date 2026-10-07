@@ -1,15 +1,17 @@
 /**
- * /api/notes/[id]/sign — signing state (GET) and sign a document (POST).
+ * /api/notes/[id]/sign — signing state (GET), sign a document (POST), and clear
+ * signatures (DELETE).
  * Native port of the old Hono `/notes/:id/sign`. Public but privacy-respecting;
  * signing is multipart with `name`, `email`, `signature` (PNG), and `field:*`.
  */
 import { json, type RequestEvent } from '@sveltejs/kit';
-import { optionalApiAuth, isAuthError } from '$lib/server/api/auth';
+import { optionalApiAuth, requireApiAuth, isAuthError } from '$lib/server/api/auth';
 import { resolveNoteId } from '$lib/server/api/http';
 import { config } from '$lib/server/api/config';
 import { NoteService } from '$lib/server/api/services/note';
 import { signService, SignError } from '$lib/server/api/services/sign';
-import { NotFoundError, NoteNotOwnedError } from '$lib/server/api/db';
+import { database, NotFoundError, NoteNotOwnedError } from '$lib/server/api/db';
+import { canReopenSigning } from '$lib/server/org';
 
 const noteService = new NoteService();
 
@@ -127,5 +129,84 @@ export async function POST(event: RequestEvent): Promise<Response> {
 		if (error instanceof SignError) return json({ error: error.message }, { status: 409 });
 		console.error('Error signing note:', error);
 		return json({ error: 'Failed to sign document' }, { status: 500 });
+	}
+}
+
+/**
+ * DELETE /api/notes/[id]/sign?signerIndex=N&reason=… — clear signatures so the
+ * slot can be signed again. The API twin of the reopen action on /notes, for
+ * agents and the CLI.
+ *
+ * `signerIndex` clears one slot and the body stays locked; leaving it out clears
+ * every signature and unlocks the note. `reason` is required because it is the
+ * only record in the append-only audit trail of why a signature was withdrawn.
+ *
+ * The note's author, or an owner/admin of its org. Admin keys are allowed for
+ * support use and must name who is acting with `appliedBy`.
+ */
+export async function DELETE(event: RequestEvent): Promise<Response> {
+	const auth = await requireApiAuth(event);
+	if (isAuthError(auth)) return auth;
+	if (auth.isReadOnly) {
+		return json({ error: 'This API key is read-only.' }, { status: 403 });
+	}
+	const params = event.url.searchParams;
+	const req = event.request;
+
+	try {
+		const noteId = await resolveNoteId(event.params.id);
+		if (noteId === null) return notFound();
+		const note = await database.getNoteById(noteId);
+		if (!note || note.deletedAt) return notFound();
+		if (!auth.isAdmin && !(await canReopenSigning(note, auth.user!.id))) {
+			return json(
+				{ error: 'Only the note’s author or an org owner/admin can clear signatures.' },
+				{ status: 403 }
+			);
+		}
+
+		const reason = (params.get('reason') || '').trim();
+		if (!reason) {
+			return json(
+				{ error: 'A `reason` is required — it is recorded in the audit trail.' },
+				{ status: 400 }
+			);
+		}
+		const appliedBy = (params.get('appliedBy') || '').trim();
+		if (auth.isAdmin && !appliedBy) {
+			return json(
+				{ error: 'An `appliedBy` parameter is required when using an admin key.' },
+				{ status: 400 }
+			);
+		}
+
+		// Absent or '' = every signer.
+		const rawIndex = params.get('signerIndex');
+		let signerIndex: number | undefined;
+		if (rawIndex !== null && rawIndex !== '') {
+			signerIndex = Number(rawIndex);
+			if (!Number.isInteger(signerIndex) || signerIndex < 0) {
+				return json({ error: 'Invalid `signerIndex`.' }, { status: 400 });
+			}
+		}
+
+		const { voided, state } = await signService.reopen({
+			note,
+			signerIndex,
+			reason,
+			actorEmail: auth.user?.email || `${appliedBy} (via admin key)`,
+			bucket: event.platform?.env?.BUCKET,
+			ipAddress:
+				req.headers.get('cf-connecting-ip') ||
+				req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+				undefined,
+			userAgent: req.headers.get('user-agent') || undefined
+		});
+		return json({ voided, state: await signService.withSignatureImageUrls(note, state) });
+	} catch (error) {
+		if (error instanceof SignError) return json({ error: error.message }, { status: 409 });
+		if (error instanceof NotFoundError) return notFound();
+		console.error('Error clearing signatures:', error);
+		return json({ error: 'Failed to clear signatures' }, { status: 500 });
 	}
 }

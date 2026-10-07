@@ -17,7 +17,7 @@ mdpubs reads YAML frontmatter to decide who signs, and reads inline HTML comment
 1. **Frontmatter keys** declare the document is signable and list the signers.
 2. **`<!-- mdpubs-sign-here: NAME -->` comments** in the body mark the exact spot each signer's block renders. The `NAME` must match a name listed under `mdpubs-signers` or `mdpubs-signers-open`.
 
-Signatures are stored against the document, never written into its content — that is why placement uses an anchor. On the **first** signature the document locks: later edits that change the signed body are rejected with a `409`. Get the wording right before you send the link.
+Signatures are stored against the document, never written into its content — that is why placement uses an anchor. On the **first** signature the document locks: later edits that change the signed body, or the signer list, sign order or signer fields, are rejected with a `409`. Get the wording right before you send the link.
 
 (For `.html` documents the same features exist as comment markers — `<!-- mdpubs-sign: true -->`, `<!-- mdpubs-signer: Name <email> -->`, `<!-- mdpubs-signer-open: Label -->`, `<!-- mdpubs-signer-field: Title? -->`, `<!-- mdpubs-sign-order: parallel -->`. This skill covers the markdown path; `mdpubs help` documents both.)
 
@@ -135,6 +135,24 @@ curl -X PUT https://mdpubs.com/api/notes/<id> \
 ```
 
 JSON bodies work too. Signing is unaffected by how you publish — the server reads the config from `content`. The one thing you lose is the automatic id stamp: after a create, copy the returned `publicId` into the document's `mdpubs:` key yourself, or the next publish creates a duplicate instead of updating.
+
+## Checking and fixing signatures
+
+```bash
+mdpubs sign status doc.md            # who signed, when, whose turn it is (or pass the id)
+mdpubs sign status doc.md --json     # same, for scripts: complete, started, signers[].signed/signedAt
+
+mdpubs sign clear doc.md --slot 1 --reason "Signed in the wrong box"   # void one signature
+mdpubs sign clear doc.md --all --reason "Wording changed before countersign"  # void all, unlocks the doc
+```
+
+- **Use `sign status` to answer "has the client signed?"** Don't open the page or download the PDF to find out.
+- **Someone signed in the wrong slot:** run `sign status` to find the slot index (`[N]`), then `sign clear --slot N`. The slot reopens and the right person signs again. The doc stays locked, so the body can't change.
+- **The wording must change after someone signed:** `sign clear --all` voids every signature and unlocks the doc. Edit, republish, and everyone signs again. Confirm with the user first: it withdraws signatures the other party already gave.
+- **`--reason` is required.** It goes into the document's audit trail, so write what happened, not "fix".
+- Only the note's author or an owner/admin of its org can clear signatures. Anyone else gets a `403`.
+
+Without the CLI: `GET https://mdpubs.com/api/notes/<id>/sign` for status, `DELETE https://mdpubs.com/api/notes/<id>/sign?signerIndex=N&reason=…` to clear (leave out `signerIndex` to clear all).
 
 ## Gotchas
 

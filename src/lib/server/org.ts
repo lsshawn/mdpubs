@@ -57,6 +57,19 @@ export async function canManageOrg(orgId: string, userId: string): Promise<boole
 	return role === 'owner' || role === 'admin';
 }
 
+/**
+ * True if the user may clear signatures on a note: its author, or an owner/admin
+ * of the org the note was published into. The org half lets a colleague fix a
+ * signature placed in the wrong slot when the author is not around.
+ */
+export async function canReopenSigning(
+	note: { userId: string; orgId: string | null },
+	userId: string
+): Promise<boolean> {
+	if (note.userId === userId) return true;
+	return !!note.orgId && (await canManageOrg(note.orgId, userId));
+}
+
 export type ResolveOrgResult =
 	| { ok: true; orgId: string | null } // orgId null = personal note (no org)
 	| { ok: false; error: string };

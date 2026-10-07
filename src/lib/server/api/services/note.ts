@@ -591,6 +591,21 @@ export class NoteService {
 						'Duplicate it to make a new version.'
 				);
 			}
+			// The body hash skips the frontmatter, where a markdown pub keeps its
+			// signer list. Signatures bind to a slot by index and the list is re-read
+			// from live content, so an edited list would move existing signatures onto
+			// other names. Lazy import: sign.ts imports this module.
+			const { signService } = await import('./sign');
+			const signing = (c: string) =>
+				JSON.stringify(
+					signService.parseConfig({ content: c, fileExtension: existingNote.fileExtension })
+				);
+			if (signing(existingNote.content || '') !== signing(updateData.content)) {
+				throw new NoteLockedError(
+					'This document has been signed, so its signers, sign order and fields can no ' +
+						'longer change. Clear the signatures first, or duplicate it to make a new version.'
+				);
+			}
 		}
 
 		const oldImageMap = existingNote.imageMap || {};

@@ -347,6 +347,11 @@
 		return note.userId === data.user.id;
 	}
 
+	/** Mirrors canReopenSigning: the author, or an owner/admin of the org being viewed. */
+	function canReopen(note: (typeof data.notes)[0]) {
+		return canEdit(note) || data.managesActiveOrg;
+	}
+
 	/** Same URL with `page` swapped, preserving `org`, `q`, and anything else present. */
 	function getPageURL(p: number) {
 		const url = new URL($page.url);
@@ -638,7 +643,7 @@
 										Move
 									</button>
 								</li>
-								{#if canEdit(note) && note.signatures.length > 0}
+								{#if canReopen(note) && note.signatures.length > 0}
 									<!--
 										Only rendered for a note that actually has signatures, so the
 										menu stays two items long for ordinary notes. Each signer gets
@@ -783,7 +788,7 @@
 									than `:focus-within` — a menu that closed on hover-out would be
 									unusable.
 								-->
-								{#if canEdit(note) && note.signatures.length > 0}
+								{#if canReopen(note) && note.signatures.length > 0}
 									<div
 										class="dropdown dropdown-end"
 										class:dropdown-top={i >= visibleNotes.length - 2 && visibleNotes.length > 3}

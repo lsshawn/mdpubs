@@ -3,7 +3,7 @@ import * as table from '$lib/server/db/schema';
 import { fail, redirect } from '@sveltejs/kit';
 import { config } from '$lib/config';
 import { and, eq, or, like, sql, isNull, desc, inArray } from 'drizzle-orm';
-import { getOrgRole } from '$lib/server/org';
+import { canManageOrg, canReopenSigning, getOrgRole } from '$lib/server/org';
 import { deleteFolder } from '$lib/server/storage';
 import { renderTitleMarkdown, highlightTitleHtml, highlightText } from '$lib/server/title-markdown';
 import type { Actions, PageServerLoad } from './$types';
@@ -182,6 +182,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.limit(1);
 		activeOrg = row ?? null;
 	}
+	// Org owners/admins may reopen signing on a colleague's note (canReopenSigning).
+	const managesActiveOrg = activeOrg ? await canManageOrg(activeOrg.id, locals.user.id) : false;
 
 	const whereClauses = [isNull(table.note.deletedAt)];
 	if (activeOrg) {
@@ -259,6 +261,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const totalPages = Math.ceil(totalNotes / PAGE_SIZE);
 
 	return {
+		managesActiveOrg,
 		// `titleHtml` is the title's inline markdown, rendered and allowlisted here
 		// rather than in the component: it is injected with {@html}, so it must be
 		// produced by the server-side sanitizer and never assembled on the client.
@@ -576,8 +579,9 @@ export const actions: Actions = {
 	 * (which also unlocks it for editing). See SignService.reopen for why the
 	 * signing request survives a single-slot reopen but not a full one.
 	 *
-	 * Author-only, matching delete: a signed agreement is the author's to
-	 * withdraw, not any company-library member's. The reason string is optional
+	 * The author, or an owner/admin of the note's org (canReopenSigning), so a
+	 * wrong-slot signature can be fixed when the author is away. Plain org
+	 * members cannot: a signed agreement is not any library member's to withdraw. The reason string is optional
 	 * but ends up in the append-only audit trail, so the UI asks for it.
 	 */
 	reopenSignature: async ({ request, locals, platform }) => {
@@ -613,8 +617,8 @@ export const actions: Actions = {
 		if (!target) {
 			return fail(404, { message: 'Note not found' });
 		}
-		if (target.userId !== locals.user.id) {
-			return fail(403, { message: 'Only the note’s author can reopen signing.' });
+		if (!(await canReopenSigning(target, locals.user.id))) {
+			return fail(403, { message: 'Only the note’s author or an org owner/admin can reopen signing.' });
 		}
 
 		const { signService, SignError } = await import('$lib/server/api/services/sign');
