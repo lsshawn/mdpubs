@@ -1,222 +1,271 @@
 <script lang="ts">
 	import { config } from '$lib/config';
 	import { resolve } from '$app/paths';
+	import SignPlayground from '$lib/components/SignPlayground.svelte';
 
-	import Icon from '@iconify/svelte';
+	/**
+	 * Both pricing CTAs go to signup rather than straight to Stripe. The app has a
+	 * single Stripe payment link configured (config.stripePaymentLinks), not one
+	 * per tier, and wiring a second link would mean a new config entry — an
+	 * owner's call. Signup is the step a visitor has to take first anyway.
+	 */
+	const signupHref = resolve('/login');
 </script>
 
-<div class="min-h-screen bg-base-100 text-base-content">
-	<!-- ATTENTION -->
-	<section class="container mx-auto px-4 py-8 text-center md:py-16">
-		<p class="mb-4 font-mono text-sm tracking-wide text-primary">Markdown → public web page, instantly</p>
-		<h1
-			class="mx-auto mb-6 text-3xl leading-tight font-bold text-base-content md:max-w-4xl md:text-5xl"
-		>
-			Let your AI publish markdown to the web
+<svelte:head>
+	<title>MdPubs — e-sign proposals from plain Markdown</title>
+	<meta
+		name="description"
+		content="Send client proposals they can sign on a phone. Write Markdown, drop a signature anchor, share a link."
+	/>
+	<!--
+		JetBrains Mono carries the monospace accents on this page only. Loaded here
+		rather than in app.html so the rest of the app does not pay for a
+		third-party font request it never renders. `display=swap` keeps the page
+		readable in the system monospace until it arrives.
+	-->
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+	<link
+		rel="stylesheet"
+		href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+	/>
+</svelte:head>
+
+<div class="landing min-h-screen bg-base-100 text-base-content">
+	<!-- Hero -->
+	<section class="mx-auto max-w-6xl px-6 pt-16 pb-10 md:pt-24">
+		<p class="font-mono text-xs tracking-widest text-base-content/50 uppercase">
+			Markdown → signed document
+		</p>
+		<h1 class="mt-5 max-w-3xl text-3xl leading-[1.15] font-semibold tracking-tight md:text-5xl">
+			Send client proposals they can actually sign on a phone. From plain Markdown.
 		</h1>
-
-		<!-- INTEREST -->
-		<p class="mx-auto mb-12 max-w-xl text-lg text-base-content/70">
-			Publish-to-web for your markdown, built for agents. Drop one line of
-			frontmatter and any file goes live at a shareable URL — no copy-paste, no CMS.
+		<p class="mt-6 max-w-2xl text-lg leading-relaxed text-base-content/70">
+			Stop exporting ugly PDFs and paying $40/mo for DocuSign bloat. Drop a signature anchor and get
+			a clean, phone-first e-sign link in seconds.
 		</p>
-
-		<!-- Code Example -->
-		<div class="mx-auto mb-12 max-w-2xl">
-			<div class="rounded-lg border border-gray-700 bg-gray-800 shadow-2xl">
-				<div
-					class="flex items-center justify-between rounded-t-lg border-b border-gray-600 bg-gray-700 px-4 py-2"
-				>
-					<div class="flex items-center space-x-2">
-						<div class="h-3 w-3 rounded-full bg-red-500"></div>
-						<div class="h-3 w-3 rounded-full bg-yellow-500"></div>
-						<div class="h-3 w-3 rounded-full bg-green-500"></div>
-					</div>
-					<span class="text-sm text-gray-400">.md</span>
-				</div>
-				<div class="p-6 text-left">
-					<pre class="font-mono text-sm leading-relaxed text-wrap text-green-400"><code
-							>---
-title: "My Note"
-// 👇 just add this to publish
-mdpubs:
----
-
-This markdown file will be instantly available at:
-https://mdpubs.com/[id]
-
-</code></pre>
-				</div>
-			</div>
-		</div>
-
-		<!-- ACTION -->
-		<div class="mx-auto max-w-xl">
+		<div class="mt-8 flex flex-wrap items-center gap-5">
 			<a
-				role="button"
-				class="btn btn-primary btn-lg border-none px-12 py-6 text-xl shadow-lg"
-				href={resolve('/login')}>Get Your Free API Key</a
+				href="#playground"
+				class="border border-base-content bg-base-content px-6 py-3 font-mono text-sm text-base-100 transition-colors hover:bg-transparent hover:text-base-content"
 			>
-
-			{@render ctaFootnote()}
-
-			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-			<a href={config.git} class="text-base-content/60 underline">API & plugin docs</a>
+				Try with Your Markdown →
+			</a>
+			<!-- eslint-disable svelte/no-navigation-without-resolve -->
+			<a
+				href={config.git}
+				class="font-mono text-sm text-base-content/60 underline underline-offset-4 hover:text-base-content"
+			>
+				API &amp; Neovim plugin
+			</a>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		</div>
 	</section>
 
-	<!-- DESIRE -->
-	<section class="container min-w-full bg-base-200 px-10 py-16">
-		<h2 class="text-center text-3xl font-bold text-base-content">Publishing as a single API call</h2>
-		<p class="mx-auto mt-3 max-w-xl text-center text-base-content/70">
-			Hand your agent an API key. It writes markdown, MdPubs hosts it — clean, fast, public.
-		</p>
-		<div class="mt-12 grid gap-8 md:grid-cols-3">
-			<div class="card justify-start border border-base-300 bg-base-100 text-center shadow-lg">
-				<div class="card-body grow-0 items-center">
-					<Icon icon="ph:robot" class="mx-auto mb-4 h-12 w-12 text-primary" />
-					<h2 class="card-title justify-center text-base-content">Built for AI</h2>
-					<p class="mt-2 text-base-content/70">
-						One frontmatter flag and a simple API. No browser, no CMS dashboard — exactly the
-						interface an agent wants.
-					</p>
-					<pre
-						class="w-full overflow-x-auto rounded-md bg-gray-900 p-4 text-left font-mono text-sm text-green-400"><code
-							>{`---
-title: "My Note"
+	<!-- Split interactive playground -->
+	<section id="playground" class="mx-auto max-w-6xl scroll-mt-8 px-6 pb-20">
+		<SignPlayground />
+	</section>
+
+	<!-- Old way vs mdpubs way -->
+	<section class="border-y border-base-content/15">
+		<div class="mx-auto grid max-w-6xl gap-px bg-base-content/15 md:grid-cols-2">
+			<div class="bg-base-100 px-6 py-12 md:px-10">
+				<p class="font-mono text-xs tracking-widest text-base-content/40 uppercase">The old way</p>
+				<h2 class="mt-4 text-2xl font-semibold tracking-tight text-base-content/60">
+					A PDF, pinched to read
+				</h2>
+				<ul class="mt-6 space-y-4 text-base-content/60">
+					<li class="flex gap-3">
+						<span class="font-mono text-base-content/30">01</span>
+						<span>Export to PDF. The layout breaks on the first phone that opens it.</span>
+					</li>
+					<li class="flex gap-3">
+						<span class="font-mono text-base-content/30">02</span>
+						<span>Your client pinches and drags around an A4 page on a 390px screen.</span>
+					</li>
+					<li class="flex gap-3">
+						<span class="font-mono text-base-content/30">03</span>
+						<span>They give up, print it, sign it, scan it — or find a printer on Monday.</span>
+					</li>
+					<li class="flex gap-3">
+						<span class="font-mono text-base-content/30">04</span>
+						<span>Four days pass before you hear back.</span>
+					</li>
+				</ul>
+			</div>
+
+			<div class="bg-base-100 px-6 py-12 md:px-10">
+				<p class="font-mono text-xs tracking-widest text-base-content/50 uppercase">
+					The mdpubs way
+				</p>
+				<h2 class="mt-4 text-2xl font-semibold tracking-tight">A web page, built for 390px</h2>
+				<ul class="mt-6 space-y-4 text-base-content/80">
+					<li class="flex gap-3">
+						<span class="font-mono text-base-content/40">01</span>
+						<span>Write Markdown. Publish it as a responsive document at a shareable URL.</span>
+					</li>
+					<li class="flex gap-3">
+						<span class="font-mono text-base-content/40">02</span>
+						<span>Headings become a table of contents automatically. Tables scroll, not clip.</span>
+					</li>
+					<li class="flex gap-3">
+						<span class="font-mono text-base-content/40">03</span>
+						<span>Your client taps the signature box and draws with a thumb.</span>
+					</li>
+					<li class="flex gap-3">
+						<span class="font-mono text-base-content/40">04</span>
+						<span>Signed in 8 seconds, on the phone they already had open.</span>
+					</li>
+				</ul>
+			</div>
+		</div>
+	</section>
+
+	<!-- How it works -->
+	<section class="mx-auto max-w-6xl px-6 py-20">
+		<h2 class="text-2xl font-semibold tracking-tight md:text-3xl">Three lines of Markdown</h2>
+		<div class="mt-10 grid gap-px border border-base-content/15 bg-base-content/15 md:grid-cols-3">
+			<div class="bg-base-100 p-6">
+				<p class="font-mono text-xs text-base-content/40">01</p>
+				<h3 class="mt-3 font-semibold">Turn signing on</h3>
+				<p class="mt-2 text-sm text-base-content/70">
+					One frontmatter flag makes any published document signable.
+				</p>
+				<pre class="mt-4 overflow-x-auto border border-base-content/15 p-3 font-mono text-xs"><code
+						>{`---
 mdpubs:
+sign: true
 ---`}</code
-						></pre>
-				</div>
-			</div>
-
-			<div class="card justify-start border border-base-300 bg-base-100 text-center shadow-lg">
-				<div class="card-body grow-0 items-center">
-					<Icon icon="ph:globe" class="mx-auto mb-4 h-12 w-12 text-primary" />
-					<h2 class="card-title justify-center text-base-content">Live in a second</h2>
-					<p class="mt-2 text-base-content/70">
-						Your content is online immediately at a clean, shareable
-						<code class="text-green-400">mdpubs.com/[id]</code>.
-					</p>
-					<img src="/sample-published-page.webp" alt="A published MdPubs page" />
-				</div>
-			</div>
-
-			<div class="card justify-start border border-base-300 bg-base-100 text-center shadow-lg">
-				<div class="card-body grow-0 items-center">
-					<Icon icon="ph:terminal-window" class="mx-auto mb-4 h-12 w-12 text-primary" />
-					<h2 class="card-title justify-center text-base-content">Works from your editor too</h2>
-					<p class="mt-2 text-base-content/70">
-						Prefer to write yourself? The
-						<a href="https://github.com/lsshawn/mdpubs.nvim" class="underline">Neovim plugin</a>
-						publishes the file you're editing without leaving the buffer.
-					</p>
-					<pre
-						class="w-full overflow-x-auto rounded-md bg-gray-900 p-4 text-left font-mono text-sm text-green-400"><code
-							>{`  {
-    "lsshawn/mdpubs.nvim",
-    config = function()
-      require("mdpubs").setup({
-        api_key = "your_key",
-      })
-    end,
-  }`}</code
-						></pre>
-				</div>
-			</div>
-		</div>
-	</section>
-
-	<!-- E-signing -->
-	<section class="container mx-auto px-4 py-16 md:px-10">
-		<p class="text-center font-mono text-sm tracking-wide text-primary">New</p>
-		<h2 class="mt-2 text-center text-3xl font-bold text-base-content">
-			Sign documents, no DocuSign
-		</h2>
-		<p class="mx-auto mt-3 max-w-2xl text-center text-base-content/70">
-			Add one line to any HTML pub and it becomes a signable document. Share the link — each party
-			draws their signature in the browser. No accounts for signers, no PDF export, no per-envelope
-			fees.
-		</p>
-
-		<div class="mx-auto mt-12 grid max-w-5xl items-center gap-8 md:grid-cols-2">
-			<!-- The one-line opt-in -->
-			<div class="rounded-lg border border-base-300 bg-base-200 p-4 shadow-lg">
-				<pre
-					class="w-full overflow-x-auto rounded-md bg-gray-900 p-4 text-left font-mono text-sm text-green-400"><code
-						>{`<!-- mdpubs-sign: true -->
-<!-- mdpubs-signer: You <you@co.com> -->
-<!-- mdpubs-signer-open: Other party -->
-<!-- mdpubs-sign-order: sequential -->
-
-<h1>Non-Disclosure Agreement</h1>
-...`}</code
 					></pre>
 			</div>
+			<div class="bg-base-100 p-6">
+				<p class="font-mono text-xs text-base-content/40">02</p>
+				<h3 class="mt-3 font-semibold">Drop an anchor</h3>
+				<p class="mt-2 text-sm text-base-content/70">
+					Put the signature box exactly where it belongs in the document.
+				</p>
+				<pre class="mt-4 overflow-x-auto border border-base-content/15 p-3 font-mono text-xs"><code
+						>{`<!-- mdpubs-sign-here:
+     Client Name -->`}</code
+					></pre>
+			</div>
+			<div class="bg-base-100 p-6">
+				<p class="font-mono text-xs text-base-content/40">03</p>
+				<h3 class="mt-3 font-semibold">Send the link</h3>
+				<p class="mt-2 text-sm text-base-content/70">
+					No account for signers. Each signature binds to a hash of the signed content, and the
+					document locks once signed.
+				</p>
+				<pre class="mt-4 overflow-x-auto border border-base-content/15 p-3 font-mono text-xs"><code
+						>mdpubs.com/abc123</code
+					></pre>
+			</div>
+		</div>
+	</section>
 
-			<!-- What you get -->
-			<div class="grid gap-4">
-				<div class="flex items-start gap-3">
-					<Icon icon="ph:pencil-simple-line" class="mt-1 h-6 w-6 shrink-0 text-primary" />
-					<div>
-						<h3 class="font-semibold text-base-content">Draw-to-sign in the browser</h3>
-						<p class="text-sm text-base-content/70">
-							Signers type their name and draw a signature. Don't know the other party's email?
-							Use an open slot — they fill in their own details. Sequential or parallel order.
-						</p>
-					</div>
+	<!-- Pricing -->
+	<section id="pricing" class="border-t border-base-content/15 bg-base-200">
+		<div class="mx-auto max-w-6xl px-6 py-20">
+			<h2 class="text-2xl font-semibold tracking-tight md:text-3xl">Pricing</h2>
+			<p class="mt-3 max-w-xl text-base-content/70">One signed proposal pays for a year of it.</p>
+
+			<div
+				class="mt-10 grid gap-px border border-base-content/15 bg-base-content/15 md:grid-cols-2"
+			>
+				<div class="flex flex-col bg-base-100 p-8">
+					<p class="font-mono text-xs tracking-widest text-base-content/50 uppercase">Solo</p>
+					<p class="mt-4 text-4xl font-semibold tracking-tight">
+						$19<span class="font-mono text-base font-normal text-base-content/50">/mo</span>
+					</p>
+					<ul class="mt-6 flex-1 space-y-3 text-sm text-base-content/80">
+						<li class="flex gap-3">
+							<span class="text-base-content/40">—</span> Unlimited signable proposals
+						</li>
+						<li class="flex gap-3">
+							<span class="text-base-content/40">—</span> Signature lock: the document freezes once signed
+						</li>
+						<li class="flex gap-3">
+							<span class="text-base-content/40">—</span> Audit log of every view and signature
+						</li>
+					</ul>
+					<a
+						href={signupHref}
+						class="mt-8 border border-base-content px-6 py-3 text-center font-mono text-sm transition-colors hover:bg-base-content hover:text-base-100"
+					>
+						Start on Solo
+					</a>
 				</div>
-				<div class="flex items-start gap-3">
-					<Icon icon="ph:lock-key" class="mt-1 h-6 w-6 shrink-0 text-primary" />
-					<div>
-						<h3 class="font-semibold text-base-content">Tamper-evident</h3>
-						<p class="text-sm text-base-content/70">
-							Each signature binds to a SHA-256 of the exact signed content. Once signed, the
-							document locks — no silent edits.
-						</p>
-					</div>
-				</div>
-				<div class="flex items-start gap-3">
-					<Icon icon="ph:list-checks" class="mt-1 h-6 w-6 shrink-0 text-primary" />
-					<div>
-						<h3 class="font-semibold text-base-content">Full audit trail</h3>
-						<p class="text-sm text-base-content/70">
-							Every view, signature, and completion is recorded with timestamp and IP. Download the
-							signed document as a PDF.
-						</p>
-					</div>
+
+				<div class="flex flex-col bg-base-100 p-8">
+					<p class="font-mono text-xs tracking-widest text-base-content/50 uppercase">
+						Studio / Agency
+					</p>
+					<p class="mt-4 text-4xl font-semibold tracking-tight">
+						$49<span class="font-mono text-base font-normal text-base-content/50">/mo</span>
+					</p>
+					<ul class="mt-6 flex-1 space-y-3 text-sm text-base-content/80">
+						<li class="flex gap-3">
+							<span class="text-base-content/40">—</span> Everything in Solo
+						</li>
+						<li class="flex gap-3">
+							<span class="text-base-content/40">—</span> Custom branded domain
+						</li>
+						<li class="flex gap-3"><span class="text-base-content/40">—</span> Parallel signers</li>
+						<li class="flex gap-3"><span class="text-base-content/40">—</span> Custom CSS</li>
+					</ul>
+					<a
+						href={signupHref}
+						class="mt-8 border border-base-content bg-base-content px-6 py-3 text-center font-mono text-sm text-base-100 transition-colors hover:bg-transparent hover:text-base-content"
+					>
+						Start on Studio
+					</a>
 				</div>
 			</div>
 		</div>
 	</section>
 
-	<!-- Footer -->
-	<footer class="border-t border-base-300 bg-base-200 py-12 text-base-content">
-		<div class="container mx-auto flex justify-between px-4">
-			<div class="text-sm text-base-content/60">
-				<p>
-					&copy; {new Date().getFullYear()} MdPubs, built by
-					<a
-						href="https://x.com/me_sshawn"
-						target="_blank"
-						class="text-primary hover:underline">Shawn</a
-					>.
-				</p>
-			</div>
-			<div class="flex flex-col items-center justify-between md:flex-row">
-				<div class="flex space-x-6 text-sm">
-					<!-- <a href="#" class="hover:text-blue-400"> Privacy Policy </a> -->
-					<!-- <a href="#" class="hover:text-blue-400"> Terms of Service </a> -->
-					<!-- <a href="#" class="hover:text-blue-400"> Contact </a> -->
-				</div>
-			</div>
+	<!-- Closing CTA -->
+	<section class="mx-auto max-w-6xl px-6 py-20 text-center">
+		<h2 class="text-2xl font-semibold tracking-tight md:text-3xl">
+			Your next proposal is a Markdown file.
+		</h2>
+		<a
+			href={signupHref}
+			class="mt-8 inline-block border border-base-content bg-base-content px-8 py-3 font-mono text-sm text-base-100 transition-colors hover:bg-transparent hover:text-base-content"
+		>
+			Get your API key →
+		</a>
+	</section>
+
+	<footer class="border-t border-base-content/15">
+		<div
+			class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-10 font-mono text-xs text-base-content/50"
+		>
+			<p>
+				&copy; {new Date().getFullYear()} MdPubs, built by
+				<a href="https://x.com/me_sshawn" target="_blank" class="underline underline-offset-4"
+					>Shawn</a
+				>.
+			</p>
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+			<a href={config.git} class="underline underline-offset-4">Docs</a>
 		</div>
 	</footer>
 </div>
 
-{#snippet ctaFootnote()}
-	<div class="my-4 text-center text-sm text-base-content/70">
-		<p>Free tier: 5 publishable markdown files, unlimited views.</p>
-		<p>For unlimited markdown files, it's $10 per month.</p>
-	</div>
-{/snippet}
+<style>
+	/*
+		Scope JetBrains Mono to this page's monospace accents. Setting it on the
+		Tailwind theme would repoint `font-mono` across the whole app, including the
+		code blocks and API keys in the dashboard, which do not load the font.
+		`:global` is needed because the rule has to reach the child component's
+		monospace text too.
+	*/
+	.landing :global(.font-mono),
+	.landing :global(code),
+	.landing :global(pre) {
+		font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+	}
+</style>
