@@ -6,6 +6,7 @@ import { parseSignAnchors } from './custom-components-parser.ts';
 // specifier literally, so an extensionless import is ERR_MODULE_NOT_FOUND.
 import {
 	SAMPLE_PROPOSAL,
+	SIGN_ANCHOR,
 	addHeadingIds,
 	previewToc,
 	previewTitle,
@@ -390,6 +391,28 @@ test('editing text around an anchor leaves its signature in place', () => {
  * shape that keeps it there; a longer sample pushed the box below the fold and
  * made the demo look static.
  */
+/**
+ * The landing page prints SIGN_ANCHOR in its subhead and a visitor copies it
+ * straight into a document, so it has to be a form BOTH parsers accept. An
+ * anchor missing the colon or the label renders as an ordinary HTML comment:
+ * no signing box and no error, which is the worst way for it to fail.
+ */
+test('the anchor advertised in the landing subhead produces a signing box', () => {
+	const doc = `# Deal\n\nPay up.\n\n${SIGN_ANCHOR}\n`;
+	// The published note's path: the anchor becomes the div SignPanel mounts into.
+	assert.ok(
+		parseSignAnchors(doc).includes('data-mdpubs-sign-here'),
+		`published notes render no signing box for ${SIGN_ANCHOR}`
+	);
+	// The playground's path: the anchor becomes a box in the phone preview.
+	assert.equal(signAnchorKeys(doc).length, 1, `the demo renders no signing box for ${SIGN_ANCHOR}`);
+	assert.deepEqual(splitOnSignAnchors(doc).length, 2);
+});
+
+test('the sample proposal is built from the advertised anchor', () => {
+	assert.ok(SAMPLE_PROPOSAL.includes(SIGN_ANCHOR));
+});
+
 test('the sample proposal has exactly one signing anchor', () => {
 	assert.deepEqual(signAnchorLabels(SAMPLE_PROPOSAL), ['Client Name']);
 });

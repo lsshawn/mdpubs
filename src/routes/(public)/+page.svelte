@@ -2,6 +2,7 @@
 	import { config } from '$lib/config';
 	import { resolve } from '$app/paths';
 	import SignPlayground from '$lib/components/SignPlayground.svelte';
+	import { SIGN_ANCHOR } from '$lib/helpers/landing-preview';
 
 	/**
 	 * Both pricing CTAs go to signup rather than straight to Stripe. The app has a
@@ -10,18 +11,6 @@
 	 * owner's call. Signup is the step a visitor has to take first anyway.
 	 */
 	const signupHref = resolve('/login');
-
-	/**
-	 * The anchor shown in the subhead, as a string rather than inline markup.
-	 *
-	 * Two reasons. It is the anchor the parser actually matches
-	 * (custom-components-parser.ts matches `mdpubs-sign-here`, not the bare
-	 * `sign-here` shorthand), so the page is not advertising a syntax that
-	 * silently renders as a comment and never produces a signing box. And writing
-	 * it as a literal keeps the `-->` out of the template, where it would close
-	 * the surrounding HTML comment early.
-	 */
-	const SIGN_ANCHOR = '<!-- mdpubs-sign-here -->';
 </script>
 
 <svelte:head>

@@ -16,6 +16,22 @@
 export type PreviewTocItem = { id: string; text: string; level: number };
 
 /**
+ * The signing anchor the landing page advertises, and the one the sample
+ * document is built from.
+ *
+ * The colon and the label are part of the syntax, not decoration: both
+ * `splitOnSignAnchors` below and `parseSignAnchors` in
+ * custom-components-parser.ts match `<!-- mdpubs-sign-here: Label -->`. An
+ * anchor missing either renders as an ordinary HTML comment — no signing box,
+ * no error — so a visitor who copies a shortened form off the page gets a
+ * document that silently cannot be signed.
+ *
+ * It lives here, beside the two things that must agree with it, so the subhead
+ * and the sample cannot drift from what the parser accepts.
+ */
+export const SIGN_ANCHOR = '<!-- mdpubs-sign-here: Client Name -->';
+
+/**
  * The document the landing-page card opens with.
  *
  * Deliberately short. The card's whole claim is that a client signs without
@@ -41,7 +57,7 @@ mdpubs:
 
 ## Sign-off
 
-<!-- mdpubs-sign-here: Client Name -->
+${SIGN_ANCHOR}
 `;
 
 /**
