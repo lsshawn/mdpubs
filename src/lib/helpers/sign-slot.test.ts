@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pickSigningSlot, resolveSignSlot } from './sign-slot';
+// `.ts` extension: under `node --test` with type stripping, Node resolves the
+// specifier literally, so an extensionless import is ERR_MODULE_NOT_FOUND.
+import { pickSigningSlot, resolveSignSlot } from './sign-slot.ts';
 
 // Mirrors the tripartite NDA layout: signers declared as [CGPT, ENECO, EPC-M open
 // slot], but the anchors appear in the document as CGPT, EPC-M, ENECO. Synthetic
