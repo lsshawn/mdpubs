@@ -52,12 +52,102 @@ export function signAnchorLabels(markdown: string): string[] {
 		.filter((l): l is string => l !== null);
 }
 
+/**
+ * The stable key of each signing anchor, in document order, matching
+ * `signAnchorLabels` one for one. Holding a signature against this key rather
+ * than against a position is what stops it moving to another signer's box when
+ * an earlier anchor is deleted.
+ */
+export function signAnchorKeys(markdown: string): string[] {
+	return splitOnSignAnchors(markdown)
+		.map((s) => s.key)
+		.filter((k): k is string => k !== null);
+}
+
 export type PreviewSegment = {
 	/** Markdown to render for this segment. */
 	markdown: string;
 	/** The anchor label that FOLLOWS this segment, or null for the last one. */
 	label: string | null;
+	/**
+	 * Stable identity for the anchor that follows this segment, or null for the
+	 * last one. See `anchorKey` for what makes it stable.
+	 */
+	key: string | null;
 };
+
+/**
+ * Ranges of the markdown that are code, not prose: fenced blocks, indented
+ * blocks and inline spans. An anchor written inside one of these is an example
+ * of the syntax, not a request to sign, so it stays as text.
+ *
+ * Scanned line by line rather than with one regex because a fence's closing
+ * marker has to match the one that opened it: a ``` block ends at ```, not at
+ * the ~~~ or the longer ```` that may sit inside it.
+ *
+ * lean: inline-span detection pairs backticks within a single line, so a code
+ * span wrapped across a newline is not covered. Documents that need that are
+ * better served by running marked's lexer here instead.
+ */
+function codeRanges(markdown: string): Array<[number, number]> {
+	const ranges: Array<[number, number]> = [];
+	const lines = markdown.split('\n');
+	let offset = 0;
+	// The fence that opened the current block: its char (` or ~) and run length.
+	let fence: { char: string; len: number; start: number } | null = null;
+
+	for (const line of lines) {
+		const lineStart = offset;
+		const lineEnd = offset + line.length;
+		offset = lineEnd + 1; // + the \n consumed by split
+
+		const open = /^\s{0,3}(`{3,}|~{3,})/.exec(line);
+		if (fence) {
+			// Only a run of the SAME char, at least as long as the opener, closes it.
+			const close = /^\s{0,3}(`{3,}|~{3,})\s*$/.exec(line);
+			if (close && close[1][0] === fence.char && close[1].length >= fence.len) {
+				ranges.push([fence.start, lineEnd]);
+				fence = null;
+			}
+			continue;
+		}
+		if (open) {
+			fence = { char: open[1][0], len: open[1].length, start: lineStart };
+			continue;
+		}
+		// An indented code block: four spaces or a tab, and not a blank line.
+		if (/^(?: {4}|\t)/.test(line) && line.trim()) {
+			ranges.push([lineStart, lineEnd]);
+			continue;
+		}
+		// Inline spans: pair up equal-length backtick runs across the line.
+		const span = /(`+)(?:[^`]|(?!\1)`)*\1/g;
+		let s: RegExpExecArray | null;
+		while ((s = span.exec(line)) !== null) {
+			ranges.push([lineStart + s.index, lineStart + s.index + s[0].length]);
+		}
+	}
+	// An unterminated fence runs to the end of the document.
+	if (fence) ranges.push([fence.start, markdown.length]);
+	return ranges;
+}
+
+/**
+ * Identify an anchor by its label plus which repeat of that label it is.
+ *
+ * Position alone is not an identity: delete the first of three anchors and the
+ * third shifts from index 2 to index 1, so a signature held against index 2
+ * would reappear under a different signer's name. Keying on the label means a
+ * signature survives edits elsewhere in the document and disappears with its
+ * own anchor. Unlabelled anchors fall back to their position among the other
+ * unlabelled ones, which is the same rule `resolveSignSlot` applies.
+ */
+function anchorKey(label: string, seen: Map<string, number>): string {
+	const base = label.trim().toLowerCase() || '#unlabelled';
+	const n = seen.get(base) ?? 0;
+	seen.set(base, n + 1);
+	return n === 0 ? base : `${base}#${n}`;
+}
 
 /**
  * Cut the markdown at each signing anchor, so each piece can be rendered on its
@@ -70,17 +160,28 @@ export type PreviewSegment = {
  * of the list is orphaned. Cutting the markdown gives each piece its own
  * balanced tree instead. The published page does not need this because its HTML
  * comes from the server and it mounts into the placeholder div in place.
+ *
+ * An anchor inside a code block is left alone: it is someone documenting the
+ * syntax, so it stays in the markdown and renders as the text it is. Cutting
+ * there would be worse than a spurious signing box — the split drops the anchor
+ * text, so the opening fence and the closing fence land in different segments
+ * and marked swallows the rest of the document into an unterminated code block.
  */
 export function splitOnSignAnchors(markdown: string): PreviewSegment[] {
 	const re = /<!--\s*mdpubs-sign-here:\s*(.*?)\s*-->/gi;
+	const code = codeRanges(markdown);
+	const inCode = (i: number) => code.some(([a, b]) => i >= a && i < b);
+	const seen = new Map<string, number>();
 	const segments: PreviewSegment[] = [];
 	let last = 0;
 	let m: RegExpExecArray | null;
 	while ((m = re.exec(markdown)) !== null) {
-		segments.push({ markdown: markdown.slice(last, m.index), label: m[1].trim() });
+		if (inCode(m.index)) continue;
+		const label = m[1].trim();
+		segments.push({ markdown: markdown.slice(last, m.index), label, key: anchorKey(label, seen) });
 		last = m.index + m[0].length;
 	}
-	segments.push({ markdown: markdown.slice(last), label: null });
+	segments.push({ markdown: markdown.slice(last), label: null, key: null });
 	return segments;
 }
 

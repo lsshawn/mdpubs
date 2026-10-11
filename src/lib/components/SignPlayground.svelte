@@ -18,6 +18,7 @@
 		addHeadingIds,
 		previewTitle,
 		previewToc,
+		signAnchorKeys,
 		signAnchorLabels,
 		splitOnSignAnchors
 	} from '$lib/helpers/landing-preview';
@@ -54,14 +55,16 @@ Countersigned below.
 	let editorEl = $state<HTMLTextAreaElement | null>(null);
 
 	/**
-	 * One signature per anchor, keyed by anchor position — the same positional
-	 * rule the real document uses when an anchor's label matches no signer.
+	 * One signature per anchor, keyed by the anchor's stable key rather than its
+	 * position. The visitor is editing the document live: keying by position means
+	 * deleting the first of two anchors shifts the second down an index, and the
+	 * signature drawn for it reappears under the other signer's name.
 	 */
 	type DemoSignature = { name: string; dataUrl: string; signedAt: number };
-	let signatures = $state<Record<number, DemoSignature>>({});
+	let signatures = $state<Record<string, DemoSignature>>({});
 
 	// Which anchor the drawer is signing, or null when the drawer is closed.
-	let drawerSlot = $state<number | null>(null);
+	let drawerSlot = $state<string | null>(null);
 	let signerName = $state('');
 	let errorMsg = $state<string | null>(null);
 
@@ -70,14 +73,17 @@ Countersigned below.
 	let drawing = false;
 	let hasDrawn = $state(false);
 
-	const labels = $derived(signAnchorLabels(source));
-
 	/**
 	 * Strip the frontmatter before rendering. The published page parses it
 	 * server-side; here it is shown in the editor as the thing you type, and left
 	 * out of the phone, which is what a reader sees.
 	 */
 	const body = $derived(source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, ''));
+
+	// Read the anchors from the BODY, the same text the segments are cut from, so
+	// the count under the phone always matches the boxes actually on screen.
+	const labels = $derived(signAnchorLabels(body));
+	const keys = $derived(signAnchorKeys(body));
 
 	const render = (md: string) =>
 		marked.parse(md, { async: false, gfm: true, breaks: false }) as string;
@@ -102,22 +108,23 @@ Countersigned below.
 	 */
 	const segments = $derived.by(() => {
 		const seen = new Map<string, number>();
-		return splitOnSignAnchors(body).map((seg, i) => ({
+		return splitOnSignAnchors(body).map((seg) => ({
 			html: addHeadingIds(render(seg.markdown), seen),
-			slot: seg.label === null ? null : i
+			slot: seg.key
 		}));
 	});
 
 	// A signature drawn against an anchor that the visitor has since deleted is
 	// dropped, so the count under the phone never exceeds the anchors on screen.
-	const signedCount = $derived(labels.filter((_, i) => signatures[i] !== undefined).length);
-	const allSigned = $derived(labels.length > 0 && signedCount === labels.length);
+	const signedCount = $derived(keys.filter((k) => signatures[k] !== undefined).length);
+	const allSigned = $derived(keys.length > 0 && signedCount === keys.length);
 
-	function slotLabel(i: number): string {
+	function slotLabel(key: string): string {
+		const i = keys.indexOf(key);
 		return labels[i]?.trim() || `Signer ${i + 1}`;
 	}
 
-	async function openDrawer(slot: number) {
+	async function openDrawer(slot: string) {
 		drawerSlot = slot;
 		errorMsg = null;
 		hasDrawn = false;
@@ -187,6 +194,22 @@ Countersigned below.
 		}
 	}
 
+	/**
+	 * Delete an anchor and its signature goes with it.
+	 *
+	 * Hiding an orphaned signature is not enough: retype an anchor with the same
+	 * label and the old drawing would come back under it, which is the opposite of
+	 * what deleting it looked like it did. Called from the edit path rather than an
+	 * effect so typing stays the only thing that changes the document.
+	 */
+	function dropOrphanSignatures() {
+		const live = new Set(signAnchorKeys(body));
+		for (const k of Object.keys(signatures)) {
+			if (!live.has(k)) delete signatures[k];
+		}
+		if (drawerSlot !== null && !live.has(drawerSlot)) drawerSlot = null;
+	}
+
 	function confirmSign() {
 		errorMsg = null;
 		if (!signerName.trim()) {
@@ -213,6 +236,7 @@ Countersigned below.
 
 	function addAnchor() {
 		source = `${source.replace(/\s*$/, '')}\n\n<!-- mdpubs-sign-here: Second Signer -->\n`;
+		dropOrphanSignatures();
 		editorEl?.focus();
 	}
 
@@ -245,6 +269,7 @@ Countersigned below.
 			id="playground-source"
 			bind:this={editorEl}
 			bind:value={source}
+			oninput={dropOrphanSignatures}
 			spellcheck="false"
 			class="min-h-[460px] w-full flex-1 resize-none bg-base-100 p-4 font-mono text-[13px] leading-relaxed text-base-content focus:outline-none"
 		></textarea>

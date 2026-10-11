@@ -8,6 +8,7 @@ import {
 	addHeadingIds,
 	previewToc,
 	previewTitle,
+	signAnchorKeys,
 	signAnchorLabels,
 	slugify,
 	splitOnSignAnchors
@@ -84,14 +85,16 @@ test('splitting yields one more segment than anchors, last one unlabelled', () =
 		'a<!-- mdpubs-sign-here: One -->b<!-- mdpubs-sign-here: Two -->c'
 	);
 	assert.deepEqual(segs, [
-		{ markdown: 'a', label: 'One' },
-		{ markdown: 'b', label: 'Two' },
-		{ markdown: 'c', label: null }
+		{ markdown: 'a', label: 'One', key: 'one' },
+		{ markdown: 'b', label: 'Two', key: 'two' },
+		{ markdown: 'c', label: null, key: null }
 	]);
 });
 
 test('markdown with no anchor is one whole segment', () => {
-	assert.deepEqual(splitOnSignAnchors('# Just text'), [{ markdown: '# Just text', label: null }]);
+	assert.deepEqual(splitOnSignAnchors('# Just text'), [
+		{ markdown: '# Just text', label: null, key: null }
+	]);
 });
 
 /*
@@ -120,6 +123,132 @@ test('an anchor inside a list leaves each rendered segment balanced', () => {
 	const whole = marked.parse(md, { async: false, gfm: true }) as string;
 	const bad = parseSignAnchors(whole).split(/<div data-mdpubs-sign-here="[^"]*"><\/div>/)[0];
 	assert.ok(bad.includes('<ul>') && !bad.includes('</ul>'));
+});
+
+/*
+	Bug: writing the anchor inside a code block — documenting the syntax — put a
+	real signing box on the page AND deleted the rest of the document. The split
+	drops the anchor text, so the opening ``` and the closing ``` ended up in
+	different segments and marked swallowed everything after it into an
+	unterminated code block.
+*/
+test('an anchor inside a fenced code block is an example, not a signing box', () => {
+	const md = [
+		'# Doc',
+		'',
+		'To make it signable, write:',
+		'',
+		'```markdown',
+		'<!-- mdpubs-sign-here: Client Name -->',
+		'```',
+		'',
+		'## After the code block',
+		'',
+		'This paragraph must survive.'
+	].join('\n');
+
+	assert.deepEqual(signAnchorLabels(md), []);
+	const segs = splitOnSignAnchors(md);
+	assert.equal(segs.length, 1, 'the document is not cut at an anchor inside code');
+
+	// The whole document still renders: nothing after the fence is lost.
+	const html = marked.parse(segs[0].markdown, { async: false, gfm: true }) as string;
+	assert.ok(html.includes('After the code block'), `heading lost: ${html}`);
+	assert.ok(html.includes('This paragraph must survive.'), `paragraph lost: ${html}`);
+	// And the anchor shows as the text it is, inside a code block.
+	assert.ok(html.includes('<code'), 'the fence still renders as code');
+});
+
+test('tilde fences and indented code hide an anchor too', () => {
+	const tilde = ['~~~', '<!-- mdpubs-sign-here: A -->', '~~~'].join('\n');
+	assert.deepEqual(signAnchorLabels(tilde), []);
+
+	const indented = ['text', '', '    <!-- mdpubs-sign-here: A -->', '', 'more'].join('\n');
+	assert.deepEqual(signAnchorLabels(indented), []);
+});
+
+test('an anchor in an inline code span is an example, not a signing box', () => {
+	const md = 'Write `<!-- mdpubs-sign-here: Client -->` where the signature goes.';
+	assert.deepEqual(signAnchorLabels(md), []);
+	assert.equal(splitOnSignAnchors(md).length, 1);
+});
+
+test('a fence inside a longer fence does not end the block early', () => {
+	// The inner ``` is content of the ```` block, so the anchor stays hidden.
+	const md = ['````markdown', '```', '<!-- mdpubs-sign-here: A -->', '```', '````'].join('\n');
+	assert.deepEqual(signAnchorLabels(md), []);
+});
+
+test('a real anchor outside the code block still signs', () => {
+	const md = [
+		'```',
+		'<!-- mdpubs-sign-here: Example -->',
+		'```',
+		'',
+		'<!-- mdpubs-sign-here: Client Name -->'
+	].join('\n');
+	assert.deepEqual(signAnchorLabels(md), ['Client Name']);
+	assert.equal(splitOnSignAnchors(md).length, 2);
+});
+
+/*
+	Bug: delete an anchor after drawing a signature and the drawing hopped onto the
+	next signer's box, under their name — the signature was held against the
+	anchor's POSITION, and deleting an earlier anchor shifted every later one down
+	an index. Keys are stable per label instead, so a signature either stays with
+	its own anchor or goes away with it.
+*/
+test('deleting an anchor does not move a signature onto another signer', () => {
+	const before = '<!-- mdpubs-sign-here: Alice -->\ntext\n<!-- mdpubs-sign-here: Bob -->';
+	const after = 'text\n<!-- mdpubs-sign-here: Bob -->'; // Alice deleted
+
+	const keysBefore = signAnchorKeys(before);
+	const keysAfter = signAnchorKeys(after);
+	assert.deepEqual(keysBefore, ['alice', 'bob']);
+
+	// A signature drawn for Bob is still Bob's, at a different position.
+	const signatures: Record<string, string> = { [keysBefore[1]]: 'Bob drawing' };
+	assert.equal(keysAfter.indexOf('bob'), 0, 'Bob moved from index 1 to index 0');
+	assert.equal(signatures[keysAfter[0]], 'Bob drawing', "Bob's box keeps Bob's signature");
+
+	// Alice's key is gone, so her box is empty rather than showing a stray drawing.
+	assert.ok(!keysAfter.includes('alice'));
+});
+
+test("a deleted anchor's signature is dropped, not left for the next anchor", () => {
+	const before = '<!-- mdpubs-sign-here: Alice -->\n<!-- mdpubs-sign-here: Bob -->';
+	const after = '<!-- mdpubs-sign-here: Bob -->'; // Alice deleted
+
+	// Alice signs, keyed the way the playground keys it.
+	const signatures: Record<string, string> = { [signAnchorKeys(before)[0]]: 'Alice drawing' };
+	const live = new Set(signAnchorKeys(after));
+	for (const k of Object.keys(signatures)) if (!live.has(k)) delete signatures[k];
+
+	assert.deepEqual(signatures, {}, "Alice's signature does not survive her anchor");
+	assert.equal(signatures[signAnchorKeys(after)[0]], undefined, "Bob's box is unsigned");
+});
+
+test('repeated labels get distinct keys so two boxes never share a signature', () => {
+	const md = [
+		'<!-- mdpubs-sign-here: Witness -->',
+		'<!-- mdpubs-sign-here: Witness -->',
+		'<!-- mdpubs-sign-here: -->',
+		'<!-- mdpubs-sign-here: -->'
+	].join('\n');
+	const keys = signAnchorKeys(md);
+	assert.equal(new Set(keys).size, keys.length, `keys not unique: ${keys.join()}`);
+	assert.deepEqual(keys, ['witness', 'witness#1', '#unlabelled', '#unlabelled#1']);
+});
+
+test('a key ignores case and surrounding space, so retyping a label keeps the signature', () => {
+	assert.deepEqual(signAnchorKeys('<!-- mdpubs-sign-here:  Client Name  -->'), ['client name']);
+	assert.deepEqual(signAnchorKeys('<!-- mdpubs-sign-here: CLIENT NAME -->'), ['client name']);
+});
+
+test('editing text around an anchor leaves its signature in place', () => {
+	const before = '# Old title\n\n<!-- mdpubs-sign-here: Client -->';
+	const after = '# A completely new title\n\nMore text.\n\n<!-- mdpubs-sign-here: Client -->';
+	assert.deepEqual(signAnchorKeys(before), signAnchorKeys(after));
 });
 
 test('heading ids carry across segments so a TOC link still resolves', () => {
