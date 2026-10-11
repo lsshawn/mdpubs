@@ -385,17 +385,10 @@ test('editing text around an anchor leaves its signature in place', () => {
 });
 
 /**
- * The landing card's promise is that a visitor taps a signing box within a few
- * seconds of arriving. That only holds while the sample document is short
- * enough for the box to paint inside the phone's viewport. These assert the
- * shape that keeps it there; a longer sample pushed the box below the fold and
- * made the demo look static.
- */
-/**
  * The landing page prints SIGN_ANCHOR in its subhead and a visitor copies it
  * straight into a document, so it has to be a form BOTH parsers accept. An
- * anchor missing the colon or the label renders as an ordinary HTML comment:
- * no signing box and no error, which is the worst way for it to fail.
+ * anchor missing the colon renders as an ordinary HTML comment: no signing box
+ * and no error, which is the worst way for it to fail.
  */
 test('the anchor advertised in the landing subhead produces a signing box', () => {
 	const doc = `# Deal\n\nPay up.\n\n${SIGN_ANCHOR}\n`;
@@ -413,6 +406,42 @@ test('the sample proposal is built from the advertised anchor', () => {
 	assert.ok(SAMPLE_PROPOSAL.includes(SIGN_ANCHOR));
 });
 
+/**
+ * The colon is what makes a comment an anchor, and both parsers agree on that.
+ *
+ * An unlabelled slot is already supported — write `<!-- mdpubs-sign-here: -->`
+ * and resolveSignSlot falls through to the anchor's position. Dropping the
+ * colon as well is deliberately NOT an anchor, and this pins that so the
+ * grammar is not loosened by accident.
+ *
+ * Loosening it is not a landing-page change: `<!-- mdpubs-sign-here -->` occurs
+ * in real documents as an ordinary comment, so accepting it would add a signing
+ * slot to notes that already have their slots. A document locks on its first
+ * signature (sign.ts snapshots the signer list), and `complete` requires every
+ * slot signed, so a contract that is fully signed today would start reporting
+ * as incomplete with no way to edit it back. If that tolerance is ever wanted,
+ * it is an owner's decision about the anchor syntax, not a copy fix.
+ */
+test('the colon is what makes a comment an anchor, in both parsers', () => {
+	const withColon = '# Deal\n\n<!-- mdpubs-sign-here: -->\n';
+	const without = '# Deal\n\n<!-- mdpubs-sign-here -->\n';
+
+	// An empty label is a real, positionally-resolved slot.
+	assert.equal(signAnchorKeys(withColon).length, 1);
+	assert.ok(parseSignAnchors(withColon).includes('data-mdpubs-sign-here'));
+
+	// No colon is just a comment, in the demo and on a published note alike.
+	assert.equal(signAnchorKeys(without).length, 0);
+	assert.ok(!parseSignAnchors(without).includes('data-mdpubs-sign-here'));
+});
+
+/**
+ * The landing card's promise is that a visitor taps a signing box within a few
+ * seconds of arriving. That only holds while the sample document is short
+ * enough for the box to paint inside the phone's viewport. These assert the
+ * shape that keeps it there; a longer sample pushed the box below the fold and
+ * made the demo look static.
+ */
 test('the sample proposal has exactly one signing anchor', () => {
 	assert.deepEqual(signAnchorLabels(SAMPLE_PROPOSAL), ['Client Name']);
 });
