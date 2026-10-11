@@ -167,6 +167,137 @@ test('tilde fences and indented code hide an anchor too', () => {
 	assert.deepEqual(signAnchorLabels(indented), []);
 });
 
+/*
+	Indentation only means CODE where a code block can actually start: after a
+	blank line, and never inside a list. Treating every indented line as code cost
+	a visitor their signing box when they indented the anchor under a list item or
+	wrapped it onto a continuation line — the anchor rendered as a bare HTML
+	comment and no box could ever appear, with nothing on screen to explain why.
+
+	Each case asserts against what marked itself does with the same markdown, so
+	the scanner and the renderer cannot drift apart: a real `<pre><code>` means
+	the anchor is an example, anything else means it is a live anchor.
+*/
+function rendersAsCode(md: string): boolean {
+	const html = marked.parse(md, { async: false, gfm: true }) as string;
+	return /<pre><code>[\s\S]*mdpubs-sign-here/.test(html);
+}
+
+test('an anchor indented under a list item still gets a signing box', () => {
+	const md = ['- Deliverables', '', '    <!-- mdpubs-sign-here: Client -->', '', '- Timeline'].join(
+		'\n'
+	);
+	assert.equal(rendersAsCode(md), false, 'marked treats this as a live anchor, not code');
+	assert.deepEqual(signAnchorLabels(md), ['Client']);
+});
+
+test('an anchor indented directly under a list item, no blank line, still signs', () => {
+	const md = ['- Deliverables', '    <!-- mdpubs-sign-here: Client -->', '- Timeline'].join('\n');
+	assert.equal(rendersAsCode(md), false);
+	assert.deepEqual(signAnchorLabels(md), ['Client']);
+});
+
+test('an anchor under a numbered list item still signs', () => {
+	const md = ['1. Scope', '', '    <!-- mdpubs-sign-here: Client -->'].join('\n');
+	assert.equal(rendersAsCode(md), false);
+	assert.deepEqual(signAnchorLabels(md), ['Client']);
+});
+
+test('an anchor on a paragraph continuation line still signs', () => {
+	const md = ['Sign below please', '    <!-- mdpubs-sign-here: Client -->'].join('\n');
+	assert.equal(rendersAsCode(md), false);
+	assert.deepEqual(signAnchorLabels(md), ['Client']);
+});
+
+test('an indented anchor after the list ends is code again', () => {
+	// The flush-left paragraph closes the list, the blank line lets code open.
+	const md = ['- item', '', 'Prose ends the list.', '', '    <!-- mdpubs-sign-here: A -->'].join(
+		'\n'
+	);
+	assert.equal(rendersAsCode(md), true, 'marked treats this as a real code block');
+	assert.deepEqual(signAnchorLabels(md), []);
+});
+
+test('a multi-line indented code block hides an anchor on any of its lines', () => {
+	const md = [
+		'Example:',
+		'',
+		'    first line',
+		'    <!-- mdpubs-sign-here: A -->',
+		'',
+		'done'
+	].join('\n');
+	assert.equal(rendersAsCode(md), true);
+	assert.deepEqual(signAnchorLabels(md), []);
+});
+
+test('an inline code span on an indented continuation line is still code', () => {
+	// The line continues a paragraph, so it is not a code block, but the backtick
+	// span on it still hides the anchor inside it.
+	const md = ['Write this:', '    `<!-- mdpubs-sign-here: A -->`'].join('\n');
+	assert.deepEqual(signAnchorLabels(md), []);
+});
+
+/*
+	The scanner decides what is code by reading the markdown itself, so it can
+	drift from what the page actually renders — and a drift either way costs the
+	visitor something: an anchor silently inert, or a signing box swallowing the
+	document. This checks the two against each other across the shapes people
+	actually write. marked is the oracle: if it escaped the anchor into a code
+	element, it is an example; otherwise it is a live anchor.
+
+	It caught two cases a hand-written rule missed: eight spaces inside a list
+	item IS code (four of those columns belong to the item), and a fence indented
+	inside a list item is still a fence.
+*/
+const CODE_SHAPES: Array<[string, string]> = (() => {
+	const A = '<!-- mdpubs-sign-here: X -->';
+	return [
+		['a bare anchor', A],
+		['after a paragraph', `text\n\n${A}`],
+		['a paragraph continuation line', `text\n    ${A}`],
+		['on the same line as a bullet', `- item ${A}`],
+		['indented under a bullet', `- item\n    ${A}`],
+		['indented under a bullet, blank line between', `- item\n\n    ${A}`],
+		['under a numbered item', `1. item\n\n    ${A}`],
+		['under a star bullet', `* item\n\n    ${A}`],
+		['under a plus bullet', `+ item\n\n    ${A}`],
+		['eight spaces inside a list item', `- item\n\n        ${A}`],
+		['a real indented code block', `text\n\n    ${A}`],
+		['the second line of an indented code block', `text\n\n    a\n    ${A}`],
+		['indented after the list has ended', `- item\n\nprose\n\n    ${A}`],
+		['a tab-indented code block', `text\n\n\t${A}`],
+		['a backtick fence', `\`\`\`\n${A}\n\`\`\``],
+		['a tilde fence', `~~~\n${A}\n~~~`],
+		['a fence indented inside a list item', `- item\n\n    \`\`\`\n    ${A}\n    \`\`\``],
+		['an inline code span', `write \`${A}\` here`],
+		['indented after a heading', `# H\n\n    ${A}`],
+		['an indented line under a blockquote', `> quote\n    ${A}`],
+		['indented at the very start of the document', `    ${A}`],
+		['indented after two blank lines', `text\n\n\n    ${A}`]
+	];
+})();
+
+test('what counts as code matches what the page renders', () => {
+	const disagreements: string[] = [];
+	for (const [name, md] of CODE_SHAPES) {
+		const html = marked.parse(md, { async: false, gfm: true }) as string;
+		const rendersAsExample =
+			/<pre><code>[\s\S]*mdpubs-sign-here/.test(html) ||
+			/<code>[^<]*mdpubs-sign-here/.test(html) ||
+			html.includes('&lt;!-- mdpubs-sign-here');
+		const treatedAsExample = signAnchorLabels(md).length === 0;
+		if (rendersAsExample !== treatedAsExample) {
+			disagreements.push(
+				`${name}: the page renders it as ${rendersAsExample ? 'an example' : 'a live anchor'}, ` +
+					`but it is treated as ${treatedAsExample ? 'an example' : 'a live anchor'}\n` +
+					`  markdown: ${JSON.stringify(md)}\n  html: ${html.trim()}`
+			);
+		}
+	}
+	assert.deepEqual(disagreements, [], `\n${disagreements.join('\n\n')}`);
+});
+
 test('an anchor in an inline code span is an example, not a signing box', () => {
 	const md = 'Write `<!-- mdpubs-sign-here: Client -->` where the signature goes.';
 	assert.deepEqual(signAnchorLabels(md), []);

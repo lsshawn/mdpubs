@@ -85,9 +85,20 @@ export type PreviewSegment = {
  * marker has to match the one that opened it: a ``` block ends at ```, not at
  * the ~~~ or the longer ```` that may sit inside it.
  *
- * lean: inline-span detection pairs backticks within a single line, so a code
- * span wrapped across a newline is not covered. Documents that need that are
- * better served by running marked's lexer here instead.
+ * Indentation only means code where a code block can actually START: after a
+ * blank line, and four columns past the enclosing list item's content indent
+ * rather than past the margin. Inside a list, four spaces is the item's own
+ * text and eight is a code block within it. Getting this wrong in either
+ * direction costs the visitor something — an anchor that silently never gets a
+ * signing box, or a box that swallows the rest of the document.
+ *
+ * lean: a line-based approximation of the block grammar, not a parser. It
+ * covers fences, indented blocks, lists and inline spans; it does not track
+ * blockquote nesting, and inline-span detection pairs backticks within a single
+ * line, so a span wrapped across a newline is not covered. The test
+ * 'what counts as code matches what the page renders' checks it against marked
+ * across the shapes people write — if that starts failing on a shape worth
+ * supporting, run marked's lexer here instead of widening these rules.
  */
 function codeRanges(markdown: string): Array<[number, number]> {
 	const ranges: Array<[number, number]> = [];
@@ -95,31 +106,80 @@ function codeRanges(markdown: string): Array<[number, number]> {
 	let offset = 0;
 	// The fence that opened the current block: its char (` or ~) and run length.
 	let fence: { char: string; len: number; start: number } | null = null;
+	// Whether an indented line here would START a code block. Only a blank line
+	// (or another code line) can open one; after a paragraph line, four spaces is
+	// a continuation of that paragraph, not code.
+	let canOpenIndented = true;
+	// Columns the current list item's content is indented by, or null outside a
+	// list. Inside a list, code starts four columns past THIS, not past the
+	// margin: in `- item`, four spaces is the item's own text and eight is a code
+	// block within it.
+	let listIndent: number | null = null;
+
+	// Width of the leading whitespace, counting a tab as four columns.
+	const indentOf = (s: string) => {
+		const ws = /^[ \t]*/.exec(s)![0];
+		return [...ws].reduce((n, c) => n + (c === '\t' ? 4 : 1), 0);
+	};
 
 	for (const line of lines) {
 		const lineStart = offset;
 		const lineEnd = offset + line.length;
 		offset = lineEnd + 1; // + the \n consumed by split
 
-		const open = /^\s{0,3}(`{3,}|~{3,})/.exec(line);
+		const indent = indentOf(line);
+		const blank = !line.trim();
+		// Inside a list, a line is prose until it passes the item's content indent
+		// by four; outside one, the usual four columns from the margin.
+		const codeFloor = (listIndent ?? 0) + 4;
+
+		// A fence may itself be indented inside a list item, so allow up to three
+		// columns past whatever the current content indent is.
+		const fenceRe = new RegExp(`^ {0,${(listIndent ?? 0) + 3}}(\`{3,}|~{3,})`);
 		if (fence) {
 			// Only a run of the SAME char, at least as long as the opener, closes it.
-			const close = /^\s{0,3}(`{3,}|~{3,})\s*$/.exec(line);
+			const close = new RegExp(`^ {0,${(listIndent ?? 0) + 3}}(\`{3,}|~{3,})\\s*$`).exec(line);
 			if (close && close[1][0] === fence.char && close[1].length >= fence.len) {
 				ranges.push([fence.start, lineEnd]);
 				fence = null;
 			}
 			continue;
 		}
-		if (open) {
+		const open = fenceRe.exec(line);
+		// A fence only opens where it is not already inside an indented code block.
+		if (open && indent < codeFloor) {
 			fence = { char: open[1][0], len: open[1].length, start: lineStart };
 			continue;
 		}
-		// An indented code block: four spaces or a tab, and not a blank line.
-		if (/^(?: {4}|\t)/.test(line) && line.trim()) {
+
+		if (blank) {
+			// A blank line ends a paragraph, so the next indented line may open code.
+			// It does NOT end a list: a loose list has blank lines between items.
+			canOpenIndented = true;
+			continue;
+		}
+
+		// An indented line is a code block only where one can actually start:
+		// four columns past the current content indent, and after a blank line —
+		// otherwise it is just a wrapped continuation of the paragraph above.
+		if (indent >= codeFloor && canOpenIndented) {
 			ranges.push([lineStart, lineEnd]);
 			continue;
 		}
+
+		// Prose. A list marker here sets the content indent for the lines that
+		// follow; a line at or left of the current marker's own indent ends the
+		// list. Either way a following indented line continues this paragraph
+		// rather than opening code.
+		const marker = /^[ \t]*(?:[-*+]|\d{1,9}[.)])\s+/.exec(line);
+		if (marker) {
+			// Content starts after the marker and the space following it.
+			listIndent = marker[0].replace(/\t/g, '    ').length;
+		} else if (indent === 0) {
+			// A flush-left paragraph closes the list.
+			listIndent = null;
+		}
+		canOpenIndented = false;
 		// Inline spans: pair up equal-length backtick runs across the line.
 		const span = /(`+)(?:[^`]|(?!\1)`)*\1/g;
 		let s: RegExpExecArray | null;
