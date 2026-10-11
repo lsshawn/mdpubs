@@ -21,8 +21,8 @@
 		signAnchorKeys,
 		signAnchorLabels,
 		splitOnSignAnchors
-	} from '$lib/helpers/landing-preview';
-	import { drawSignatureImage } from '$lib/helpers/signature-image';
+	} from '#lib/helpers/landing-preview.js';
+	import { drawSignatureImage } from '#lib/helpers/signature-image.js';
 
 	const SAMPLE = `---
 title: Website Redesign — Proposal

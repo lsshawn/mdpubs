@@ -21,7 +21,7 @@
  * DV certs (ssl.type 'dv') — do NOT switch to advanced/custom certs, that moves
  * to a much pricier metered tier.
  */
-import { env } from '$env/dynamic/private';
+import { CF_SAAS_API_TOKEN, CF_ZONE_ID } from '$app/env/private';
 
 const CF_API = 'https://api.cloudflare.com/client/v4';
 
@@ -47,8 +47,8 @@ export type CustomHostname = {
 };
 
 function creds(): { token: string; zoneId: string } {
-	const token = env.CF_SAAS_API_TOKEN;
-	const zoneId = env.CF_ZONE_ID;
+	const token = CF_SAAS_API_TOKEN;
+	const zoneId = CF_ZONE_ID;
 	if (!token || !zoneId) {
 		throw new Error(
 			'Cloudflare for SaaS is not configured: set CF_SAAS_API_TOKEN and CF_ZONE_ID secrets.'
@@ -67,6 +67,7 @@ async function cfFetch(path: string, init?: RequestInit): Promise<unknown> {
 			...(init?.headers ?? {})
 		}
 	});
+
 	const body = (await res.json().catch(() => null)) as {
 		success?: boolean;
 		result?: unknown;

@@ -3,7 +3,7 @@
  * services actually use are ported from mdpubs-api's `src/config.ts`. Everything
  * env-derived reads `$env/dynamic/private` (Workers-safe), never `process.env`.
  */
-import { env } from '$env/dynamic/private';
+import { PUBLIC_UI_ORIGIN } from '$app/env/private';
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
 
@@ -33,7 +33,7 @@ export const config = {
 		// domain render blank while markdown pubs (no iframe) look fine.
 		get frameAncestor(): string {
 			return (
-				env.PUBLIC_UI_ORIGIN ||
+				PUBLIC_UI_ORIGIN ||
 				[
 					'https://mdpubs.com',
 					'https://www.mdpubs.com',

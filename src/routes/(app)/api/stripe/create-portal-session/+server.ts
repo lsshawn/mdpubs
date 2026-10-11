@@ -1,9 +1,9 @@
-import { error, json, type RequestEvent } from '@sveltejs/kit';
-import { db } from '$lib/server/db';
-import * as table from '$lib/server/db/schema';
+import { error, type RequestEvent } from '@sveltejs/kit';
+import { db } from '#lib/server/db/index.js';
+import * as table from '#lib/server/db/schema.js';
 import { eq } from 'drizzle-orm';
-import { config } from '$lib/config';
-import { stripe } from '$lib/server/stripe';
+import { config } from '#lib/config.js';
+import { stripe } from '#lib/server/stripe.js';
 
 export async function POST({ locals }: RequestEvent) {
 	const currentUser = locals.user;
@@ -20,7 +20,10 @@ export async function POST({ locals }: RequestEvent) {
 			.where(eq(table.user.id, currentUser.id));
 
 		if (!user || !user.stripeCustomerId) {
-			return json({ success: false, message: 'Stripe customer not found.' }, { status: 404 });
+			return Response.json(
+				{ success: false, message: 'Stripe customer not found.' },
+				{ status: 404 }
+			);
 		}
 
 		const returnUrl = `${config.domain}/account`;
@@ -30,9 +33,9 @@ export async function POST({ locals }: RequestEvent) {
 			return_url: returnUrl
 		});
 
-		return json({ success: true, url: portalSession.url });
+		return Response.json({ success: true, url: portalSession.url });
 	} catch (e) {
 		console.error('Error creating stripe portal session', e);
-		return json({ success: false, message: 'Internal Server Error' }, { status: 500 });
+		return Response.json({ success: false, message: 'Internal Server Error' }, { status: 500 });
 	}
 }

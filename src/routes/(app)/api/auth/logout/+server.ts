@@ -1,5 +1,5 @@
-import { fail, json } from '@sveltejs/kit';
-import { deleteSessionTokenCookie, invalidateSession } from '$lib/server/auth';
+import { fail } from '@sveltejs/kit';
+import { deleteSessionTokenCookie, invalidateSession } from '#lib/server/auth.js';
 
 import type { RequestEvent } from './$types';
 
@@ -9,5 +9,5 @@ export async function POST(event: RequestEvent) {
 	}
 	invalidateSession(event.locals.session.id);
 	deleteSessionTokenCookie(event);
-	return json({ success: true });
+	return Response.json({ success: true });
 }

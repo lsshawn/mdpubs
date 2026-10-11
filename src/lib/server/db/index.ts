@@ -1,9 +1,15 @@
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
 import * as schema from './schema';
 import * as feedbackSchema from './feedback.schema';
-import { env } from '$env/dynamic/private';
+
+import {
+	DATABASE_URL,
+	DATABASE_AUTH_TOKEN,
+	FEEDBACK_DATABASE_URL,
+	FEEDBACK_DATABASE_AUTH_TOKEN
+} from '$app/env/private';
 
 // The DB clients are created LAZILY, on first access — not at module load.
 // SvelteKit's postbuild `analyse` step imports every server module in the build
@@ -20,24 +26,24 @@ let _feedbackDb: FeedbackDB | undefined;
 
 function getDb(): DB {
 	if (!_db) {
-		if (!env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
-		if (!dev && !env.DATABASE_AUTH_TOKEN) throw new Error('DATABASE_AUTH_TOKEN is not set');
-		_db = drizzle(createClient({ url: env.DATABASE_URL, authToken: env.DATABASE_AUTH_TOKEN }), {
-			schema
-		});
+		if (!DATABASE_URL) throw new Error('DATABASE_URL is not set');
+		if (!dev && !DATABASE_AUTH_TOKEN) throw new Error('DATABASE_AUTH_TOKEN is not set');
+
+		_db = drizzle(createClient({ url: DATABASE_URL, authToken: DATABASE_AUTH_TOKEN }), { schema });
 	}
 	return _db;
 }
 
 function getFeedbackDb(): FeedbackDB {
 	if (!_feedbackDb) {
-		if (!env.FEEDBACK_DATABASE_URL) throw new Error('FEEDBACK_DATABASE_URL is not set');
-		if (!dev && !env.FEEDBACK_DATABASE_AUTH_TOKEN)
+		if (!FEEDBACK_DATABASE_URL) throw new Error('FEEDBACK_DATABASE_URL is not set');
+		if (!dev && !FEEDBACK_DATABASE_AUTH_TOKEN)
 			throw new Error('FEEDBACK_DATABASE_AUTH_TOKEN is not set');
+
 		_feedbackDb = drizzle(
 			createClient({
-				url: env.FEEDBACK_DATABASE_URL,
-				authToken: env.FEEDBACK_DATABASE_AUTH_TOKEN
+				url: FEEDBACK_DATABASE_URL,
+				authToken: FEEDBACK_DATABASE_AUTH_TOKEN
 			}),
 			{ schema: feedbackSchema }
 		);

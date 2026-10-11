@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 import { db } from './db';
 import * as table from './db/schema';
 import { eq } from 'drizzle-orm';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { serverConfig } from './config';
 
 function generateRandomNumber(): string {

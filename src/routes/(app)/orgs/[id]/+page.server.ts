@@ -1,19 +1,15 @@
 import { error, redirect } from '@sveltejs/kit';
-import { db } from '$lib/server/db';
-import { organization, orgMember, user as userTable } from '$lib/server/db/schema';
+import { db } from '#lib/server/db/index.js';
+import { organization, orgMember, user as userTable } from '#lib/server/db/schema.js';
 import { eq } from 'drizzle-orm';
-import { getOrgRole } from '$lib/server/org';
-import { env as publicEnv } from '$env/dynamic/public';
+import { getOrgRole } from '#lib/server/org.js';
+import { PUBLIC_CNAME_TARGET, PUBLIC_DOMAIN } from '$app/env/public';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	if (!locals.user) redirect(307, '/login');
 
-	const [org] = await db
-		.select()
-		.from(organization)
-		.where(eq(organization.id, params.id))
-		.limit(1);
+	const [org] = await db.select().from(organization).where(eq(organization.id, params.id)).limit(1);
 	if (!org) throw error(404, 'Account not found');
 
 	const role = await getOrgRole(org.id, locals.user.id);
@@ -30,8 +26,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		.innerJoin(userTable, eq(orgMember.userId, userTable.id))
 		.where(eq(orgMember.orgId, org.id));
 
-	const cnameTarget =
-		publicEnv.PUBLIC_CNAME_TARGET ?? `cname.${publicEnv.PUBLIC_DOMAIN ?? 'mdpubs.com'}`;
+	const cnameTarget = PUBLIC_CNAME_TARGET || `cname.${PUBLIC_DOMAIN || 'mdpubs.com'}`;
 
 	return {
 		org: {

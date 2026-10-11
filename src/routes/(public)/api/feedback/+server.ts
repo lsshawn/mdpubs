@@ -1,8 +1,7 @@
-import { json } from '@sveltejs/kit';
 import type { RequestEvent } from './$types';
-import { feedbackDb } from '$lib/server/db';
-import { feedback } from '$lib/server/db/feedback.schema';
-import { config } from '$lib/config';
+import { feedbackDb } from '#lib/server/db/index.js';
+import { feedback } from '#lib/server/db/feedback.schema.js';
+import { config } from '#lib/config.js';
 import { z } from 'zod';
 
 const feedbackSchema = z.object({
@@ -17,7 +16,10 @@ export async function POST(event: RequestEvent) {
 
 	const validation = feedbackSchema.safeParse(body);
 	if (!validation.success) {
-		return json({ error: 'Invalid input', details: validation.error.flatten() }, { status: 400 });
+		return Response.json(
+			{ error: 'Invalid input', details: validation.error.flatten() },
+			{ status: 400 }
+		);
 	}
 
 	const { message, email, page, metadata } = validation.data;
@@ -40,7 +42,7 @@ export async function POST(event: RequestEvent) {
 		headers['Access-Control-Allow-Origin'] = origin;
 	}
 
-	return json(
+	return Response.json(
 		{ success: true },
 		{
 			headers

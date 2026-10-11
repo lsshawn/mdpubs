@@ -1,8 +1,8 @@
 import { error, redirect } from '@sveltejs/kit';
-import { db } from '$lib/server/db';
-import { organization, orgMember, user as userTable } from '$lib/server/db/schema';
+import { db } from '#lib/server/db/index.js';
+import { organization, orgMember, user as userTable } from '#lib/server/db/schema.js';
 import { eq } from 'drizzle-orm';
-import { getOrgRole, listPendingInvites } from '$lib/server/org';
+import { getOrgRole, listPendingInvites } from '#lib/server/org.js';
 import type { PageServerLoad } from './$types';
 
 /**

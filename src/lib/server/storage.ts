@@ -11,10 +11,10 @@
  *     reads need no per-image presigning. The R2 bucket `neonote` must be
  *     connected to PUBLIC_IMG_BASE as a public custom domain.
  *
- * Bindings are request-scoped (they live on `platform.env`), so every function
- * takes the `R2Bucket` explicitly — there is no module-level singleton.
+ * Every function takes the `R2Bucket` explicitly (callers pass `env.BUCKET`
+ * from `cloudflare:workers`).
  */
-import { env as publicEnv } from '$env/dynamic/public';
+import { PUBLIC_IMG_BASE } from '$app/env/public';
 import { createHash } from 'node:crypto';
 import type { R2Bucket } from '@cloudflare/workers-types';
 
@@ -32,7 +32,7 @@ function imgBase(): string {
 	// `||`, not `??`: a var that is present but EMPTY ('') must also fall back.
 	// An empty base produced relative `imageMap` values (`users/…/x.webp`), which
 	// resolve against the note's own URL and 404 instead of hitting the img host.
-	return (publicEnv.PUBLIC_IMG_BASE || 'https://img.mdpubs.com').replace(/\/$/, '');
+	return (PUBLIC_IMG_BASE || 'https://img.mdpubs.com').replace(/\/$/, '');
 }
 
 /**

@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
-import { db } from '$lib/server/db';
-import { organization, orgMember } from '$lib/server/db/schema';
+import { db } from '#lib/server/db/index.js';
+import { organization, orgMember } from '#lib/server/db/schema.js';
 import { eq } from 'drizzle-orm';
 import type { LayoutServerLoad } from './$types';
 

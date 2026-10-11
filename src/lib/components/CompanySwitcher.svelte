@@ -37,14 +37,14 @@
 		open = false;
 		if ((org?.id ?? null) === (active?.id ?? null)) return;
 		pending = { org };
-		const url = new URL(page.url);
+		const url = new URL(page.url.href);
 		if (org) url.searchParams.set('org', org.slug);
 		else url.searchParams.delete('org');
 		// Drop pagination when the workspace changes — page 3 of the old workspace
 		// is meaningless in the new one.
 		url.searchParams.delete('page');
 		try {
-			await goto(url, { invalidateAll: true });
+			await goto(url, { refreshAll: true });
 		} finally {
 			pending = null;
 		}

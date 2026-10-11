@@ -1,16 +1,16 @@
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import { z } from 'zod';
-import { db } from '$lib/server/db';
-import { organization } from '$lib/server/db/schema';
+import { db } from '#lib/server/db/index.js';
+import { organization } from '#lib/server/db/schema.js';
 import { eq } from 'drizzle-orm';
-import { env as publicEnv } from '$env/dynamic/public';
-import { canManageOrg } from '$lib/server/org';
+import { PUBLIC_CNAME_TARGET, PUBLIC_DOMAIN } from '$app/env/public';
+import { canManageOrg } from '#lib/server/org.js';
 import {
 	createCustomHostname,
 	getCustomHostname,
 	deleteCustomHostname,
 	isHostnameLive
-} from '$lib/server/cloudflare';
+} from '#lib/server/cloudflare.js';
 import type { RequestEvent } from './$types';
 
 /**
@@ -33,7 +33,10 @@ const domainSchema = z.object({
 		.toLowerCase()
 		.min(3)
 		.max(253)
-		.regex(/^(?!-)[a-z0-9-]{1,63}(\.[a-z0-9-]{1,63})+$/, 'Enter a valid domain, e.g. docs.example.com')
+		.regex(
+			/^(?!-)[a-z0-9-]{1,63}(\.[a-z0-9-]{1,63})+$/,
+			'Enter a valid domain, e.g. docs.example.com'
+		)
 });
 
 async function requireManagedOrg(event: RequestEvent) {
@@ -49,7 +52,7 @@ async function requireManagedOrg(event: RequestEvent) {
 
 /** The hostname customers CNAME to (their zone stays theirs). */
 function cnameTarget(): string {
-	return publicEnv.PUBLIC_CNAME_TARGET ?? `cname.${publicEnv.PUBLIC_DOMAIN ?? 'mdpubs.com'}`;
+	return PUBLIC_CNAME_TARGET || `cname.${PUBLIC_DOMAIN || 'mdpubs.com'}`;
 }
 
 export async function POST(event: RequestEvent) {
@@ -57,14 +60,20 @@ export async function POST(event: RequestEvent) {
 
 	const parsed = domainSchema.safeParse(await event.request.json());
 	if (!parsed.success) {
-		return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+		return Response.json(
+			{ success: false, message: parsed.error.errors[0].message },
+			{ status: 400 }
+		);
 	}
 	const { domain } = parsed.data;
 
 	// Refuse domains under our own apex — those belong in wrangler.jsonc, not here.
-	const base = (publicEnv.PUBLIC_DOMAIN ?? 'mdpubs.com').toLowerCase();
+	const base = (PUBLIC_DOMAIN || 'mdpubs.com').toLowerCase();
 	if (domain === base || domain.endsWith(`.${base}`)) {
-		return json({ success: false, message: 'Use a domain you own, not an mdpubs.com subdomain.' }, { status: 400 });
+		return Response.json(
+			{ success: false, message: 'Use a domain you own, not an mdpubs.com subdomain.' },
+			{ status: 400 }
+		);
 	}
 
 	try {
@@ -87,7 +96,7 @@ export async function POST(event: RequestEvent) {
 			})
 			.where(eq(organization.id, org.id));
 
-		return json({
+		return Response.json({
 			success: true,
 			status: 'pending',
 			domain,
@@ -96,10 +105,13 @@ export async function POST(event: RequestEvent) {
 		});
 	} catch (e) {
 		if (e instanceof Error && e.message.includes('UNIQUE constraint')) {
-			return json({ success: false, message: 'That domain is already in use.' }, { status: 409 });
+			return Response.json(
+				{ success: false, message: 'That domain is already in use.' },
+				{ status: 409 }
+			);
 		}
 		console.error('Domain provisioning failed:', e);
-		return json(
+		return Response.json(
 			{ success: false, message: e instanceof Error ? e.message : 'Provisioning failed.' },
 			{ status: 502 }
 		);
@@ -110,7 +122,7 @@ export async function GET(event: RequestEvent) {
 	const org = await requireManagedOrg(event);
 
 	if (!org.customDomain || !org.cfHostnameId) {
-		return json({ success: true, status: 'none', domain: null });
+		return Response.json({ success: true, status: 'none', domain: null });
 	}
 
 	try {
@@ -126,7 +138,7 @@ export async function GET(event: RequestEvent) {
 				.where(eq(organization.id, org.id));
 		}
 
-		return json({
+		return Response.json({
 			success: true,
 			status,
 			domain: org.customDomain,
@@ -136,7 +148,7 @@ export async function GET(event: RequestEvent) {
 		});
 	} catch (e) {
 		console.error('Domain status check failed:', e);
-		return json(
+		return Response.json(
 			{ success: false, message: e instanceof Error ? e.message : 'Status check failed.' },
 			{ status: 502 }
 		);
@@ -157,10 +169,10 @@ export async function DELETE(event: RequestEvent) {
 			.set({ customDomain: null, cfHostnameId: null, domainStatus: 'none', updatedAt: new Date() })
 			.where(eq(organization.id, org.id));
 
-		return json({ success: true, status: 'none' });
+		return Response.json({ success: true, status: 'none' });
 	} catch (e) {
 		console.error('Domain removal failed:', e);
-		return json(
+		return Response.json(
 			{ success: false, message: e instanceof Error ? e.message : 'Removal failed.' },
 			{ status: 502 }
 		);

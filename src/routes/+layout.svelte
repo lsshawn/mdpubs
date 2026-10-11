@@ -2,11 +2,11 @@
 	import '../app.css';
 	import { CircleUser, Pencil } from 'lucide-svelte';
 	import type { LayoutData, Snapshot } from './$types';
-	import { config } from '$lib/config';
+	import { config } from '#lib/config.js';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import type { Snippet } from 'svelte';
-	import FeedbackWidget from '$lib/components/FeedbackWidget.svelte';
+	import FeedbackWidget from '#lib/components/FeedbackWidget.svelte';
 	let { data, children }: { data: LayoutData; children: Snippet } = $props();
 
 	// Site-wide fallback OG image for routes that don't supply their own meta.
@@ -78,7 +78,7 @@
 	{#if !hideSiteChrome}
 		<header class="navbar shadow-sm md:px-8">
 			<div class="flex flex-1">
-				<a href={resolve('/')} role="button" class="flex gap-2">
+				<a href={resolve('/(public)')} role="button" class="flex gap-2">
 					<Pencil class="h-8 w-8 text-primary" />
 					<span class="text-2xl font-bold text-base-content">MdPubs</span>
 				</a>
@@ -89,7 +89,7 @@
 					<FeedbackWidget bind:message bind:email bind:name variant="navbar" />
 				</div>
 				<a
-					href={resolve('/notes')}
+					href={resolve('notes')}
 					role="button"
 					class={page.url.pathname.startsWith('/notes')
 						? 'btn btn-ghost text-primary'
@@ -98,7 +98,7 @@
 					Notes
 				</a>
 				<a
-					href={resolve('/account')}
+					href={resolve('account')}
 					role="button"
 					class={page.url.pathname.startsWith('/account') || page.url.pathname.startsWith('/login')
 						? 'text-primary'

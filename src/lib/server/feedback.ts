@@ -1,5 +1,5 @@
-import { feedbackDb } from '$lib/server/db';
-import * as table from '$lib/server/db/feedback.schema';
+import { feedbackDb } from '#lib/server/db/index.js';
+import * as table from '#lib/server/db/feedback.schema.js';
 import { desc, eq, isNull } from 'drizzle-orm';
 
 /**

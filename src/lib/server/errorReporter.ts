@@ -12,7 +12,14 @@
  *  - Idempotent: a stable signature lets Hermes drop duplicate errors.
  */
 import { createHmac, createHash } from 'node:crypto';
-import { env } from '$env/dynamic/private';
+
+import {
+	HERMES_WEBHOOK_URL,
+	HERMES_WEBHOOK_SECRET,
+	HERMES_APP_TOKEN,
+	VERCEL_GIT_COMMIT_SHA,
+	VERCEL_URL
+} from '$app/env/private';
 
 interface ErrorContext {
 	message: string;
@@ -41,22 +48,22 @@ function errorSignature(ctx: ErrorContext): string {
 }
 
 export function reportError(ctx: ErrorContext): void {
-	const url = env.HERMES_WEBHOOK_URL;
-	const secret = env.HERMES_WEBHOOK_SECRET;
+	const url = HERMES_WEBHOOK_URL;
+	const secret = HERMES_WEBHOOK_SECRET;
 	if (!url || !secret) return; // opt-in: no config → no-op (dev, previews)
 
 	const signature = errorSignature(ctx);
 	const payload = JSON.stringify({
 		app: 'mdpubs',
-		app_token: env.HERMES_APP_TOKEN ?? null, // per-app secret, checked against Hermes registry
+		app_token: HERMES_APP_TOKEN || null, // per-app secret, checked against Hermes registry
 		signature,
 		message: ctx.message,
 		route: ctx.route,
 		method: ctx.method,
 		status: ctx.status,
 		stack: ctx.stack?.split('\n').slice(0, 30).join('\n'), // cap stack size
-		commit: env.VERCEL_GIT_COMMIT_SHA ?? null,
-		deployment: env.VERCEL_URL ?? null,
+		commit: VERCEL_GIT_COMMIT_SHA || null,
+		deployment: VERCEL_URL || null,
 		ts: new Date().toISOString()
 	});
 

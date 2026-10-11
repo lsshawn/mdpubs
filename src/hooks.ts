@@ -1,4 +1,4 @@
-import type { Reroute } from '@sveltejs/kit';
+import type { Reroute } from '@sveltejs/kit/hooks';
 
 /**
  * Custom-domain routing for Cloudflare for SaaS.
@@ -22,6 +22,7 @@ function isOwnHost(host: string): boolean {
 	// $env/dynamic/public (server-only at this point in the request), so the
 	// base domain is matched literally here.
 	const base = 'mdpubs.com';
+
 	return (
 		host === base ||
 		host === `www.${base}` ||
@@ -53,6 +54,7 @@ export const reroute: Reroute = async ({ url, fetch }) => {
 	} else {
 		try {
 			const res = await fetch(`/api/domain-slug?host=${encodeURIComponent(host)}`);
+
 			slug = res.ok ? (((await res.json()) as { slug: string | null }).slug ?? null) : null;
 		} catch {
 			slug = null; // never break routing on a lookup failure

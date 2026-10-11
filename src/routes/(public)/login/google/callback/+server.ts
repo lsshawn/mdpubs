@@ -1,7 +1,7 @@
-import { google } from '$lib/server/oauth';
+import { google } from '#lib/server/oauth.js';
 import { ObjectParser } from '@pilcrowjs/object-parser';
-import { createUser, getUserFromGoogleId } from '$lib/server/user';
-import { createSession, setSessionTokenCookie } from '$lib/server/auth';
+import { createUser, getUserFromGoogleId } from '#lib/server/user.js';
+import { createSession, setSessionTokenCookie } from '#lib/server/auth.js';
 import { decodeIdToken } from 'arctic';
 
 import type { RequestEvent } from './$types';

@@ -3,9 +3,9 @@
  * Hono `/notes/deleted`. This static segment is matched before `[id]`, matching
  * the old route order.
  */
-import { json, type RequestEvent } from '@sveltejs/kit';
-import { requireApiAuth, isAuthError } from '$lib/server/api/auth';
-import { NoteService } from '$lib/server/api/services/note';
+import { type RequestEvent } from '@sveltejs/kit';
+import { requireApiAuth, isAuthError } from '#lib/server/api/auth.js';
+import { NoteService } from '#lib/server/api/services/note.js';
 
 const noteService = new NoteService();
 
@@ -14,9 +14,9 @@ export async function GET(event: RequestEvent): Promise<Response> {
 	if (isAuthError(auth)) return auth;
 	try {
 		const notes = await noteService.getDeletedNotesByUserId(auth.user!.id);
-		return json({ notes, count: notes.length });
+		return Response.json({ notes, count: notes.length });
 	} catch (error) {
 		console.error('Error getting deleted notes:', error);
-		return json({ error: 'Failed to retrieve deleted notes' }, { status: 500 });
+		return Response.json({ error: 'Failed to retrieve deleted notes' }, { status: 500 });
 	}
 }

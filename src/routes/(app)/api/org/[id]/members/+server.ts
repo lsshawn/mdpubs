@@ -1,9 +1,9 @@
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import { z } from 'zod';
-import { db } from '$lib/server/db';
-import { organization, orgMember, user as userTable } from '$lib/server/db/schema';
+import { db } from '#lib/server/db/index.js';
+import { organization, orgMember, user as userTable } from '#lib/server/db/schema.js';
 import { and, eq } from 'drizzle-orm';
-import { canManageOrg, getOrgRole, inviteToOrg, listPendingInvites } from '$lib/server/org';
+import { canManageOrg, getOrgRole, inviteToOrg, listPendingInvites } from '#lib/server/org.js';
 import type { RequestEvent } from './$types';
 
 /**
@@ -47,7 +47,7 @@ export async function GET(event: RequestEvent) {
 		listPendingInvites(org.id)
 	]);
 
-	return json({ success: true, members, invites });
+	return Response.json({ success: true, members, invites });
 }
 
 const addSchema = z.object({
@@ -61,21 +61,27 @@ export async function POST(event: RequestEvent) {
 
 	const parsed = addSchema.safeParse(await event.request.json());
 	if (!parsed.success) {
-		return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+		return Response.json(
+			{ success: false, message: parsed.error.errors[0].message },
+			{ status: 400 }
+		);
 	}
 	const { email, role } = parsed.data;
 
 	try {
 		const result = await inviteToOrg(org.id, email, role, user.id);
 		if (!result.ok) {
-			return json({ success: false, message: result.error }, { status: 409 });
+			return Response.json({ success: false, message: result.error }, { status: 409 });
 		}
 		// 'added' → the email already had an account and is a member now.
 		// 'invited' → no account yet; they join automatically on first login.
-		return json({ success: true, status: result.status });
+		return Response.json({ success: true, status: result.status });
 	} catch (e) {
 		console.error('Invite/add member failed:', e);
-		return json({ success: false, message: 'Could not add that person.' }, { status: 500 });
+		return Response.json(
+			{ success: false, message: 'Could not add that person.' },
+			{ status: 500 }
+		);
 	}
 }
 
@@ -87,7 +93,7 @@ export async function DELETE(event: RequestEvent) {
 
 	const parsed = removeSchema.safeParse(await event.request.json());
 	if (!parsed.success) {
-		return json({ success: false, message: 'Provide a userId.' }, { status: 400 });
+		return Response.json({ success: false, message: 'Provide a userId.' }, { status: 400 });
 	}
 	const { userId } = parsed.data;
 
@@ -97,12 +103,12 @@ export async function DELETE(event: RequestEvent) {
 		.from(orgMember)
 		.where(and(eq(orgMember.orgId, org.id), eq(orgMember.role, 'owner')));
 	if (owners.length === 1 && owners[0].userId === userId) {
-		return json(
+		return Response.json(
 			{ success: false, message: 'Cannot remove the only owner. Assign another owner first.' },
 			{ status: 409 }
 		);
 	}
 
 	await db.delete(orgMember).where(and(eq(orgMember.orgId, org.id), eq(orgMember.userId, userId)));
-	return json({ success: true });
+	return Response.json({ success: true });
 }

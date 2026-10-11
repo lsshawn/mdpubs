@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { dev } from '$app/environment';
+	import { dev } from '$app/env';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import CopyableText from '$lib/components/CopyableText.svelte';
-	import { config } from '$lib/config';
+	import CopyableText from '#lib/components/CopyableText.svelte';
+	import { config } from '#lib/config.js';
 	import Icon from '@iconify/svelte';
 	let apiKey: string | null = $state(null);
 	let readOnlyApiKey: string | null = $state(null);
@@ -46,7 +46,7 @@
 		loggingOut = true;
 		const res = await fetch('/api/auth/logout', { method: 'POST' });
 		if (res.ok) {
-			goto(resolve('/'), { replaceState: true, invalidateAll: true });
+			goto(resolve('/(public)'), { replace: true, refreshAll: true });
 		}
 	}
 
@@ -167,7 +167,9 @@
 			<p class="flex items-center py-2 text-base-content/70">
 				<span>
 					Publish under a shared team name and a custom domain (e.g. docs.108labs.ai). Tag notes
-					with <code class="rounded bg-base-200 px-1">mdpubs-company: &lt;slug&gt;</code>.
+					with
+					<code class="rounded bg-base-200 px-1">mdpubs-company: &lt;slug&gt;</code>
+					.
 				</span>
 			</p>
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->

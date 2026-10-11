@@ -1,7 +1,7 @@
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import { z } from 'zod';
-import { db } from '$lib/server/db';
-import { organization, orgMember } from '$lib/server/db/schema';
+import { db } from '#lib/server/db/index.js';
+import { organization, orgMember } from '#lib/server/db/schema.js';
 import type { RequestEvent } from './$types';
 
 /**
@@ -25,19 +25,28 @@ export async function POST(event: RequestEvent) {
 
 	const parsed = createSchema.safeParse(await event.request.json());
 	if (!parsed.success) {
-		return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+		return Response.json(
+			{ success: false, message: parsed.error.errors[0].message },
+			{ status: 400 }
+		);
 	}
 	const { name, slug } = parsed.data;
 
 	try {
 		const [org] = await db.insert(organization).values({ name, slug }).returning();
 		await db.insert(orgMember).values({ orgId: org.id, userId: user.id, role: 'owner' });
-		return json({ success: true, org: { id: org.id, slug: org.slug, name: org.name } });
+		return Response.json({ success: true, org: { id: org.id, slug: org.slug, name: org.name } });
 	} catch (e) {
 		if (e instanceof Error && e.message.includes('UNIQUE constraint')) {
-			return json({ success: false, message: `The slug "${slug}" is already taken.` }, { status: 409 });
+			return Response.json(
+				{ success: false, message: `The slug "${slug}" is already taken.` },
+				{ status: 409 }
+			);
 		}
 		console.error('Org creation failed:', e);
-		return json({ success: false, message: 'Could not create the account.' }, { status: 500 });
+		return Response.json(
+			{ success: false, message: 'Could not create the account.' },
+			{ status: 500 }
+		);
 	}
 }

@@ -156,10 +156,7 @@
 			display: block;
 			break-before: page;
 			padding: 2rem 0;
-			font-family:
-				ui-sans-serif,
-				system-ui,
-				sans-serif;
+			font-family: ui-sans-serif, system-ui, sans-serif;
 			color: #111;
 		}
 		.mdpubs-certificate h2 {

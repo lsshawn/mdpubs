@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { database, InvalidAPIKeyError, NotFoundError } from '../db';
-import type { User } from '$lib/server/db/schema';
+import type { User } from '#lib/server/db/schema.js';
 import { addMinutes, isAfter } from 'date-fns';
 
 export interface CreateUserRequest {

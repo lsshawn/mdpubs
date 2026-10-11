@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { browser } from '$app/environment';
+	import { browser } from '$app/env';
 	import { resolve } from '$app/paths';
-	import { formatDate } from '$lib/helpers/dates';
+	import { formatDate } from '#lib/helpers/dates.js';
 	import type { PageData } from './$types';
 
 	export let data: PageData;
@@ -108,12 +108,10 @@
 	{/if}
 
 	<!-- Sentinel for infinite scroll -->
-	<div bind:this={sentinel} class="h-10" />
+	<div bind:this={sentinel} class="h-10"></div>
 
 	{#if loading}
-		<div class="text-center p-4">
-			<span class="loading loading-spinner loading-lg" />
-		</div>
+		<div class="text-center p-4"><span class="loading loading-spinner loading-lg"></span></div>
 	{/if}
 
 	{#if noMoreNotes && notes.length > 0}

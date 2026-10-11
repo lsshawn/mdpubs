@@ -1,12 +1,17 @@
 import { Google, GitHub } from 'arctic';
-import { config } from '$lib/config';
+import { config } from '#lib/config.js';
 // $env/dynamic/private (runtime) rather than static/private (build-time inline).
 // The Arctic clients are created LAZILY on first access: SvelteKit's postbuild
 // `analyse` imports this module in the build container (no OAuth secrets), and
 // constructing with undefined credentials there risks throwing and failing the
 // build (as Stripe does). Deferring to first use means construction only happens
 // at request time, where the env is present.
-import { env } from '$env/dynamic/private';
+import {
+	GOOGLE_CLIENT_ID,
+	GOOGLE_CLIENT_SECRET,
+	GITHUB_CLIENT_ID,
+	GITHUB_CLIENT_SECRET
+} from '$app/env/private';
 
 export const githubRedirectURL = `${config.domain}/login/github/callback`;
 
@@ -26,8 +31,8 @@ let _github: GitHub | undefined;
 export const google: Google = bindProxy(() => {
 	if (!_google) {
 		_google = new Google(
-			env.GOOGLE_CLIENT_ID,
-			env.GOOGLE_CLIENT_SECRET,
+			GOOGLE_CLIENT_ID,
+			GOOGLE_CLIENT_SECRET,
 			`${config.domain}/login/google/callback`
 		);
 	}
@@ -36,7 +41,7 @@ export const google: Google = bindProxy(() => {
 
 export const github: GitHub = bindProxy(() => {
 	if (!_github) {
-		_github = new GitHub(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET, githubRedirectURL);
+		_github = new GitHub(GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, githubRedirectURL);
 	}
 	return _github;
 });

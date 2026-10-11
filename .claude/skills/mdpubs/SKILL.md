@@ -27,19 +27,20 @@ Add these to the existing YAML frontmatter (keep the document's own `title`, `da
 
 ```yaml
 # --- mdpubs e-signing ---
-mdpubs-is-private: false        # false = anyone with the link can view; true = restricted
-mdpubs-sign: true               # enable signature collection
-mdpubs: <short-id>              # OMIT on first publish — mdpubs assigns the doc id. Keep it verbatim once set.
-mdpubs-signers:                 # NAMED signers (identity fixed; usually your side)
+mdpubs-is-private: false # false = anyone with the link can view; true = restricted
+mdpubs-sign: true # enable signature collection
+mdpubs: <short-id> # OMIT on first publish — mdpubs assigns the doc id. Keep it verbatim once set.
+mdpubs-signers: # NAMED signers (identity fixed; usually your side)
   - Full Name
-mdpubs-signers-open:            # OPEN slots (whoever the counterparty authorises signs & types their own name/email)
+mdpubs-signers-open: # OPEN slots (whoever the counterparty authorises signs & types their own name/email)
   - Counterparty Legal Name
-mdpubs-signer-fields:           # extra fields collected at signing. "?" suffix = optional
+mdpubs-signer-fields: # extra fields collected at signing. "?" suffix = optional
   - Title?
-mdpubs-sign-order: parallel     # parallel = either can sign first; sequential = top-to-bottom order
+mdpubs-sign-order: parallel # parallel = either can sign first; sequential = top-to-bottom order
 ```
 
 Notes:
+
 - **Named vs open.** A named signer is a specific person on your side (e.g. you, the vendor). An open slot is "whoever the client authorises" — they enter their own name and email at signing time. In the KW Loh reference, "Lim Shi Shyang" is named and "KW Loh & Associates / KW Loh Taxation Sdn Bhd" is an open slot.
 - **Named signer forms.** Three are accepted: `Full Name` (name locked, signer supplies their own email), `Full Name <a@b.com>` (email pre-filled), or a bare `a@b.com` (email used as the name too). Prefer the bare-name form unless you're certain of the address — slots are matched by position, not email, so a wrong address just creates friction.
 - **`mdpubs: <id>`** — do NOT invent this. Leave it out on the first publish; mdpubs mints the id and it gets written back. On any later edit, preserve the existing value exactly, or you fork the document and lose collected signatures.
@@ -60,7 +61,6 @@ For each signer, place one anchor where the signature should render. Put a short
 
 <!-- mdpubs-sign-here: Named Signer -->
 
-
 **For <Counterparty>** _(signed by an authorised signatory)_
 <their reg no. / address, optional>
 
@@ -68,6 +68,7 @@ For each signer, place one anchor where the signature should render. Put a short
 ```
 
 Rules:
+
 - The `NAME` in the comment must exactly match a frontmatter signer entry (named or open).
 - One anchor per signer. Every listed signer needs an anchor, and every anchor needs a listed signer.
 - Do NOT leave manual `Name: _____ / Signature: _____` underscore lines next to an anchor — mdpubs renders the signature block, so the underscores are redundant. Remove them.
@@ -91,10 +92,10 @@ Inline <span style="color:red">emphasis</span> works mid-sentence too.
 Rules that actually bite (verified against the renderer):
 
 - **Blank-line-separate block HTML.** A `<div>`/`<table>` block set off by blank lines passes through verbatim — no wrapping `<p>`, no injected `<br>`. Without a blank line before it the preceding text just closes as its own paragraph, which is usually fine.
-- **`breaks: true` is on, and it only affects inline HTML.** A `<span>` that spans two source lines *inside a paragraph* gets a `<br>` inserted at the newline. Keep inline HTML on one line. Block-level HTML is unaffected.
+- **`breaks: true` is on, and it only affects inline HTML.** A `<span>` that spans two source lines _inside a paragraph_ gets a `<br>` inserted at the newline. Keep inline HTML on one line. Block-level HTML is unaffected.
 - **Never indent block HTML 4+ spaces.** That makes it a markdown code block, so it renders as escaped text instead of markup.
 - **Markdown does not process inside a tight HTML block.** `**bold**` on a line directly inside `<div>...</div>` stays literal asterisks. Put a blank line after the opening tag (and before the closing one) if you need markdown to run inside — then it does.
-- **To *show* HTML rather than run it**, put it in a fenced block or backticks. Entity decoding deliberately skips `<pre>` and `<code>`, so escaped markup stays visible there; outside them it would decode into live tags and the text would vanish.
+- **To _show_ HTML rather than run it**, put it in a fenced block or backticks. Entity decoding deliberately skips `<pre>` and `<code>`, so escaped markup stays visible there; outside them it would decode into live tags and the text would vanish.
 - **Signed documents lock.** HTML edits change the signed body like any other edit, so a change after the first signature is rejected with `409`. Settle layout before sending the link.
 
 This is the markdown path. A whole-file `.html` pub (`file_extension: html`) is different — it is served verbatim in a sandboxed iframe and uses the comment markers from the note above, not frontmatter.

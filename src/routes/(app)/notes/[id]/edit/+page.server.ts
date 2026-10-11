@@ -12,9 +12,9 @@
  */
 import { error, redirect } from '@sveltejs/kit';
 import { and, eq, isNull } from 'drizzle-orm';
-import { db } from '$lib/server/db';
-import { note as noteTable } from '$lib/server/db/schema';
-import { database } from '$lib/server/api/db';
+import { db } from '#lib/server/db/index.js';
+import { note as noteTable } from '#lib/server/db/schema.js';
+import { database } from '#lib/server/api/db.js';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {

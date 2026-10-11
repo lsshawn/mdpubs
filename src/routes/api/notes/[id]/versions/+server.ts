@@ -2,11 +2,11 @@
  * /api/notes/[id]/versions — version history (optionally with diffs). Native port
  * of the old Hono `/notes/:id/versions`.
  */
-import { json, type RequestEvent } from '@sveltejs/kit';
-import { optionalApiAuth, isAuthError } from '$lib/server/api/auth';
-import { resolveNoteId } from '$lib/server/api/http';
-import { NoteService } from '$lib/server/api/services/note';
-import { NotFoundError, NoteNotOwnedError } from '$lib/server/api/db';
+import { type RequestEvent } from '@sveltejs/kit';
+import { optionalApiAuth, isAuthError } from '#lib/server/api/auth.js';
+import { resolveNoteId } from '#lib/server/api/http.js';
+import { NoteService } from '#lib/server/api/services/note.js';
+import { NotFoundError, NoteNotOwnedError } from '#lib/server/api/db.js';
 
 const noteService = new NoteService();
 
@@ -17,7 +17,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 
 	try {
 		const noteId = await resolveNoteId(event.params.id);
-		if (noteId === null) return json({ error: 'Note not found' }, { status: 404 });
+		if (noteId === null) return Response.json({ error: 'Note not found' }, { status: 404 });
 
 		const withDiffs = event.url.searchParams.get('diffs') === 'true';
 		const limitParam = event.url.searchParams.get('limit');
@@ -25,7 +25,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 		let limit: number | undefined;
 		if (limitParam) {
 			limit = parseInt(limitParam);
-			if (isNaN(limit)) return json({ error: 'Invalid limit parameter' }, { status: 400 });
+			if (isNaN(limit)) return Response.json({ error: 'Invalid limit parameter' }, { status: 400 });
 		} else if (withDiffs) {
 			limit = 10;
 		}
@@ -42,12 +42,15 @@ export async function GET(event: RequestEvent): Promise<Response> {
 			if (limit) versions = versions.slice(0, limit);
 		}
 
-		return json({ versions, count: versions.length });
+		return Response.json({ versions, count: versions.length });
 	} catch (error) {
 		if (error instanceof NotFoundError || error instanceof NoteNotOwnedError) {
-			return json({ error: "Note not found, doesn't belong to you, or is not public." }, { status: 404 });
+			return Response.json(
+				{ error: "Note not found, doesn't belong to you, or is not public." },
+				{ status: 404 }
+			);
 		}
 		console.error('Error getting note versions:', error);
-		return json({ error: 'Failed to retrieve note versions' }, { status: 500 });
+		return Response.json({ error: 'Failed to retrieve note versions' }, { status: 500 });
 	}
 }

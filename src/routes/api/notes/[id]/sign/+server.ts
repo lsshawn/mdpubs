@@ -4,20 +4,24 @@
  * Native port of the old Hono `/notes/:id/sign`. Public but privacy-respecting;
  * signing is multipart with `name`, `email`, `signature` (PNG), and `field:*`.
  */
-import { json, type RequestEvent } from '@sveltejs/kit';
-import { optionalApiAuth, requireApiAuth, isAuthError } from '$lib/server/api/auth';
-import { resolveNoteId } from '$lib/server/api/http';
-import { config } from '$lib/server/api/config';
-import { NoteService } from '$lib/server/api/services/note';
-import { signService, SignError } from '$lib/server/api/services/sign';
-import { database, NotFoundError, NoteNotOwnedError } from '$lib/server/api/db';
-import { canReopenSigning } from '$lib/server/org';
+import { type RequestEvent } from '@sveltejs/kit';
+import { optionalApiAuth, requireApiAuth, isAuthError } from '#lib/server/api/auth.js';
+import { resolveNoteId } from '#lib/server/api/http.js';
+import { config } from '#lib/server/api/config.js';
+import { NoteService } from '#lib/server/api/services/note.js';
+import { signService, SignError } from '#lib/server/api/services/sign.js';
+import { database, NotFoundError, NoteNotOwnedError } from '#lib/server/api/db.js';
+import { canReopenSigning } from '#lib/server/org.js';
+import { env } from 'cloudflare:workers';
 
 const noteService = new NoteService();
 
-const notFound = () => json({ error: 'Note not found' }, { status: 404 });
+const notFound = () => Response.json({ error: 'Note not found' }, { status: 404 });
 const notFoundOrPrivate = () =>
-	json({ error: "Note not found, doesn't belong to you, or is not public." }, { status: 404 });
+	Response.json(
+		{ error: "Note not found, doesn't belong to you, or is not public." },
+		{ status: 404 }
+	);
 
 // GET /api/notes/[id]/sign — signing configuration + progress.
 export async function GET(event: RequestEvent): Promise<Response> {
@@ -34,12 +38,12 @@ export async function GET(event: RequestEvent): Promise<Response> {
 
 		let state = await signService.getState(note);
 		state = await signService.withSignatureImageUrls(note, state);
-		return json(state);
+		return Response.json(state);
 	} catch (error) {
 		if (error instanceof NotFoundError || error instanceof NoteNotOwnedError)
 			return notFoundOrPrivate();
 		console.error('Error getting sign state:', error);
-		return json({ error: 'Failed to get signing status' }, { status: 500 });
+		return Response.json({ error: 'Failed to get signing status' }, { status: 500 });
 	}
 }
 
@@ -47,7 +51,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 export async function POST(event: RequestEvent): Promise<Response> {
 	const auth = await optionalApiAuth(event);
 	if (isAuthError(auth)) return auth;
-	const bucket = event.platform!.env.BUCKET;
+	const bucket = env.BUCKET;
 	const req = event.request;
 
 	try {
@@ -56,7 +60,10 @@ export async function POST(event: RequestEvent): Promise<Response> {
 
 		const contentType = req.headers.get('content-type') || '';
 		if (!contentType.includes('multipart/form-data')) {
-			return json({ error: 'Signing requires a multipart/form-data request.' }, { status: 400 });
+			return Response.json(
+				{ error: 'Signing requires a multipart/form-data request.' },
+				{ status: 400 }
+			);
 		}
 
 		const formData = await req.formData();
@@ -80,11 +87,11 @@ export async function POST(event: RequestEvent): Promise<Response> {
 			typeof sigValue !== 'object' ||
 			typeof (sigValue as { arrayBuffer?: unknown }).arrayBuffer !== 'function'
 		) {
-			return json({ error: 'A drawn signature image is required.' }, { status: 400 });
+			return Response.json({ error: 'A drawn signature image is required.' }, { status: 400 });
 		}
 		const sigFile = sigValue as unknown as File;
 		if (sigFile.size > config.limits.fileSize.bytes) {
-			return json({ error: 'Signature image is too large.' }, { status: 413 });
+			return Response.json({ error: 'Signature image is too large.' }, { status: 413 });
 		}
 		const signatureImagePng = await sigFile.arrayBuffer();
 
@@ -122,13 +129,13 @@ export async function POST(event: RequestEvent): Promise<Response> {
 			userAgent
 		});
 		state = await signService.withSignatureImageUrls(note, state);
-		return json(state);
+		return Response.json(state);
 	} catch (error) {
 		if (error instanceof NotFoundError || error instanceof NoteNotOwnedError)
 			return notFoundOrPrivate();
-		if (error instanceof SignError) return json({ error: error.message }, { status: 409 });
+		if (error instanceof SignError) return Response.json({ error: error.message }, { status: 409 });
 		console.error('Error signing note:', error);
-		return json({ error: 'Failed to sign document' }, { status: 500 });
+		return Response.json({ error: 'Failed to sign document' }, { status: 500 });
 	}
 }
 
@@ -148,7 +155,7 @@ export async function DELETE(event: RequestEvent): Promise<Response> {
 	const auth = await requireApiAuth(event);
 	if (isAuthError(auth)) return auth;
 	if (auth.isReadOnly) {
-		return json({ error: 'This API key is read-only.' }, { status: 403 });
+		return Response.json({ error: 'This API key is read-only.' }, { status: 403 });
 	}
 	const params = event.url.searchParams;
 	const req = event.request;
@@ -159,7 +166,7 @@ export async function DELETE(event: RequestEvent): Promise<Response> {
 		const note = await database.getNoteById(noteId);
 		if (!note || note.deletedAt) return notFound();
 		if (!auth.isAdmin && !(await canReopenSigning(note, auth.user!.id))) {
-			return json(
+			return Response.json(
 				{ error: 'Only the note’s author or an org owner/admin can clear signatures.' },
 				{ status: 403 }
 			);
@@ -167,14 +174,14 @@ export async function DELETE(event: RequestEvent): Promise<Response> {
 
 		const reason = (params.get('reason') || '').trim();
 		if (!reason) {
-			return json(
+			return Response.json(
 				{ error: 'A `reason` is required — it is recorded in the audit trail.' },
 				{ status: 400 }
 			);
 		}
 		const appliedBy = (params.get('appliedBy') || '').trim();
 		if (auth.isAdmin && !appliedBy) {
-			return json(
+			return Response.json(
 				{ error: 'An `appliedBy` parameter is required when using an admin key.' },
 				{ status: 400 }
 			);
@@ -186,7 +193,7 @@ export async function DELETE(event: RequestEvent): Promise<Response> {
 		if (rawIndex !== null && rawIndex !== '') {
 			signerIndex = Number(rawIndex);
 			if (!Number.isInteger(signerIndex) || signerIndex < 0) {
-				return json({ error: 'Invalid `signerIndex`.' }, { status: 400 });
+				return Response.json({ error: 'Invalid `signerIndex`.' }, { status: 400 });
 			}
 		}
 
@@ -195,18 +202,18 @@ export async function DELETE(event: RequestEvent): Promise<Response> {
 			signerIndex,
 			reason,
 			actorEmail: auth.user?.email || `${appliedBy} (via admin key)`,
-			bucket: event.platform?.env?.BUCKET,
+			bucket: env.BUCKET,
 			ipAddress:
 				req.headers.get('cf-connecting-ip') ||
 				req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
 				undefined,
 			userAgent: req.headers.get('user-agent') || undefined
 		});
-		return json({ voided, state: await signService.withSignatureImageUrls(note, state) });
+		return Response.json({ voided, state: await signService.withSignatureImageUrls(note, state) });
 	} catch (error) {
-		if (error instanceof SignError) return json({ error: error.message }, { status: 409 });
+		if (error instanceof SignError) return Response.json({ error: error.message }, { status: 409 });
 		if (error instanceof NotFoundError) return notFound();
 		console.error('Error clearing signatures:', error);
-		return json({ error: 'Failed to clear signatures' }, { status: 500 });
+		return Response.json({ error: 'Failed to clear signatures' }, { status: 500 });
 	}
 }

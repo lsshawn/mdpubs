@@ -3,13 +3,13 @@
  *
  * Changes from the original:
  *   - Storage: `r2Service.*` (S3 SDK + sharp) is replaced with the binding-based
- *     `$lib/server/storage`. Methods that touch storage take an `R2Bucket`
+ *     `#lib/server/storage`. Methods that touch storage take an `R2Bucket`
  *     explicitly (threaded from the route via `c.env.BUCKET`).
  *   - Images are NO LONGER presigned. `imageMap` stores PLAIN PUBLIC URLs.
  *     `convertNoteFilesToPresignedUrls` has been REMOVED and every read path
  *     returns `imageMap` as-is.
  *   - `uploadFile` no longer compresses (no sharp); adapted to the new signature.
- *   - Org resolution uses `$lib/server/org` (destination copy of the rule).
+ *   - Org resolution uses `#lib/server/org.js` (destination copy of the rule).
  *   - `db` access goes through `../db` (destination lazy proxy), not process.env.
  *
  * The signing lock (updateNote's body-hash check), stripLeadingFrontmatter, and
@@ -22,14 +22,14 @@ import {
 	NoteNotOwnedError,
 	NoteLockedError
 } from '../db';
-import type { Note, NoteVersion } from '$lib/server/db/schema';
-import { uploadFile, deleteFiles, deleteFolder, normalizeImageMap } from '$lib/server/storage';
+import type { Note, NoteVersion } from '#lib/server/db/schema.js';
+import { uploadFile, deleteFiles, deleteFolder, normalizeImageMap } from '#lib/server/storage.js';
 import type { R2Bucket } from '@cloudflare/workers-types';
 import { config } from '../config';
-import { resolveNoteOrg } from '$lib/server/org';
+import { resolveNoteOrg } from '#lib/server/org.js';
 import matter from 'gray-matter';
 import { marked } from 'marked';
-import markedMath from '$lib/server/marked-math';
+import markedMath from '#lib/server/marked-math.js';
 import GithubSlugger from 'github-slugger';
 import * as diff from 'diff';
 import { createHash } from 'node:crypto';

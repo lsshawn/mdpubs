@@ -1,4 +1,4 @@
-import { google } from '$lib/server/oauth';
+import { google } from '#lib/server/oauth.js';
 import { generateCodeVerifier, generateState } from 'arctic';
 
 import type { RequestEvent } from './$types';

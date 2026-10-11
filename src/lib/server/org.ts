@@ -7,10 +7,10 @@
  *   - the org landing page ((public)/o/[org])
  *   - domain-provisioning endpoints (membership/role checks)
  */
-import { db } from '$lib/server/db';
-import { organization, orgInvite, orgMember, user as userTable } from '$lib/server/db/schema';
+import { db } from '#lib/server/db/index.js';
+import { organization, orgInvite, orgMember, user as userTable } from '#lib/server/db/schema.js';
 import { and, eq, isNull } from 'drizzle-orm';
-import type { Organization } from '$lib/server/db/schema';
+import type { Organization } from '#lib/server/db/schema.js';
 
 export type OrgRole = 'owner' | 'admin' | 'member';
 

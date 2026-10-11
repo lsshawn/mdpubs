@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import { marked } from 'marked';
-import { db } from '$lib/server/db';
-import { note, user } from '$lib/server/db/schema';
+import { db } from '#lib/server/db/index.js';
+import { note, user } from '#lib/server/db/schema.js';
 import { and, eq, desc, isNull } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 
