@@ -175,10 +175,11 @@ sign: true
 				class="mt-10 grid gap-px border border-base-content/15 bg-base-content/15 md:grid-cols-2"
 			>
 				<div class="flex flex-col bg-base-100 p-8">
-					<p class="font-mono text-xs tracking-widest text-base-content/50 uppercase">Solo</p>
+					<p class="font-mono text-xs tracking-widest text-base-content/50 uppercase">Monthly</p>
 					<p class="mt-4 text-4xl font-semibold tracking-tight">
-						$19<span class="font-mono text-base font-normal text-base-content/50">/mo</span>
+						$20<span class="font-mono text-base font-normal text-base-content/50">/mo</span>
 					</p>
+					<p class="mt-2 font-mono text-xs text-base-content/50">Billed monthly. Cancel anytime.</p>
 					<ul class="mt-6 flex-1 space-y-3 text-sm text-base-content/80">
 						<li class="flex gap-3">
 							<span class="text-base-content/40">—</span> Unlimited signable proposals
@@ -189,37 +190,42 @@ sign: true
 						<li class="flex gap-3">
 							<span class="text-base-content/40">—</span> Audit log of every view and signature
 						</li>
+						<li class="flex gap-3">
+							<span class="text-base-content/40">—</span> Custom branded domain
+						</li>
+						<li class="flex gap-3"><span class="text-base-content/40">—</span> Parallel signers</li>
 					</ul>
 					<a
 						href={signupHref}
 						class="mt-8 border border-base-content px-6 py-3 text-center font-mono text-sm transition-colors hover:bg-base-content hover:text-base-100"
 					>
-						Start on Solo
+						Start monthly
 					</a>
 				</div>
 
 				<div class="flex flex-col bg-base-100 p-8">
-					<p class="font-mono text-xs tracking-widest text-base-content/50 uppercase">
-						Studio / Agency
-					</p>
+					<p class="font-mono text-xs tracking-widest text-base-content/50 uppercase">Annual</p>
 					<p class="mt-4 text-4xl font-semibold tracking-tight">
-						$49<span class="font-mono text-base font-normal text-base-content/50">/mo</span>
+						$190<span class="font-mono text-base font-normal text-base-content/50">/yr</span>
+					</p>
+					<!-- $20 x 12 = $240, so $190 is $50 off. Stated as the saving rather than
+						 "N months free", which would not be a whole number of months. -->
+					<p class="mt-2 font-mono text-xs text-base-content/50">
+						Save $50 against paying monthly.
 					</p>
 					<ul class="mt-6 flex-1 space-y-3 text-sm text-base-content/80">
 						<li class="flex gap-3">
-							<span class="text-base-content/40">—</span> Everything in Solo
+							<span class="text-base-content/40">—</span> Everything in monthly
 						</li>
 						<li class="flex gap-3">
-							<span class="text-base-content/40">—</span> Custom branded domain
+							<span class="text-base-content/40">—</span> One invoice a year
 						</li>
-						<li class="flex gap-3"><span class="text-base-content/40">—</span> Parallel signers</li>
-						<li class="flex gap-3"><span class="text-base-content/40">—</span> Custom CSS</li>
 					</ul>
 					<a
 						href={signupHref}
 						class="mt-8 border border-base-content bg-base-content px-6 py-3 text-center font-mono text-sm text-base-100 transition-colors hover:bg-transparent hover:text-base-content"
 					>
-						Start on Studio
+						Start annual
 					</a>
 				</div>
 			</div>
