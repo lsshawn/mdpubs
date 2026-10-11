@@ -1,7 +1,12 @@
 <script lang="ts">
 	/**
-	 * Landing-page playground: raw markdown on the left, a 390px phone preview on
-	 * the right, both live.
+	 * Landing-page playground: one centred utility card with two tabs — the live
+	 * contract as a client sees it on a phone, and the raw markdown behind it.
+	 *
+	 * Tabs rather than two columns so the card stays one compact object at every
+	 * width, and so the first thing a visitor lands on is the signable document
+	 * rather than a wall of markdown. The preview tab is the default for the same
+	 * reason: the 'Sign Now' box has to be reachable in one tap.
 	 *
 	 * It is a demo, not the product. Nothing here touches the API or the database:
 	 * signatures are drawn to a canvas and held in local state so a visitor can see
@@ -15,6 +20,7 @@
 	import { marked } from 'marked';
 	import { tick } from 'svelte';
 	import {
+		SAMPLE_PROPOSAL,
 		addHeadingIds,
 		previewTitle,
 		previewToc,
@@ -24,35 +30,15 @@
 	} from '$lib/helpers/landing-preview';
 	import { drawSignatureImage } from '$lib/helpers/signature-image';
 
-	const SAMPLE = `---
-title: Website Redesign — Proposal
-mdpubs:
-sign: true
----
-
-# Website Redesign
-
-## Scope
-
-A 4-page marketing site, responsive down to 390px,
-with a CMS for the blog.
-
-## Price
-
-| Item        | Amount  |
-| ----------- | ------- |
-| Design      | $4,200  |
-| Build       | $6,800  |
-
-## Sign-off
-
-Countersigned below.
-
-<!-- mdpubs-sign-here: Client Name -->
-`;
-
-	let source = $state(SAMPLE);
+	let source = $state(SAMPLE_PROPOSAL);
 	let editorEl = $state<HTMLTextAreaElement | null>(null);
+
+	/**
+	 * Which tab the card is showing. 'preview' first: the point of the card is
+	 * that a visitor can tap a signing box within a few seconds of arriving, and
+	 * opening on the markdown would put a scroll between them and that box.
+	 */
+	let tab = $state<'preview' | 'source'>('preview');
 
 	/**
 	 * One signature per anchor, keyed by the anchor's stable key rather than its
@@ -249,17 +235,66 @@ Countersigned below.
 	}
 </script>
 
-<div class="grid gap-px border border-base-content/15 bg-base-content/15 lg:grid-cols-2">
-	<!-- Left: the markdown you write -->
-	<div class="flex flex-col bg-base-100">
-		<div
-			class="flex items-center justify-between border-b border-base-content/10 px-4 py-2 font-mono text-xs text-base-content/50"
+<!--
+	One card, two tabs. The card itself carries the border, radius and shadow; the
+	tab panels inside it are flat, so switching tabs changes the contents without
+	the outline moving.
+-->
+<div
+	class="overflow-hidden rounded-2xl border border-base-content/20 bg-base-100 shadow-xl shadow-base-content/5"
+>
+	<!-- Tab bar -->
+	<div
+		class="flex items-center gap-1 border-b border-base-content/15 bg-base-200/60 px-2 py-2"
+		role="tablist"
+		aria-label="Playground view"
+	>
+		<button
+			type="button"
+			role="tab"
+			id="tab-preview"
+			aria-selected={tab === 'preview'}
+			aria-controls="panel-preview"
+			onclick={() => (tab = 'preview')}
+			class="rounded-lg px-3 py-1.5 font-mono text-[12px] transition-colors {tab === 'preview'
+				? 'bg-base-100 text-base-content shadow-sm'
+				: 'text-base-content/50 hover:text-base-content/80'}"
 		>
-			<span>proposal.md</span>
+			Live Contract Preview
+		</button>
+		<button
+			type="button"
+			role="tab"
+			id="tab-source"
+			aria-selected={tab === 'source'}
+			aria-controls="panel-source"
+			onclick={() => (tab = 'source')}
+			class="rounded-lg px-3 py-1.5 font-mono text-[12px] transition-colors {tab === 'source'
+				? 'bg-base-100 text-base-content shadow-sm'
+				: 'text-base-content/50 hover:text-base-content/80'}"
+		>
+			Raw Markdown
+		</button>
+		<span class="ml-auto hidden pr-2 font-mono text-[11px] text-base-content/40 sm:inline">
+			proposal.md
+		</span>
+	</div>
+
+	<!-- Raw markdown -->
+	<div
+		id="panel-source"
+		role="tabpanel"
+		aria-labelledby="tab-source"
+		class="flex flex-col {tab === 'source' ? '' : 'hidden'}"
+	>
+		<div
+			class="flex items-center justify-between border-b border-base-content/10 px-4 py-2 font-mono text-[11px] text-base-content/50"
+		>
+			<span>Edit anything. The preview updates as you type.</span>
 			<button
 				type="button"
 				onclick={addAnchor}
-				class="border border-base-content/20 px-2 py-1 font-mono text-[11px] text-base-content/70 transition-colors hover:border-base-content/50 hover:text-base-content"
+				class="rounded border border-base-content/20 px-2 py-1 font-mono text-[11px] text-base-content/70 transition-colors hover:border-base-content/50 hover:text-base-content"
 			>
 				+ sign anchor
 			</button>
@@ -271,15 +306,17 @@ Countersigned below.
 			bind:value={source}
 			oninput={dropOrphanSignatures}
 			spellcheck="false"
-			class="min-h-[460px] w-full flex-1 resize-none bg-base-100 p-4 font-mono text-[13px] leading-relaxed text-base-content focus:outline-none"
+			class="min-h-[560px] w-full flex-1 resize-none bg-base-100 p-4 font-mono text-[13px] leading-relaxed text-base-content focus:outline-none"
 		></textarea>
-		<p class="border-t border-base-content/10 px-4 py-2 font-mono text-[11px] text-base-content/45">
-			Edit anything. The phone updates as you type.
-		</p>
 	</div>
 
-	<!-- Right: the 390px phone a client actually opens -->
-	<div class="flex flex-col items-center bg-base-200 px-4 py-8">
+	<!-- The 390px phone a client actually opens -->
+	<div
+		id="panel-preview"
+		role="tabpanel"
+		aria-labelledby="tab-preview"
+		class="flex-col items-center bg-base-200/40 px-4 py-6 {tab === 'preview' ? 'flex' : 'hidden'}"
+	>
 		<div class="mb-3 font-mono text-[11px] tracking-wide text-base-content/50">
 			iPhone · 390px · what your client sees
 		</div>
@@ -301,7 +338,11 @@ Countersigned below.
 				<div class="border-b border-gray-200 px-5 py-4">
 					<h3 class="text-lg font-semibold text-gray-900">{title}</h3>
 					{#if toc.length}
-						<details class="mt-3" open>
+						<!--
+							Closed by default: the TOC is worth showing as a feature, but open it
+							costs the vertical space that keeps the signing box on screen.
+						-->
+						<details class="mt-3">
 							<summary
 								class="cursor-pointer font-mono text-[11px] tracking-wide text-gray-500 uppercase"
 							>
@@ -350,7 +391,7 @@ Countersigned below.
 									<div class="text-xs font-medium tracking-wide text-gray-500 uppercase">
 										{slotLabel(seg.slot)}
 									</div>
-									<div class="mt-1 text-sm text-gray-700">✍️ Tap here to sign</div>
+									<div class="mt-1 text-sm font-medium text-gray-900">✍️ Sign Now</div>
 								</button>
 							{/if}
 						{/if}

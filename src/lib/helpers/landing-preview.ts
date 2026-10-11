@@ -16,6 +16,35 @@
 export type PreviewTocItem = { id: string; text: string; level: number };
 
 /**
+ * The document the landing-page card opens with.
+ *
+ * Deliberately short. The card's whole claim is that a client signs without
+ * hunting for anything, so the signing box has to be on screen the moment the
+ * card paints — at 390px the phone shows roughly a screenful, and a visitor who
+ * has to scroll to find the box never learns the demo is interactive. It lives
+ * here rather than in the component so that property can be asserted.
+ */
+export const SAMPLE_PROPOSAL = `---
+title: Website Redesign
+mdpubs:
+  sign: true
+---
+
+# Website Redesign
+
+## Price
+
+| Item   | Amount |
+| ------ | ------ |
+| Design | $4,200 |
+| Build  | $6,800 |
+
+## Sign-off
+
+<!-- mdpubs-sign-here: Client Name -->
+`;
+
+/**
  * Slug a heading the way github-slugger does for the common case: lowercase,
  * strip anything that is not a word character, space or hyphen, spaces to
  * hyphens. Duplicates get a `-1`, `-2` suffix so every TOC link is unique.

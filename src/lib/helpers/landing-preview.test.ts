@@ -5,6 +5,7 @@ import { parseSignAnchors } from './custom-components-parser.ts';
 // `.ts` extension: under `node --test` with type stripping, Node resolves the
 // specifier literally, so an extensionless import is ERR_MODULE_NOT_FOUND.
 import {
+	SAMPLE_PROPOSAL,
 	addHeadingIds,
 	previewToc,
 	previewTitle,
@@ -380,6 +381,44 @@ test('editing text around an anchor leaves its signature in place', () => {
 	const before = '# Old title\n\n<!-- mdpubs-sign-here: Client -->';
 	const after = '# A completely new title\n\nMore text.\n\n<!-- mdpubs-sign-here: Client -->';
 	assert.deepEqual(signAnchorKeys(before), signAnchorKeys(after));
+});
+
+/**
+ * The landing card's promise is that a visitor taps a signing box within a few
+ * seconds of arriving. That only holds while the sample document is short
+ * enough for the box to paint inside the phone's viewport. These assert the
+ * shape that keeps it there; a longer sample pushed the box below the fold and
+ * made the demo look static.
+ */
+test('the sample proposal has exactly one signing anchor', () => {
+	assert.deepEqual(signAnchorLabels(SAMPLE_PROPOSAL), ['Client Name']);
+});
+
+test('the sample proposal puts its signing anchor last, with nothing after it', () => {
+	const segments = splitOnSignAnchors(SAMPLE_PROPOSAL);
+	// Two segments: the document, then the empty tail after the anchor.
+	assert.equal(segments.length, 2);
+	assert.equal(segments[0].label, 'Client Name');
+	assert.equal(segments[1].markdown.trim(), '');
+});
+
+test('the sample proposal is short enough to keep the signing box on screen', () => {
+	// Measured against the rendered body, not the source: the frontmatter is
+	// stripped before the phone renders it. The phone's scroll area is 520px and
+	// the sample renders well inside it; this is a ceiling, not a target.
+	const body = SAMPLE_PROPOSAL.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
+	const lines = body.trim().split('\n').length;
+	assert.ok(lines <= 16, `sample grew to ${lines} lines; the signing box drops below the fold`);
+});
+
+test('the sample proposal still renders a heading and a TOC', () => {
+	const body = SAMPLE_PROPOSAL.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
+	const html = addHeadingIds(marked.parse(body, { async: false, gfm: true }) as string);
+	assert.equal(previewTitle(html), 'Website Redesign');
+	assert.deepEqual(
+		previewToc(html).map((i) => i.text),
+		['Price', 'Sign-off']
+	);
 });
 
 test('heading ids carry across segments so a TOC link still resolves', () => {
