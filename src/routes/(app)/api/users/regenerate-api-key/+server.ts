@@ -1,5 +1,5 @@
-import { regenerateApiKeys } from '$lib/server/user';
-import { error, json } from '@sveltejs/kit';
+import { regenerateApiKeys } from '#lib/server/user.js';
+import { error } from '@sveltejs/kit';
 import type { RequestEvent } from './$types';
 
 export async function POST({ locals }: RequestEvent) {
@@ -11,7 +11,7 @@ export async function POST({ locals }: RequestEvent) {
 	try {
 		const { apiKey, readOnlyApiKey } = await regenerateApiKeys(currentUser.id);
 
-		return json({
+		return Response.json({
 			success: true,
 			data: {
 				apiKey,
@@ -20,7 +20,7 @@ export async function POST({ locals }: RequestEvent) {
 		});
 	} catch (e) {
 		console.error('Error regenerating API keys:', e);
-		return json(
+		return Response.json(
 			{
 				success: false,
 				message: 'An error occurred while regenerating API keys.'

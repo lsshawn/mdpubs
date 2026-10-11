@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { goto, replaceState } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 
@@ -25,11 +25,11 @@
 		switch (provider) {
 			case 'github':
 				// eslint-disable-next-line svelte/no-navigation-without-resolve
-				goto(`${resolve('/login/github')}${q}`);
+				goto(`${resolve('login/github')}${q}`);
 				break;
 			case 'google':
 				// eslint-disable-next-line svelte/no-navigation-without-resolve
-				goto(`${resolve('/login/google')}${q}`);
+				goto(`${resolve('login/google')}${q}`);
 				break;
 			default:
 				console.error('Unknown provider:', provider);
@@ -72,7 +72,7 @@
 		} else {
 			success = true;
 			// eslint-disable-next-line svelte/no-navigation-without-resolve
-			goto(redirectTo, { replaceState: true, invalidateAll: true });
+			goto(redirectTo, { replace: true, refreshAll: true });
 		}
 
 		isLoading = false;
@@ -99,7 +99,7 @@
 			sessionStorage.setItem('userEmail', email);
 			// Update URL without exposing email
 			// eslint-disable-next-line svelte/no-navigation-without-resolve
-			replaceState(`${resolve('/login')}?step=otp`, {});
+			goto(`${resolve('login')}?step=otp`, { shallow: true, replace: true });
 		}
 		isLoading = false;
 	}
@@ -108,7 +108,7 @@
 		errorMessage = '';
 		isOtpStep = false;
 		// eslint-disable-next-line svelte/no-navigation-without-resolve
-		replaceState(`${resolve('/login')}?step=email`, {});
+		goto(`${resolve('login')}?step=email`, { shallow: true, replace: true });
 	}
 
 	// Function to focus next input on keyup
@@ -166,7 +166,7 @@
 			</button>
 		{:else}
 			<!-- This empty div ensures the text in the center div remains centered -->
-			<div />
+			<div></div>
 		{/if}
 
 		<div class="flex-1 text-center text-2xl">
@@ -174,7 +174,7 @@
 		</div>
 
 		<!-- This empty div is a spacer for balancing the layout -->
-		<div />
+		<div></div>
 		{#if isOtpStep}
 			<!-- Invisible spacer for symmetry -->
 			<div class="invisible">
@@ -275,7 +275,7 @@
 						onclick={() => loginWithOtp()}
 					>
 						{#if isLoading}
-							<span class="loading loading-spinner loading-md" />
+							<span class="loading loading-spinner loading-md"></span>
 						{:else}
 							{success ? 'Logging in...' : 'Login'}
 						{/if}

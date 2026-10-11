@@ -4,11 +4,11 @@
  * This replaces mdpubs-api's `src/lib/database.ts` singleton. The original read
  * `process.env` to build its own Drizzle client — impossible on Workers. Here we
  * reuse the destination's lazy, request-safe `db` proxy
- * (`$lib/server/db` → `$env/dynamic/private`). Method names/signatures are kept
+ * (`#lib/server/db` → `$env/dynamic/private`). Method names/signatures are kept
  * IDENTICAL to the original `DatabaseConnection` so the ported services call
  * `this.db.<method>()` unchanged.
  */
-import { db } from '$lib/server/db';
+import { db } from '#lib/server/db/index.js';
 import {
 	user,
 	note,
@@ -27,7 +27,7 @@ import {
 	type Signature,
 	type NewSignature,
 	type NewSignatureEvent
-} from '$lib/server/db/schema';
+} from '#lib/server/db/schema.js';
 import { eq, and, isNull, isNotNull, desc, count, asc } from 'drizzle-orm';
 
 // Database errors

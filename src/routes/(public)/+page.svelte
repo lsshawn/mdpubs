@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { config } from '$lib/config';
+	import { config } from '#lib/config.js';
 	import { resolve } from '$app/paths';
-	import SignPlayground from '$lib/components/SignPlayground.svelte';
+	import SignPlayground from '#lib/components/SignPlayground.svelte';
 
 	/**
 	 * Both pricing CTAs go to signup rather than straight to Stripe. The app has a
@@ -9,7 +9,7 @@
 	 * per tier, and wiring a second link would mean a new config entry — an
 	 * owner's call. Signup is the step a visitor has to take first anyway.
 	 */
-	const signupHref = resolve('/login');
+	const signupHref = resolve('login');
 </script>
 
 <svelte:head>
@@ -24,8 +24,11 @@
 		third-party font request it never renders. `display=swap` keeps the page
 		readable in the system monospace until it arrives.
 	-->
+
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
+
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+
 	<link
 		rel="stylesheet"
 		href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
@@ -34,17 +37,21 @@
 
 <div class="landing min-h-screen bg-base-100 text-base-content">
 	<!-- Hero -->
+
 	<section class="mx-auto max-w-6xl px-6 pt-16 pb-10 md:pt-24">
 		<p class="font-mono text-xs tracking-widest text-base-content/50 uppercase">
 			Markdown → signed document
 		</p>
+
 		<h1 class="mt-5 max-w-3xl text-3xl leading-[1.15] font-semibold tracking-tight md:text-5xl">
 			Send client proposals they can actually sign on a phone. From plain Markdown.
 		</h1>
+
 		<p class="mt-6 max-w-2xl text-lg leading-relaxed text-base-content/70">
 			Stop exporting ugly PDFs and paying $40/mo for DocuSign bloat. Drop a signature anchor and get
 			a clean, phone-first e-sign link in seconds.
 		</p>
+
 		<div class="mt-8 flex flex-wrap items-center gap-5">
 			<a
 				href="#playground"
@@ -56,9 +63,9 @@
 			<a
 				href={config.git}
 				class="font-mono text-sm text-base-content/60 underline underline-offset-4 hover:text-base-content"
+				>API &amp; Neovim plugin</a
 			>
-				API &amp; Neovim plugin
-			</a>
+
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		</div>
 	</section>
@@ -251,9 +258,12 @@ sign: true
 		>
 			<p>
 				&copy; {new Date().getFullYear()} MdPubs, built by
+
 				<a href="https://x.com/me_sshawn" target="_blank" class="underline underline-offset-4"
 					>Shawn</a
-				>.
+				>
+
+				.
 			</p>
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 			<a href={config.git} class="underline underline-offset-4">Docs</a>

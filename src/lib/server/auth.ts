@@ -1,10 +1,10 @@
 import { eq } from 'drizzle-orm';
 import { sha256 } from '@oslojs/crypto/sha2';
 import { encodeBase32LowerCaseNoPadding, encodeHexLowerCase } from '@oslojs/encoding';
-import { db } from '$lib/server/db';
-import * as table from '$lib/server/db/schema';
-import type { Session } from '$lib/server/db/schema';
-import { acceptPendingInvites } from '$lib/server/org';
+import { db } from '#lib/server/db/index.js';
+import * as table from '#lib/server/db/schema.js';
+import type { Session } from '#lib/server/db/schema.js';
+import { acceptPendingInvites } from '#lib/server/org.js';
 import type { RequestEvent } from '@sveltejs/kit';
 
 const DAY_IN_MS = 1000 * 60 * 60 * 24;

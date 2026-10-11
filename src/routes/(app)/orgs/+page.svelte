@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto, invalidateAll } from '$app/navigation';
+	import { goto, refreshAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { PageData } from './$types';
 
@@ -53,7 +53,7 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ orgId })
 			});
-			if (res.ok) await invalidateAll();
+			if (res.ok) await refreshAll();
 		} finally {
 			savingDefault = false;
 		}

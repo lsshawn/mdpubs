@@ -1,10 +1,10 @@
 import { error } from '@sveltejs/kit';
 import { and, eq, isNull } from 'drizzle-orm';
-import { config } from '$lib/config';
-import { env as publicEnv } from '$env/dynamic/public';
-import { db } from '$lib/server/db';
-import { note as noteTable } from '$lib/server/db/schema';
-import { parseCustomComponentsInHtml } from '$lib/helpers/custom-components-parser';
+import { config } from '#lib/config.js';
+import { PUBLIC_DOMAIN, PUBLIC_CNAME_TARGET } from '$app/env/public';
+import { db } from '#lib/server/db/index.js';
+import { note as noteTable } from '#lib/server/db/schema.js';
+import { parseCustomComponentsInHtml } from '#lib/helpers/custom-components-parser.js';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -41,8 +41,8 @@ async function assertNotPrivate(id: string, currentUserId?: string): Promise<voi
  * Custom-domain pubs are whitelabelled — no "Powered by MdPubs" footer.
  */
 function isCustomDomainHost(host: string): boolean {
-	const base = (publicEnv.PUBLIC_DOMAIN ?? 'mdpubs.com').toLowerCase();
-	const cnameTarget = (publicEnv.PUBLIC_CNAME_TARGET ?? `origin.${base}`).toLowerCase();
+	const base = (PUBLIC_DOMAIN || 'mdpubs.com').toLowerCase();
+	const cnameTarget = (PUBLIC_CNAME_TARGET || `origin.${base}`).toLowerCase();
 	const h = host.toLowerCase();
 	return !(
 		h === base ||

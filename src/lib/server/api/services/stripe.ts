@@ -4,13 +4,13 @@
  * PORT NOTES:
  *   - Reads `$env/dynamic/private` (Workers-safe) instead of `process.env`.
  *   - The Stripe client is created LAZILY on first use, matching the destination
- *     repo's `$lib/server/stripe` pattern (eager construction fails the build-time
+ *     repo's `#lib/server/stripe.js` pattern (eager construction fails the build-time
  *     analyse pass, which has no STRIPE_SECRET_KEY).
  *   - Webhook signature verification uses `constructEventAsync` (async crypto),
  *     required on Workers where the sync verifier isn't available.
  */
 import Stripe from 'stripe';
-import { env } from '$env/dynamic/private';
+import { STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET } from '$app/env/private';
 import { UserService } from './user';
 
 export class StripeService {
@@ -24,7 +24,7 @@ export class StripeService {
 
 	private get stripe(): Stripe | undefined {
 		if (this._stripe) return this._stripe;
-		const stripeKey = env.STRIPE_SECRET_KEY;
+		const stripeKey = STRIPE_SECRET_KEY;
 		if (!stripeKey) {
 			console.warn('⚠️  Stripe not configured. Set STRIPE_SECRET_KEY environment variable.');
 			return undefined;
@@ -44,7 +44,7 @@ export class StripeService {
 			throw new Error('Stripe service not initialized');
 		}
 
-		const webhookSecret = env.STRIPE_WEBHOOK_SECRET;
+		const webhookSecret = STRIPE_WEBHOOK_SECRET;
 		if (!webhookSecret) {
 			throw new Error('STRIPE_WEBHOOK_SECRET not configured');
 		}

@@ -1,10 +1,10 @@
 import { eq } from 'drizzle-orm';
-import { config } from '$lib/config';
-import { github } from '$lib/server/oauth';
-import { db } from '$lib/server/db';
-import * as table from '$lib/server/db/schema';
-import { createUser, getUserFromGithubId, getUserByEmail } from '$lib/server/user';
-import { createSession, setSessionTokenCookie } from '$lib/server/auth';
+import { config } from '#lib/config.js';
+import { github } from '#lib/server/oauth.js';
+import { db } from '#lib/server/db/index.js';
+import * as table from '#lib/server/db/schema.js';
+import { createUser, getUserFromGithubId, getUserByEmail } from '#lib/server/user.js';
+import { createSession, setSessionTokenCookie } from '#lib/server/auth.js';
 
 import type { RequestEvent } from './$types';
 

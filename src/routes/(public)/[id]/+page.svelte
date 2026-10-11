@@ -4,12 +4,12 @@
 	import { Menu, X, List, Maximize2, Minimize2, ChevronDown, ChevronUp } from 'lucide-svelte';
 	import { fade } from 'svelte/transition';
 	import type { PageData } from './$types';
-	import DiffView from '$lib/components/DiffView.svelte';
-	import LinearProgress from '$lib/components/LinearProgress.svelte';
-	import SignPanel from '$lib/components/SignPanel.svelte';
-	import InlineSignBox from '$lib/components/InlineSignBox.svelte';
-	import SignCertificate from '$lib/components/SignCertificate.svelte';
-	import { config } from '$lib/config';
+	import DiffView from '#lib/components/DiffView.svelte';
+	import LinearProgress from '#lib/components/LinearProgress.svelte';
+	import SignPanel from '#lib/components/SignPanel.svelte';
+	import InlineSignBox from '#lib/components/InlineSignBox.svelte';
+	import SignCertificate from '#lib/components/SignCertificate.svelte';
+	import { config } from '#lib/config.js';
 	import { resolve } from '$app/paths';
 
 	type TocItem = {

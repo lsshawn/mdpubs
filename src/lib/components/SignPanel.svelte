@@ -10,7 +10,7 @@
 	 * HTML-pub view. It is fully self-contained and talks straight to the API.
 	 */
 	import { tick } from 'svelte';
-	import { drawSignatureImage } from '$lib/helpers/signature-image';
+	import { drawSignatureImage } from '#lib/helpers/signature-image.js';
 
 	type SignStateSigner = {
 		name: string;

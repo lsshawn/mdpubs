@@ -1,13 +1,13 @@
-import { json, type RequestEvent } from '@sveltejs/kit';
-import { generateOTP } from '$lib/server/otp';
-import { sendEmail } from '$lib/server/email';
-import { config } from '$lib/config';
-import { serverConfig } from '$lib/server/config';
-import { dev } from '$app/environment';
+import { type RequestEvent } from '@sveltejs/kit';
+import { generateOTP } from '#lib/server/otp.js';
+import { sendEmail } from '#lib/server/email.js';
+import { config } from '#lib/config.js';
+import { serverConfig } from '#lib/server/config.js';
+import { dev } from '$app/env';
 
 const testEmails = ['l@sshawn.com'];
 
-export async function POST({ request, platform }: RequestEvent) {
+export async function POST({ request }: RequestEvent) {
 	const title = config.name;
 	const { email } = await request.json();
 	const otpConfig = serverConfig.otp;
@@ -15,7 +15,7 @@ export async function POST({ request, platform }: RequestEvent) {
 	const otpObj = await generateOTP(email);
 	// don't send email to test emails
 	if (dev && testEmails.includes(email)) {
-		return json({ success: true });
+		return Response.json({ success: true });
 	}
 
 	const subject = `Your ${config.name} Login OTP is ${otpObj.otp}`;
@@ -51,10 +51,10 @@ export async function POST({ request, platform }: RequestEvent) {
       </html>`;
 
 	try {
-		await sendEmail(platform, email, subject, text, true);
-		return json({ success: true });
+		await sendEmail(email, subject, text, true);
+		return Response.json({ success: true });
 	} catch (err) {
 		console.error('Failed to send OTP email', err);
-		return json({ success: false }, { status: 502 });
+		return Response.json({ success: false }, { status: 502 });
 	}
 }

@@ -4,15 +4,15 @@
 // postbuild `analyse` imports this module in the build container (no
 // STRIPE_SECRET_KEY) — so eager construction fails the build. Deferring to first
 // use means the client is only built at request time, where the env is present.
-import { env } from '$env/dynamic/private';
+import { STRIPE_SECRET_KEY } from '$app/env/private';
 import Stripe from 'stripe';
 
 let _stripe: Stripe | undefined;
 
 function getStripe(): Stripe {
 	if (!_stripe) {
-		if (!env.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY is not set');
-		_stripe = new Stripe(env.STRIPE_SECRET_KEY);
+		if (!STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY is not set');
+		_stripe = new Stripe(STRIPE_SECRET_KEY);
 	}
 	return _stripe;
 }

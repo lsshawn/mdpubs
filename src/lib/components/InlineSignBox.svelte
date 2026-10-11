@@ -10,8 +10,8 @@
 	 * order among anchors (first anchor -> first signer, etc.) via `slotIndex`.
 	 */
 	import { tick } from 'svelte';
-	import { drawSignatureImage } from '$lib/helpers/signature-image';
-	import { resolveSignSlot } from '$lib/helpers/sign-slot';
+	import { drawSignatureImage } from '#lib/helpers/signature-image.js';
+	import { resolveSignSlot } from '#lib/helpers/sign-slot.js';
 
 	type SignStateSigner = {
 		name: string;

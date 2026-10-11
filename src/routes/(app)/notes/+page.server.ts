@@ -1,12 +1,17 @@
-import { db } from '$lib/server/db';
-import * as table from '$lib/server/db/schema';
+import { db } from '#lib/server/db/index.js';
+import * as table from '#lib/server/db/schema.js';
 import { fail, redirect } from '@sveltejs/kit';
-import { config } from '$lib/config';
+import { config } from '#lib/config.js';
 import { and, eq, or, like, sql, isNull, desc, inArray } from 'drizzle-orm';
-import { canManageOrg, canReopenSigning, getOrgRole } from '$lib/server/org';
-import { deleteFolder } from '$lib/server/storage';
-import { renderTitleMarkdown, highlightTitleHtml, highlightText } from '$lib/server/title-markdown';
+import { canManageOrg, canReopenSigning, getOrgRole } from '#lib/server/org.js';
+import { deleteFolder } from '#lib/server/storage.js';
+import {
+	renderTitleMarkdown,
+	highlightTitleHtml,
+	highlightText
+} from '#lib/server/title-markdown.js';
 import type { Actions, PageServerLoad } from './$types';
+import { env } from 'cloudflare:workers';
 
 const PAGE_SIZE = 20;
 
@@ -309,12 +314,12 @@ export const actions: Actions = {
 	 * `title:` frontmatter key because that is what the store reads the title back
 	 * from on every update.
 	 */
-	create: async ({ locals, url, platform }) => {
+	create: async ({ locals, url }) => {
 		if (!locals.user) {
 			return fail(401, { message: 'Unauthorized' });
 		}
 
-		const bucket = platform?.env?.BUCKET;
+		const bucket = env.BUCKET;
 		if (!bucket) {
 			return fail(500, { message: 'Storage is not configured' });
 		}
@@ -349,7 +354,7 @@ export const actions: Actions = {
 
 		let created;
 		try {
-			const { NoteService } = await import('$lib/server/api/services/note');
+			const { NoteService } = await import('#lib/server/api/services/note.js');
 			created = await new NoteService().createNote(
 				bucket,
 				locals.user.id,
@@ -510,7 +515,7 @@ export const actions: Actions = {
 	 * reading and moving, but only the author can destroy a note. Notes the caller
 	 * doesn't own are skipped, so one such note can't fail the whole batch.
 	 */
-	bulkDelete: async ({ request, locals, platform }) => {
+	bulkDelete: async ({ request, locals }) => {
 		if (!locals.user) {
 			return fail(401, { message: 'Unauthorized' });
 		}
@@ -550,7 +555,7 @@ export const actions: Actions = {
 		// Purge R2 assets first, concurrently — each note's images live under its
 		// own prefix. Best-effort, exactly as hardDeleteNote treats it: a storage
 		// failure must not leave the rows half-deleted, so log and continue.
-		const bucket = platform?.env?.BUCKET;
+		const bucket = env.BUCKET;
 		if (bucket) {
 			await Promise.all(
 				ids.map((id) =>
@@ -584,7 +589,7 @@ export const actions: Actions = {
 	 * members cannot: a signed agreement is not any library member's to withdraw. The reason string is optional
 	 * but ends up in the append-only audit trail, so the UI asks for it.
 	 */
-	reopenSignature: async ({ request, locals, platform }) => {
+	reopenSignature: async ({ request, locals }) => {
 		if (!locals.user) {
 			return fail(401, { message: 'Unauthorized' });
 		}
@@ -618,10 +623,12 @@ export const actions: Actions = {
 			return fail(404, { message: 'Note not found' });
 		}
 		if (!(await canReopenSigning(target, locals.user.id))) {
-			return fail(403, { message: 'Only the note’s author or an org owner/admin can reopen signing.' });
+			return fail(403, {
+				message: 'Only the note’s author or an org owner/admin can reopen signing.'
+			});
 		}
 
-		const { signService, SignError } = await import('$lib/server/api/services/sign');
+		const { signService, SignError } = await import('#lib/server/api/services/sign.js');
 		try {
 			const { voided } = await signService.reopen({
 				note: target,
@@ -630,7 +637,7 @@ export const actions: Actions = {
 				actorEmail: locals.user.email ?? undefined,
 				// Purges the voided marks from storage. Optional — a missing binding
 				// just leaves them orphaned rather than failing the reopen.
-				bucket: platform?.env?.BUCKET
+				bucket: env.BUCKET
 			});
 			return { success: true, reopened: voided, all: signerIndex === undefined };
 		} catch (e) {

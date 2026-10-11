@@ -13,8 +13,8 @@
 	} from 'lucide-svelte';
 	import { navigating, page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import CompanySwitcher from '$lib/components/CompanySwitcher.svelte';
-	import FeedbackWidget from '$lib/components/FeedbackWidget.svelte';
+	import CompanySwitcher from '#lib/components/CompanySwitcher.svelte';
+	import FeedbackWidget from '#lib/components/FeedbackWidget.svelte';
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: Snippet } = $props();

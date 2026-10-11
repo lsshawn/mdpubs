@@ -1,8 +1,8 @@
 import { error } from '@sveltejs/kit';
 import { marked } from 'marked';
-import { db } from '$lib/server/db';
-import { note } from '$lib/server/db/schema';
-import { getOrgBySlug } from '$lib/server/org';
+import { db } from '#lib/server/db/index.js';
+import { note } from '#lib/server/db/schema.js';
+import { getOrgBySlug } from '#lib/server/org.js';
 import { and, eq, desc, isNull } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 

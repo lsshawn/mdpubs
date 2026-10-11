@@ -6,20 +6,12 @@
 	type SubmitFunction = NonNullable<Parameters<typeof enhance>[1]>;
 	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { untrack } from 'svelte';
-	import { formatDate } from '$lib/helpers';
+	import { formatDate } from '#lib/helpers/index.js';
 	import { SvelteSet } from 'svelte/reactivity';
-	import {
-		FolderInput,
-		MoreVertical,
-		Pencil,
-		PenLine,
-		Search,
-		Trash2,
-		X
-	} from 'lucide-svelte';
-	import type { Note } from '$lib/server/db/schema';
+	import { FolderInput, MoreVertical, Pencil, PenLine, Search, Trash2, X } from 'lucide-svelte';
+	import type { Note } from '#lib/server/db/schema.js';
 
 	let { data } = $props();
 
@@ -121,7 +113,7 @@
 					showToast(result.data.message as string, 'error');
 				}
 			}
-			await update({ invalidateAll: false });
+			await update({ refreshAll: false });
 			bulkMoving = false;
 		};
 	};
@@ -274,10 +266,10 @@
 					showToast(result.data.message as string, 'error');
 				}
 			}
-			// `invalidateAll: false` keeps our optimistic removal from being clobbered
+			// `refreshAll: false` keeps our optimistic removal from being clobbered
 			// by a re-run of load while the toast is still up; the next navigation
 			// re-fetches normally.
-			await update({ invalidateAll: false });
+			await update({ refreshAll: false });
 			moving = false;
 		};
 	};
@@ -354,7 +346,7 @@
 
 	/** Same URL with `page` swapped, preserving `org`, `q`, and anything else present. */
 	function getPageURL(p: number) {
-		const url = new URL($page.url);
+		const url = new URL(page.url.href);
 		url.searchParams.set('page', p.toString());
 		return url.href;
 	}
@@ -365,7 +357,7 @@
 	 * drives `?q=` and lets `load` re-run.
 	 *
 	 * Debounced rather than submitted, so results follow typing without a round
-	 * trip per keystroke. `keepFocus` is what makes that bearable — a bare goto
+	 * trip per keystroke. `reset: false` is what makes that bearable — a bare goto
 	 * would move focus to the body mid-word — and `replaceState` keeps the back
 	 * button pointing at wherever the user came from instead of at every
 	 * intermediate query they typed through.
@@ -386,16 +378,18 @@
 	});
 
 	function runSearch(value: string) {
-		const url = new URL($page.url);
+		const url = new URL(page.url.href);
+
 		if (value) url.searchParams.set('q', value);
 		else url.searchParams.delete('q');
+
 		// A narrower result set almost never has the page the user was on.
 		url.searchParams.delete('page');
 		// The destination is this same route with a different query, so there is no
 		// route id for `resolve` to take; navigating by mutated URL is what
 		// CompanySwitcher does for the `org` param for the same reason.
 		// eslint-disable-next-line svelte/no-navigation-without-resolve
-		goto(url, { keepFocus: true, replaceState: true, noScroll: true });
+		goto(url, { reset: false, replace: true });
 	}
 
 	function onSearchInput() {
@@ -598,9 +592,8 @@
 							aria-haspopup="menu"
 							aria-expanded={openMenuId === note.publicId}
 							onclick={() => (openMenuId = openMenuId === note.publicId ? null : note.publicId)}
+							><MoreVertical class="h-4 w-4" /></button
 						>
-							<MoreVertical class="h-4 w-4" />
-						</button>
 
 						{#if openMenuId === note.publicId}
 							<!--
@@ -663,7 +656,8 @@
 												}}
 											>
 												<PenLine class="h-4 w-4" />
-												<span class="truncate">{sig.signerName || sig.signerEmail || 'Signer'}</span>
+												<span class="truncate">{sig.signerName || sig.signerEmail || 'Signer'}</span
+												>
 											</button>
 										</li>
 									{/each}
@@ -800,11 +794,10 @@
 											aria-haspopup="menu"
 											aria-expanded={openSignMenuId === note.publicId}
 											onclick={() =>
-												(openSignMenuId =
-													openSignMenuId === note.publicId ? null : note.publicId)}
+												(openSignMenuId = openSignMenuId === note.publicId ? null : note.publicId)}
+											><PenLine class="h-3.5 w-3.5" /></button
 										>
-											<PenLine class="h-3.5 w-3.5" />
-										</button>
+
 										{#if openSignMenuId === note.publicId}
 											<button
 												type="button"
@@ -916,8 +909,8 @@
 			{#if reopenTarget.signerIndex === null}
 				<p class="mt-1 text-sm text-base-content/60">
 					Voids every signature on "{reopenTarget.note.title || 'Untitled'}" and unlocks it for
-					editing. The next signature will bind to whatever the content is at that point, so a
-					fully executed agreement has to be signed again from scratch.
+					editing. The next signature will bind to whatever the content is at that point, so a fully
+					executed agreement has to be signed again from scratch.
 				</p>
 			{:else}
 				<p class="mt-1 text-sm text-base-content/60">
@@ -930,8 +923,10 @@
 				The void is written to the signing audit trail, which is append-only — the original
 				signature stays on record as withdrawn rather than disappearing.
 			</p>
+
 			<form method="POST" action="?/reopenSignature" use:enhance={handleReopen} class="mt-4">
 				<input type="hidden" name="id" value={reopenTarget.note.publicId} />
+
 				<input
 					type="hidden"
 					name="signerIndex"
@@ -986,6 +981,7 @@
 				</select>
 				<div class="modal-action">
 					<button type="button" class="btn" onclick={() => moveModal.close()}>Cancel</button>
+
 					<button
 						type="submit"
 						class="btn btn-primary"
@@ -1093,10 +1089,8 @@
 						type="button"
 						class="btn btn-ghost btn-xs text-error"
 						class:btn-disabled={bulkDeleting}
-						onclick={() => (bulkHardDeleteArmed = true)}
+						onclick={() => (bulkHardDeleteArmed = true)}>Hard delete permanently</button
 					>
-						Hard delete permanently
-					</button>
 				{/if}
 			</form>
 			<span class="text-xs text-base-content/60">
@@ -1165,10 +1159,8 @@
 							type="button"
 							class="btn btn-ghost btn-xs text-error"
 							class:btn-disabled={deleting || hardDeleting}
-							onclick={() => (hardDeleteArmed = true)}
+							onclick={() => (hardDeleteArmed = true)}>Hard delete permanently</button
 						>
-							Hard delete permanently
-						</button>
 					{/if}
 				</form>
 				<span class="text-xs text-base-content/60">

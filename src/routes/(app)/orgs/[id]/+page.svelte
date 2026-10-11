@@ -1,5 +1,5 @@
 <script lang="ts">
-	import CopyableText from '$lib/components/CopyableText.svelte';
+	import CopyableText from '#lib/components/CopyableText.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();

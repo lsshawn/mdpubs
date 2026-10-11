@@ -1,9 +1,9 @@
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import { z } from 'zod';
-import { db } from '$lib/server/db';
-import { user } from '$lib/server/db/schema';
+import { db } from '#lib/server/db/index.js';
+import { user } from '#lib/server/db/schema.js';
 import { eq } from 'drizzle-orm';
-import { getOrgRole } from '$lib/server/org';
+import { getOrgRole } from '#lib/server/org.js';
 import type { RequestEvent } from './$types';
 
 /**
@@ -21,7 +21,7 @@ export async function PUT(event: RequestEvent) {
 
 	const parsed = schema.safeParse(await event.request.json());
 	if (!parsed.success) {
-		return json({ success: false, message: 'Provide an orgId or null.' }, { status: 400 });
+		return Response.json({ success: false, message: 'Provide an orgId or null.' }, { status: 400 });
 	}
 	const { orgId } = parsed.data;
 
@@ -29,10 +29,13 @@ export async function PUT(event: RequestEvent) {
 	if (orgId) {
 		const role = await getOrgRole(orgId, currentUser.id);
 		if (!role) {
-			return json({ success: false, message: 'You are not a member of that account.' }, { status: 403 });
+			return Response.json(
+				{ success: false, message: 'You are not a member of that account.' },
+				{ status: 403 }
+			);
 		}
 	}
 
 	await db.update(user).set({ defaultOrgId: orgId }).where(eq(user.id, currentUser.id));
-	return json({ success: true, defaultOrgId: orgId });
+	return Response.json({ success: true, defaultOrgId: orgId });
 }

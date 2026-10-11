@@ -1,7 +1,7 @@
-import { db } from '$lib/server/db';
-import * as table from '$lib/server/db/schema';
+import { db } from '#lib/server/db/index.js';
+import * as table from '#lib/server/db/schema.js';
 import { eq } from 'drizzle-orm';
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { RequestEvent } from './$types';
 import { z } from 'zod';
 
@@ -23,19 +23,28 @@ export async function POST(event: RequestEvent) {
 	const validation = usernameSchema.safeParse(body);
 
 	if (!validation.success) {
-		return json({ success: false, message: validation.error.errors[0].message }, { status: 400 });
+		return Response.json(
+			{ success: false, message: validation.error.errors[0].message },
+			{ status: 400 }
+		);
 	}
 	const { username } = validation.data;
 
 	try {
 		await db.update(table.user).set({ username }).where(eq(table.user.id, currentUser.id));
 
-		return json({ success: true, message: 'Username updated successfully.' });
+		return Response.json({ success: true, message: 'Username updated successfully.' });
 	} catch (e) {
 		if (e instanceof Error && e.message?.includes('UNIQUE constraint failed: users.username')) {
-			return json({ success: false, message: 'Username is already taken.' }, { status: 409 });
+			return Response.json(
+				{ success: false, message: 'Username is already taken.' },
+				{ status: 409 }
+			);
 		}
 		console.error('Error updating username:', e);
-		return json({ success: false, message: 'An internal error occurred.' }, { status: 500 });
+		return Response.json(
+			{ success: false, message: 'An internal error occurred.' },
+			{ status: 500 }
+		);
 	}
 }

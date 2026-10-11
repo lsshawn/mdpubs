@@ -11,10 +11,10 @@
  * codes and messages are byte-identical to the old API.
  */
 import { eq } from 'drizzle-orm';
-import { json, type RequestEvent } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
-import { db } from '$lib/server/db';
-import { session, user as userSchema, type User } from '$lib/server/db/schema';
+import { type RequestEvent } from '@sveltejs/kit';
+import { ADMIN_API_KEY } from '$app/env/private';
+import { db } from '#lib/server/db/index.js';
+import { session, user as userSchema, type User } from '#lib/server/db/schema.js';
 import { UserService } from './services/user';
 import { InvalidAPIKeyError } from './db';
 
@@ -46,7 +46,7 @@ function getToken(request: Request): string | undefined {
  * `method` is used to reject non-GET requests made with a read-only key.
  */
 async function authenticate(token: string, method: string): Promise<ApiAuth | Response> {
-	const adminAPIKey = env.ADMIN_API_KEY;
+	const adminAPIKey = ADMIN_API_KEY;
 	if (adminAPIKey && token === adminAPIKey) {
 		return { user: null, isAdmin: true, isReadOnly: false, usedApiKey: true };
 	}
@@ -57,7 +57,7 @@ async function authenticate(token: string, method: string): Promise<ApiAuth | Re
 		if (isReadOnlyKey) {
 			user = await userService.getUserByReadOnlyAPIKey(token);
 			if (method !== 'GET') {
-				return json(
+				return Response.json(
 					{ error: 'Read-only API key can only be used for GET requests' },
 					{ status: 403 }
 				);
@@ -69,7 +69,7 @@ async function authenticate(token: string, method: string): Promise<ApiAuth | Re
 	} catch (error) {
 		if (!(error instanceof InvalidAPIKeyError)) {
 			console.error('API key authentication error:', error);
-			return json({ error: 'Authentication failed' }, { status: 500 });
+			return Response.json({ error: 'Authentication failed' }, { status: 500 });
 		}
 		// Fall through: maybe it's a session token.
 	}
@@ -79,7 +79,7 @@ async function authenticate(token: string, method: string): Promise<ApiAuth | Re
 		if (sessionResult.length > 0) {
 			const sess = sessionResult[0];
 			if (sess.expiresAt < new Date()) {
-				return json({ error: 'Session expired' }, { status: 401 });
+				return Response.json({ error: 'Session expired' }, { status: 401 });
 			}
 			const userResult = await db
 				.select()
@@ -94,10 +94,10 @@ async function authenticate(token: string, method: string): Promise<ApiAuth | Re
 		}
 	} catch (error) {
 		console.error('Session authentication error:', error);
-		return json({ error: 'Authentication failed' }, { status: 500 });
+		return Response.json({ error: 'Authentication failed' }, { status: 500 });
 	}
 
-	return json(
+	return Response.json(
 		{ error: isReadOnlyKey ? 'Invalid read-only API key' : 'Invalid API key or session token' },
 		{ status: 401 }
 	);
@@ -130,7 +130,7 @@ export async function requireApiAuth(event: RequestEvent): Promise<ApiAuth | Res
 	const user = await fullUserFromLocals(event.locals);
 	if (user) return { user, isAdmin: false, isReadOnly: false, usedApiKey: false };
 
-	return json(
+	return Response.json(
 		{
 			error:
 				'API key or session token is required. Provide it via X-API-Key header or Authorization: Bearer <token>'

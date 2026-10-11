@@ -1,5 +1,4 @@
-import { json } from '@sveltejs/kit';
-import { getOrgByDomain } from '$lib/server/org.js';
+import { getOrgByDomain } from '#lib/server/org.js';
 import type { RequestHandler } from './$types';
 
 /**
@@ -14,10 +13,10 @@ import type { RequestHandler } from './$types';
  */
 export const GET: RequestHandler = async ({ url, setHeaders }) => {
 	const host = (url.searchParams.get('host') ?? '').toLowerCase();
-	if (!host) return json({ slug: null });
+	if (!host) return Response.json({ slug: null });
 
 	const org = await getOrgByDomain(host);
 
 	setHeaders({ 'cache-control': 'public, max-age=3600' });
-	return json({ slug: org?.slug ?? null });
+	return Response.json({ slug: org?.slug ?? null });
 };

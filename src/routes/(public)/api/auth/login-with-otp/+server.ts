@@ -1,9 +1,9 @@
-import { json, type RequestEvent } from '@sveltejs/kit';
-import { validateOtp } from '$lib/server/otp';
-import { db } from '$lib/server/db';
-import * as table from '$lib/server/db/schema';
+import { type RequestEvent } from '@sveltejs/kit';
+import { validateOtp } from '#lib/server/otp.js';
+import { db } from '#lib/server/db/index.js';
+import * as table from '#lib/server/db/schema.js';
 import { eq } from 'drizzle-orm';
-import { createSession, setSessionTokenCookie } from '$lib/server/auth';
+import { createSession, setSessionTokenCookie } from '#lib/server/auth.js';
 
 export async function POST(event: RequestEvent) {
 	const { email, otp } = await event.request.json();
@@ -11,7 +11,7 @@ export async function POST(event: RequestEvent) {
 	try {
 		const user = await validateOtp(otp, email);
 		if (!user) {
-			return json({ success: false, errorMessage: 'Invalid OTP' });
+			return Response.json({ success: false, errorMessage: 'Invalid OTP' });
 		}
 
 		// reset all otp
@@ -25,10 +25,10 @@ export async function POST(event: RequestEvent) {
 		const session = await createSession(user.id);
 		setSessionTokenCookie(event, session.id, session.expiresAt);
 
-		return json({ success: true });
+		return Response.json({ success: true });
 	} catch (error) {
 		console.log('LS -> src/routes/api/auth/login-with-otp/+server.ts:29 -> error: ', error);
 		const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-		return json({ success: false, errorMessage });
+		return Response.json({ success: false, errorMessage });
 	}
 }

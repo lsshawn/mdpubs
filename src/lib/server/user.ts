@@ -1,7 +1,7 @@
 import { db } from './db';
 import { createHash, randomBytes } from 'crypto';
 import { eq } from 'drizzle-orm';
-import * as table from '$lib/server/db/schema';
+import * as table from '#lib/server/db/schema.js';
 
 function generateAPIKey(): string {
 	return randomBytes(32).toString('hex');

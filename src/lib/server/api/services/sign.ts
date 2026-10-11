@@ -17,7 +17,7 @@
  *     mdpubs-sign-order: sequential
  *
  * PORT NOTES:
- *   - Signature-image storage uses the R2 binding (`$lib/server/storage`), so
+ *   - Signature-image storage uses the R2 binding (`#lib/server/storage.js`), so
  *     `sign()` takes an `R2Bucket` threaded from the route.
  *   - Signature images are NO LONGER presigned: `signatureImageKey` holds the
  *     plain public URL (as `uploadFile` returns), and `withSignatureImageUrls`
@@ -28,13 +28,13 @@
 
 import { createHash } from 'node:crypto';
 import { database, NotFoundError, NoteNotOwnedError } from '../db';
-import { uploadFile, publicUrl, deleteFiles } from '$lib/server/storage';
+import { uploadFile, publicUrl, deleteFiles } from '#lib/server/storage.js';
 import type { R2Bucket } from '@cloudflare/workers-types';
 import { nanoid } from 'nanoid';
 import { NoteService } from './note';
 import { isBlankSignaturePng } from './png';
-import { pickSigningSlot } from '$lib/helpers/sign-slot';
-import type { Note, Signature } from '$lib/server/db/schema';
+import { pickSigningSlot } from '#lib/helpers/sign-slot.js';
+import type { Note, Signature } from '#lib/server/db/schema.js';
 
 // Stateless helpers only (stripLeadingFrontmatter, isHtmlFile). NoteService holds
 // no per-request state, so a module-local instance is safe and avoids a singleton.

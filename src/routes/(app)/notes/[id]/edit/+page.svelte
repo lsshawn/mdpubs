@@ -2,7 +2,7 @@
 	import 'katex/dist/katex.min.css';
 	import { resolve } from '$app/paths';
 	import { beforeNavigate } from '$app/navigation';
-	import { formatDateTime } from '$lib/helpers';
+	import { formatDateTime } from '#lib/helpers/index.js';
 
 	let { data } = $props();
 
@@ -163,7 +163,8 @@
 	});
 
 	/** Warn before losing unsaved text — both in-app and on tab close. */
-	beforeNavigate(({ cancel }) => {
+	beforeNavigate(({ cancel, shallow, type }) => {
+		if (shallow && type === 'goto') return;
 		if (!dirty) return;
 		if (!confirm('You have unsaved changes. Leave anyway?')) cancel();
 	});
@@ -241,6 +242,7 @@
 			.split('\n')
 			.map((l) => (l.startsWith(prefix) ? l.slice(prefix.length) : prefix + l))
 			.join('\n');
+
 		content = content.slice(0, lineStart) + prefixed + content.slice(lineEnd);
 		requestAnimationFrame(() => {
 			textarea?.focus();
@@ -342,10 +344,7 @@
 	let wordCount = $derived(content.trim() ? content.trim().split(/\s+/).length : 0);
 </script>
 
-<svelte:head>
-	<title>{title || 'Untitled'} — Edit</title>
-</svelte:head>
-
+<svelte:head><title>{title || 'Untitled'} — Edit</title></svelte:head>
 <svelte:window on:keydown={onKeydown} />
 
 <div class="flex h-[calc(100vh-4rem)] flex-col">
@@ -423,6 +422,7 @@
 	{#if uploadError}
 		<div role="alert" class="alert alert-error m-3 py-2">
 			<span class="text-sm">{uploadError}</span>
+
 			<button class="btn btn-ghost btn-xs" onclick={() => (uploadError = null)}>Dismiss</button>
 		</div>
 	{/if}
@@ -446,15 +446,19 @@
 				onclick={() => wrapSelection('`')}>&lt;/&gt;</button
 			>
 			<div class="mx-1 h-4 w-px bg-base-300"></div>
+
 			<button class="btn btn-ghost btn-xs" title="Heading" onclick={() => prefixLines('## ')}
 				>H2</button
 			>
+
 			<button class="btn btn-ghost btn-xs" title="Bullet list" onclick={() => prefixLines('- ')}
 				>List</button
 			>
+
 			<button class="btn btn-ghost btn-xs" title="Quote" onclick={() => prefixLines('> ')}
 				>Quote</button
 			>
+
 			<button
 				class="btn btn-ghost btn-xs"
 				title="Code block"
