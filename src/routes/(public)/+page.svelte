@@ -10,13 +10,30 @@
 	 * owner's call. Signup is the step a visitor has to take first anyway.
 	 */
 	const signupHref = resolve('login');
+
+	// Both paths end at the same login page, which sends new users through
+	// checkout before handing a key to the installer or a token to the connector.
+	const setupPaths = [
+		{
+			name: 'Claude Code · Codex',
+			first: 'Paste this into Claude Code or Codex:',
+			paste: 'curl -fsSL https://mdpubs.com/install | sh',
+			second: 'Log in at the link it shows you. New here? Subscribe on the same page.'
+		},
+		{
+			name: 'Claude · ChatGPT',
+			first: 'Add a connector with this URL:',
+			paste: 'https://mdpubs.com/mcp',
+			second: 'Log in when it asks. New here? Subscribe on the same page.'
+		}
+	];
 </script>
 
 <svelte:head>
-	<title>MdPubs — e-sign proposals from plain Markdown</title>
+	<title>MdPubs — turn AI drafts into signable documents</title>
 	<meta
 		name="description"
-		content="Send client proposals they can sign on a phone. Write Markdown, drop a signature anchor, share a link."
+		content="Turn AI drafts into signable documents in one prompt. Publish audit-locked contracts your clients can sign on a phone."
 	/>
 	<!--
 		JetBrains Mono carries the monospace accents on this page only. Loaded here
@@ -40,33 +57,30 @@
 
 	<section class="mx-auto max-w-6xl px-6 pt-16 pb-10 md:pt-24">
 		<p class="font-mono text-xs tracking-widest text-base-content/50 uppercase">
-			Markdown → signed document
+			AI draft → signed document
 		</p>
 
 		<h1 class="mt-5 max-w-3xl text-3xl leading-[1.15] font-semibold tracking-tight md:text-5xl">
-			Send client proposals they can actually sign on a phone. From plain Markdown.
+			Turn AI drafts into signable documents in one prompt.
 		</h1>
 
 		<p class="mt-6 max-w-2xl text-lg leading-relaxed text-base-content/70">
-			Stop exporting ugly PDFs and paying $40/mo for DocuSign bloat. Drop a signature anchor and get
-			a clean, phone-first e-sign link in seconds.
+			No more passing around broken PDFs. Publish audit-locked contracts your clients can sign on a
+			phone. No editor needed.
 		</p>
 
 		<div class="mt-8 flex flex-wrap items-center gap-5">
 			<a
-				href="#playground"
+				href={signupHref}
 				class="border border-base-content bg-base-content px-6 py-3 font-mono text-sm text-base-100 transition-colors hover:bg-transparent hover:text-base-content"
 			>
-				Try with Your Markdown →
+				Start for $20/mo →
 			</a>
-			<!-- eslint-disable svelte/no-navigation-without-resolve -->
 			<a
-				href={config.git}
+				href="#playground"
 				class="font-mono text-sm text-base-content/60 underline underline-offset-4 hover:text-base-content"
-				>API &amp; Neovim plugin</a
+				>Sign the sample below</a
 			>
-
-			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		</div>
 	</section>
 
@@ -111,7 +125,7 @@
 				<ul class="mt-6 space-y-4 text-base-content/80">
 					<li class="flex gap-3">
 						<span class="font-mono text-base-content/40">01</span>
-						<span>Write Markdown. Publish it as a responsive document at a shareable URL.</span>
+						<span>Ask Claude or Codex for the proposal. It publishes a web page at a link.</span>
 					</li>
 					<li class="flex gap-3">
 						<span class="font-mono text-base-content/40">02</span>
@@ -130,45 +144,41 @@
 		</div>
 	</section>
 
-	<!-- How it works -->
+	<!-- Setup: one path for terminal agents, one for the web apps -->
 	<section class="mx-auto max-w-6xl px-6 py-20">
-		<h2 class="text-2xl font-semibold tracking-tight md:text-3xl">Three lines of Markdown</h2>
-		<div class="mt-10 grid gap-px border border-base-content/15 bg-base-content/15 md:grid-cols-3">
-			<div class="bg-base-100 p-6">
-				<p class="font-mono text-xs text-base-content/40">01</p>
-				<h3 class="mt-3 font-semibold">Turn signing on</h3>
-				<p class="mt-2 text-sm text-base-content/70">
-					One frontmatter flag makes any published document signable.
-				</p>
-				<pre class="mt-4 overflow-x-auto border border-base-content/15 p-3 font-mono text-xs"><code
-						>{`---
-mdpubs:
-sign: true
----`}</code
-					></pre>
-			</div>
-			<div class="bg-base-100 p-6">
-				<p class="font-mono text-xs text-base-content/40">02</p>
-				<h3 class="mt-3 font-semibold">Drop an anchor</h3>
-				<p class="mt-2 text-sm text-base-content/70">
-					Put the signature box exactly where it belongs in the document.
-				</p>
-				<pre class="mt-4 overflow-x-auto border border-base-content/15 p-3 font-mono text-xs"><code
-						>{`<!-- mdpubs-sign-here:
-     Client Name -->`}</code
-					></pre>
-			</div>
-			<div class="bg-base-100 p-6">
-				<p class="font-mono text-xs text-base-content/40">03</p>
-				<h3 class="mt-3 font-semibold">Send the link</h3>
-				<p class="mt-2 text-sm text-base-content/70">
-					No account for signers. Each signature binds to a hash of the signed content, and the
-					document locks once signed.
-				</p>
-				<pre class="mt-4 overflow-x-auto border border-base-content/15 p-3 font-mono text-xs"><code
-						>mdpubs.com/abc123</code
-					></pre>
-			</div>
+		<h2 class="text-2xl font-semibold tracking-tight md:text-3xl">Set up in a minute</h2>
+		<p class="mt-3 max-w-xl text-base-content/70">
+			Use the AI you already have. Three steps either way, and no API key to copy.
+		</p>
+
+		<div class="mt-10 grid gap-px border border-base-content/15 bg-base-content/15 md:grid-cols-2">
+			{#each setupPaths as path (path.name)}
+				<div class="bg-base-100 p-6 md:p-8">
+					<p class="font-mono text-xs tracking-widest text-base-content/50 uppercase">
+						{path.name}
+					</p>
+					<ol class="mt-6 space-y-6">
+						<li class="flex gap-4">
+							<span class="font-mono text-sm text-base-content/40">01</span>
+							<div class="min-w-0 flex-1">
+								<p>{path.first}</p>
+								<code
+									class="mt-2 block overflow-x-auto border border-base-content/15 bg-base-200 p-3 font-mono text-xs whitespace-nowrap select-all"
+									>{path.paste}</code
+								>
+							</div>
+						</li>
+						<li class="flex gap-4">
+							<span class="font-mono text-sm text-base-content/40">02</span>
+							<p>{path.second}</p>
+						</li>
+						<li class="flex gap-4">
+							<span class="font-mono text-sm text-base-content/40">03</span>
+							<p>Ask for it: <em>"Write Acme a proposal and make it signable."</em></p>
+						</li>
+					</ol>
+				</div>
+			{/each}
 		</div>
 	</section>
 
@@ -242,13 +252,13 @@ sign: true
 	<!-- Closing CTA -->
 	<section class="mx-auto max-w-6xl px-6 py-20 text-center">
 		<h2 class="text-2xl font-semibold tracking-tight md:text-3xl">
-			Your next proposal is a Markdown file.
+			Your next contract is one prompt.
 		</h2>
 		<a
 			href={signupHref}
 			class="mt-8 inline-block border border-base-content bg-base-content px-8 py-3 font-mono text-sm text-base-100 transition-colors hover:bg-transparent hover:text-base-content"
 		>
-			Get your API key →
+			Start for $20/mo →
 		</a>
 	</section>
 

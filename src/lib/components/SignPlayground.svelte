@@ -1,12 +1,15 @@
 <script lang="ts">
 	/**
-	 * Landing-page playground: raw markdown on the left, a 390px phone preview on
-	 * the right, both live.
+	 * Landing-page playground: the prompt a user pastes into Claude or Codex on the
+	 * left, the published proposal on a 390px phone on the right.
+	 *
+	 * The markdown is deliberately not shown. Most visitors get AI to write for
+	 * them and never need to see the source, so the demo goes from prompt straight
+	 * to the signable page.
 	 *
 	 * It is a demo, not the product. Nothing here touches the API or the database:
-	 * signatures are drawn to a canvas and held in local state so a visitor can see
-	 * the whole flow — type a `<!-- mdpubs-sign-here: Label -->` anchor, watch a
-	 * signing box appear in the phone, tap it, draw, done — without an account.
+	 * signatures are drawn to a canvas and held in local state so a visitor can tap
+	 * the signing box, draw, and see the document signed without an account.
 	 *
 	 * The rendering path mirrors the published page on purpose: `marked` for the
 	 * markdown, a signing box at each `mdpubs-sign-here` anchor, and a TOC built
@@ -24,42 +27,40 @@
 	} from '#lib/helpers/landing-preview.js';
 	import { drawSignatureImage } from '#lib/helpers/signature-image.js';
 
-	const SAMPLE = `---
-title: Website Redesign — Proposal
-mdpubs:
-sign: true
----
+	// What the user types once mdpubs is installed as a skill or connector.
+	const BRIEF =
+		'Write a proposal for Acme Co: a 4-page marketing site with a blog. Design $4,200, build $6,800, six weeks. Jordan Lee signs for Acme, I sign for us.';
 
-# Website Redesign
+	// The document the AI publishes. Anchors are the same `mdpubs-sign-here`
+	// comments the published page renders as signing boxes.
+	const body = `# Website Redesign for Acme Co
 
 ## Scope
 
-A 4-page marketing site, responsive down to 390px,
-with a CMS for the blog.
+- 4 pages: Home, About, Services, Contact
+- Blog with a CMS your team can edit
+- Responsive down to a 390px phone
+
+## Timeline
+
+Six weeks from signing. Design review at week two.
 
 ## Price
 
-| Item        | Amount  |
-| ----------- | ------- |
-| Design      | $4,200  |
-| Build       | $6,800  |
+| Item   | Amount  |
+| ------ | ------- |
+| Design | $4,200  |
+| Build  | $6,800  |
+| Total  | $11,000 |
 
 ## Sign-off
 
-Countersigned below.
+<!-- mdpubs-sign-here: Jordan Lee, Acme Co -->
 
-<!-- mdpubs-sign-here: Client Name -->
+<!-- mdpubs-sign-here: Sam Rivera, Studio -->
 `;
 
-	let source = $state(SAMPLE);
-	let editorEl = $state<HTMLTextAreaElement | null>(null);
-
-	/**
-	 * One signature per anchor, keyed by the anchor's stable key rather than its
-	 * position. The visitor is editing the document live: keying by position means
-	 * deleting the first of two anchors shifts the second down an index, and the
-	 * signature drawn for it reappears under the other signer's name.
-	 */
+	// One signature per anchor, keyed by the anchor's key.
 	type DemoSignature = { name: string; dataUrl: string; signedAt: number };
 	let signatures = $state<Record<string, DemoSignature>>({});
 
@@ -73,17 +74,8 @@ Countersigned below.
 	let drawing = false;
 	let hasDrawn = $state(false);
 
-	/**
-	 * Strip the frontmatter before rendering. The published page parses it
-	 * server-side; here it is shown in the editor as the thing you type, and left
-	 * out of the phone, which is what a reader sees.
-	 */
-	const body = $derived(source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, ''));
-
-	// Read the anchors from the BODY, the same text the segments are cut from, so
-	// the count under the phone always matches the boxes actually on screen.
-	const labels = $derived(signAnchorLabels(body));
-	const keys = $derived(signAnchorKeys(body));
+	const labels = signAnchorLabels(body);
+	const keys = signAnchorKeys(body);
 
 	const render = (md: string) =>
 		marked.parse(md, { async: false, gfm: true, breaks: false }) as string;
@@ -93,9 +85,9 @@ Countersigned below.
 	 * both need to see every heading, and the TOC's duplicate-id suffixes only
 	 * line up when the headings are numbered across the full document.
 	 */
-	const fullHtml = $derived(addHeadingIds(render(body)));
-	const toc = $derived(previewToc(fullHtml));
-	const title = $derived(previewTitle(fullHtml));
+	const fullHtml = addHeadingIds(render(body));
+	const toc = previewToc(fullHtml);
+	const title = previewTitle(fullHtml);
 
 	/**
 	 * The body as alternating rendered chunks and signing boxes. Each chunk is
@@ -106,16 +98,12 @@ Countersigned below.
 	 * Heading ids come from the full-document pass, so a TOC link still finds its
 	 * heading even when an anchor sits between two sections.
 	 */
-	const segments = $derived.by(() => {
-		const seen = new Map<string, number>();
-		return splitOnSignAnchors(body).map((seg) => ({
-			html: addHeadingIds(render(seg.markdown), seen),
-			slot: seg.key
-		}));
-	});
+	const seen = new Map<string, number>();
+	const segments = splitOnSignAnchors(body).map((seg) => ({
+		html: addHeadingIds(render(seg.markdown), seen),
+		slot: seg.key
+	}));
 
-	// A signature drawn against an anchor that the visitor has since deleted is
-	// dropped, so the count under the phone never exceeds the anchors on screen.
 	const signedCount = $derived(keys.filter((k) => signatures[k] !== undefined).length);
 	const allSigned = $derived(keys.length > 0 && signedCount === keys.length);
 
@@ -194,22 +182,6 @@ Countersigned below.
 		}
 	}
 
-	/**
-	 * Delete an anchor and its signature goes with it.
-	 *
-	 * Hiding an orphaned signature is not enough: retype an anchor with the same
-	 * label and the old drawing would come back under it, which is the opposite of
-	 * what deleting it looked like it did. Called from the edit path rather than an
-	 * effect so typing stays the only thing that changes the document.
-	 */
-	function dropOrphanSignatures() {
-		const live = new Set(signAnchorKeys(body));
-		for (const k of Object.keys(signatures)) {
-			if (!live.has(k)) delete signatures[k];
-		}
-		if (drawerSlot !== null && !live.has(drawerSlot)) drawerSlot = null;
-	}
-
 	function confirmSign() {
 		errorMsg = null;
 		if (!signerName.trim()) {
@@ -234,12 +206,6 @@ Countersigned below.
 		drawerSlot = null;
 	}
 
-	function addAnchor() {
-		source = `${source.replace(/\s*$/, '')}\n\n<!-- mdpubs-sign-here: Second Signer -->\n`;
-		dropOrphanSignatures();
-		editorEl?.focus();
-	}
-
 	function fmtTime(ts: number): string {
 		return new Date(ts).toLocaleDateString(undefined, {
 			year: 'numeric',
@@ -250,32 +216,29 @@ Countersigned below.
 </script>
 
 <div class="grid gap-px border border-base-content/15 bg-base-content/15 lg:grid-cols-2">
-	<!-- Left: the markdown you write -->
+	<!-- Left: the prompt you paste into Claude or Codex -->
 	<div class="flex flex-col bg-base-100">
 		<div
 			class="flex items-center justify-between border-b border-base-content/10 px-4 py-2 font-mono text-xs text-base-content/50"
 		>
-			<span>proposal.md</span>
-			<button
-				type="button"
-				onclick={addAnchor}
-				class="border border-base-content/20 px-2 py-1 font-mono text-[11px] text-base-content/70 transition-colors hover:border-base-content/50 hover:text-base-content"
-			>
-				+ sign anchor
-			</button>
+			<span>Claude · Codex · any AI chat</span>
+			<span>you type this</span>
 		</div>
-		<label for="playground-source" class="sr-only">Markdown source</label>
-		<textarea
-			id="playground-source"
-			bind:this={editorEl}
-			bind:value={source}
-			oninput={dropOrphanSignatures}
-			spellcheck="false"
-			class="min-h-[460px] w-full flex-1 resize-none bg-base-100 p-4 font-mono text-[13px] leading-relaxed text-base-content focus:outline-none"
-		></textarea>
-		<p class="border-t border-base-content/10 px-4 py-2 font-mono text-[11px] text-base-content/45">
-			Edit anything. The phone updates as you type.
-		</p>
+
+		<div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
+			<div class="ml-auto max-w-[92%] border border-base-content/15 bg-base-200 p-4">
+				<p class="text-[15px] leading-relaxed">{BRIEF}</p>
+			</div>
+
+			<div class="max-w-[92%] text-[15px] leading-relaxed text-base-content/80">
+				<p>Drafted and published. Send Jordan this link to sign on their phone:</p>
+				<p class="mt-2 font-mono text-sm text-base-content">mdpubs.com/abc123</p>
+			</div>
+
+			<p class="mt-auto font-mono text-[11px] text-base-content/45">
+				No editor, no PDF export, no file upload. Tap the box on the phone to sign it yourself.
+			</p>
+		</div>
 	</div>
 
 	<!-- Right: the 390px phone a client actually opens -->
@@ -427,9 +390,7 @@ Countersigned below.
 			class="mt-3 flex items-center gap-3 font-mono text-[11px] text-base-content/60"
 			aria-live="polite"
 		>
-			{#if labels.length === 0}
-				<span>No sign anchor yet — add one to make it signable.</span>
-			{:else if allSigned}
+			{#if allSigned}
 				<span class="text-base-content">✓ Signed — {signedCount}/{labels.length} complete</span>
 				<button type="button" onclick={resetDemo} class="underline hover:text-base-content"
 					>Reset</button
