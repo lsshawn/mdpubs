@@ -18,6 +18,56 @@ import {
 	presets
 } from './scrolldemo.js';
 
+/**
+ * takeover(drivers): let hand-driven code own a set of timeline drivers.
+ *
+ * The signing act is scroll-driven — every frame the timeline rewrites the
+ * drawer, the ink, the stamp and the signed flag from scroll position. When the
+ * visitor signs the document themselves, those writes have to stop, or the next
+ * scroll frame closes the drawer under their thumb.
+ *
+ * mute(true) swaps each driver's set/snap for a no-op so the timeline's writes
+ * are dropped; drive/snapTo still reach the real ones, so the tap handlers can
+ * move the same drivers while the timeline cannot.
+ *
+ * Manual code must go through drive/snapTo rather than writing the class or
+ * style a driver owns. flag() only applies on a change and spring() keeps its
+ * own target, so a direct DOM write leaves the driver's cache stale: the
+ * timeline later asks for the value it already believes is set, skips the
+ * write, and the visitor's edit survives into the acts meant to undo it.
+ */
+export function takeover(drivers) {
+	const real = new Map(drivers.map((d) => [d, { set: d.set.bind(d), snap: d.snap.bind(d) }]));
+	/*
+	 * flag()'s snap is `snap(val) { f.set(val) }` — it looks `set` up on the
+	 * driver when called, so muting `set` mutes its snap too, and a bound copy of
+	 * snap would route back into the no-op. Restore the real pair around the
+	 * call instead of trusting the bound reference.
+	 */
+	const unmuted = (d, fn) => {
+		const { set, snap } = real.get(d);
+		const [mSet, mSnap] = [d.set, d.snap];
+		d.set = set;
+		d.snap = snap;
+		try {
+			fn(d);
+		} finally {
+			d.set = mSet;
+			d.snap = mSnap;
+		}
+	};
+	return {
+		drive: (d, v) => unmuted(d, (x) => x.set(v)),
+		snapTo: (d, v) => unmuted(d, (x) => x.snap(v)),
+		mute: (on) => {
+			for (const [d, { set, snap }] of real) {
+				d.set = on ? () => {} : set;
+				d.snap = on ? () => {} : snap;
+			}
+		}
+	};
+}
+
 export default function run(root) {
 	const $ = (s, r = root) => r.querySelector(s);
 	const $$ = (s, r = root) => [...r.querySelectorAll(s)];
@@ -108,6 +158,9 @@ export default function run(root) {
 			capSign = caption('capSign'),
 			capLocked = caption('capLocked');
 
+		// The scripted scribble, kept so a visitor's own stroke can be undone when
+		// the demo takes the signing act back (see setManual below).
+		const SIG_D = ink.getAttribute('d');
 		const len = ink.getTotalLength();
 		ink.style.strokeDasharray = `${len}`;
 		const inked = spring(1, ([t]) => (ink.style.strokeDashoffset = `${len * (1 - t)}`), {
@@ -193,10 +246,16 @@ export default function run(root) {
 			);
 			const sx = P.w / 300;
 			const N = 18;
+			// Always measure the scripted scribble: a resize can land while the
+			// visitor has their own stroke on the pad, and the ghost finger has to
+			// trace the path the timeline draws, not theirs.
+			const own = ink.getAttribute('d');
+			ink.setAttribute('d', SIG_D);
 			const pts = Array.from({ length: N + 1 }, (_, i) => {
 				const pt = ink.getPointAtLength((len * i) / N);
 				return [P.x + pt.x * sx, P.y + pt.y * sx];
 			});
+			ink.setAttribute('d', own);
 			const boxAt = [B.x + B.w * 0.55, B.y + B.h * 0.6];
 			const fingerPark = [B.x + B.w * 0.75, B.y + B.h + 70];
 			const drawRows = pts.slice(1).map((p, i) => [18 + (16 * (i + 1)) / N, [finger.pos, p]]);
@@ -311,7 +370,164 @@ export default function run(root) {
 			]);
 		};
 		build();
-		scene(sec, { progress: (p) => go(p), resize: build });
+
+		/*
+		 * Let the visitor sign it themselves.
+		 *
+		 * The acts above are scroll-driven: every frame the scene rewrites the
+		 * drawer, the ink and the signed flag from scroll position. So a real tap
+		 * has to take those four drivers away from the timeline, or the next scroll
+		 * frame closes the drawer under the visitor's thumb.
+		 *
+		 * `manual` is that switch. While it is on, go() still runs for everything
+		 * else (captions, the log, the phone's tilt), but the signing drivers are
+		 * left alone and driven by touch instead. Scrolling out of the signing act
+		 * hands them back, so the demo still plays normally afterwards.
+		 */
+		let manual = false;
+		// Scene progress when the visitor took over, so the release below is
+		// measured from there. Set in setManual, read in the scene's progress.
+		let tookOverAt = 0;
+		// The latest scroll progress, kept because setManual runs from a tap, not
+		// from the scene's own tick.
+		let scrollAt = 0;
+		// Every driver that writes signing state. stampIn belongs here too: it is
+		// not part of the drawer, but the timeline's value for it at the scroll
+		// position where a visitor signs is 0, so leaving it unmuted fades the
+		// "Signed and locked" stamp off a document they just signed.
+		const held = [sigdrawer, inked, signed, tapBtn, tapBox, stampIn];
+		// timeline() writes through driver.set/.snap, so muting is per-driver: swap
+		// in a no-op while manual, restore the real one when scroll takes over.
+		// The originals are kept so the touch handlers below can still drive these
+		// drivers while the timeline's writes to them are being dropped.
+		const { drive, snapTo, mute } = takeover(held);
+
+		const setManual = (on) => {
+			if (manual === on) return;
+			manual = on;
+			if (on) tookOverAt = scrollAt;
+			mute(on);
+			screen.classList.toggle('is-live', on);
+			// Hand the ghost finger back: it has no business miming a tap the
+			// visitor is doing themselves.
+			if (on) finger.show.set(false);
+		};
+
+		// Drawing on the pad. The visitor's own stroke replaces the scripted
+		// scribble, so what they sign is theirs.
+		let drawing = false;
+		let path = '';
+		const padPoint = (e) => {
+			const r = pad.getBoundingClientRect();
+			// The pad's viewBox is 300x100 and it keeps a 3/1 aspect, so one scale.
+			const s = 300 / r.width;
+			return [(e.clientX - r.left) * s, (e.clientY - r.top) * s];
+		};
+
+		const openDrawer = () => {
+			setManual(true);
+			// The visitor draws their own line, so the scripted stroke's reveal is
+			// off: no dash mask, nothing drawn yet.
+			ink.style.strokeDasharray = 'none';
+			drive(inked, 1);
+			ink.setAttribute('d', '');
+			path = '';
+			drive(signed, false);
+			drive(stampIn, 0);
+			drive(tapBtn, false);
+			drive(tapBox, false);
+			drive(sigdrawer, 1);
+			tilt.set(lean);
+		};
+
+		const closeDrawer = () => {
+			drive(sigdrawer, 0);
+			tilt.set(flat);
+		};
+
+		// `click`, not `pointerup`: these are real buttons, and Enter or Space on a
+		// focused button fires click without any pointer event. pointerdown only
+		// adds the pressed styling.
+		box.addEventListener('pointerdown', () => drive(tapBox, true));
+		box.addEventListener('pointercancel', () => drive(tapBox, false));
+		box.addEventListener('click', openDrawer);
+
+		pad.addEventListener('pointerdown', (e) => {
+			if (!manual) return;
+			e.preventDefault();
+			drawing = true;
+			pad.setPointerCapture(e.pointerId);
+			const [x, y] = padPoint(e);
+			path += `M${x.toFixed(1)} ${y.toFixed(1)}`;
+			ink.setAttribute('d', path);
+		});
+		pad.addEventListener('pointermove', (e) => {
+			if (!drawing) return;
+			e.preventDefault();
+			const [x, y] = padPoint(e);
+			path += ` L${x.toFixed(1)} ${y.toFixed(1)}`;
+			ink.setAttribute('d', path);
+		});
+		const endStroke = () => (drawing = false);
+		pad.addEventListener('pointerup', endStroke);
+		pad.addEventListener('pointercancel', endStroke);
+
+		// Sign commits whatever is on the pad; Cancel backs out without signing.
+		btn.addEventListener('pointerdown', () => drive(tapBtn, true));
+		btn.addEventListener('click', () => {
+			if (!manual) return;
+			drive(tapBtn, false);
+			// An empty pad is not a signature — nudge rather than sign nothing.
+			if (!path) {
+				pad.classList.add('is-asking');
+				setTimeout(() => pad.classList.remove('is-asking'), 600);
+				return;
+			}
+			// The signed doc shows the same stroke the visitor just drew.
+			$('.signed path', phone).setAttribute('d', path);
+			drive(signed, true);
+			closeDrawer();
+			snapTo(stampIn, [0]);
+			drive(stampIn, 1);
+		});
+		k(sec, 'cancelBtn').addEventListener('click', () => {
+			if (!manual) return;
+			closeDrawer();
+		});
+
+		scene(sec, {
+			progress: (p) => {
+				scrollAt = p;
+				/*
+				 * Hand control back once the visitor has scrolled well away from where
+				 * they took it. Measured from that point rather than against a fixed
+				 * window: they can tap the box at any scroll position, and tapping a
+				 * button scrolls it into view, so a fixed window would snatch the
+				 * drawer back on the visitor's own tap and wipe the signature they
+				 * just drew.
+				 */
+				if (manual && Math.abs(p - tookOverAt) > 0.08) {
+					setManual(false);
+					// Put the scripted scribble back, mask and all.
+					ink.style.strokeDasharray = `${len}`;
+					ink.setAttribute('d', SIG_D);
+					$('.signed path', phone).setAttribute('d', SIG_D);
+					// Clear the signing state through the drivers, so their caches match
+					// the DOM again. Without this the flags still hold the values from
+					// before the visitor signed, and go(p) below asks for those same
+					// values and skips the write — leaving the doc signed and the
+					// scribble already drawn as the demo replays.
+					snapTo(signed, false);
+					snapTo(inked, [0]);
+					snapTo(stampIn, [0]);
+					snapTo(sigdrawer, [0]);
+					snapTo(tapBox, false);
+					snapTo(tapBtn, false);
+				}
+				go(p);
+			},
+			resize: build
+		});
 	}
 
 	/* Act 6. "One price." parts and the long tail swings in between the words. */
