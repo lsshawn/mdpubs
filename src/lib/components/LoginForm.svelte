@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
+	import Logo from '#lib/components/Logo.svelte';
 
 	let { redirectTo = '/account' }: { redirectTo?: string } = $props();
 
@@ -158,131 +159,116 @@
 	}
 </script>
 
-<div class="mx-auto w-full p-6 md:w-auto md:min-w-[300px]">
-	<h1 class="flex w-full items-center justify-between text-4xl font-semibold tracking-tight">
-		{#if isOtpStep}
-			<button onclick={() => backFromOtp()} class="btn-ghost btn btn-circle">
-				<Icon icon="mdi:chevron-left" style="font-size: 2rem;" />
-			</button>
-		{:else}
-			<!-- This empty div ensures the text in the center div remains centered -->
-			<div></div>
-		{/if}
+<div class="w-full max-w-sm">
+	<a
+		href={resolve('/(public)')}
+		class="mx-auto block w-fit text-base-content"
+		aria-label="mdpubs home"
+	>
+		<Logo class="h-14 w-auto" />
+	</a>
 
-		<div class="flex-1 text-center text-2xl">
-			{isOtpStep ? 'Enter OTP' : 'Sign In'}
-		</div>
-
-		<!-- This empty div is a spacer for balancing the layout -->
-		<div></div>
-		{#if isOtpStep}
-			<!-- Invisible spacer for symmetry -->
-			<div class="invisible">
-				<button class="btn-ghost btn">
-					<Icon icon="mdi:chevron-left" style="font-size: 2rem;" />
-				</button>
-			</div>
-		{/if}
+	<h1 class="mt-10 text-center text-2xl font-semibold tracking-tight">
+		{isOtpStep ? 'Check your email' : 'Sign in to mdpubs'}
 	</h1>
-
-	<p class="text-muted-foreground mt-4 mb-4 text-center text-sm">
-		{isOtpStep ? `Enter the OTP sent to ${email}` : 'Enter your email to continue'}
+	<p class="mt-2 text-center text-sm text-base-content/60">
+		{#if isOtpStep}
+			We sent a 6-digit code to <span class="font-medium text-base-content">{email}</span>
+		{:else}
+			We'll email you a code. No password.
+		{/if}
 	</p>
-	<div class="flex flex-col">
-		<div>
-			{#if !isOtpStep}
-				<form onsubmit={requestOtp}>
-					<!-- <Label -->
-					<!-- 	class="sr-only" -->
-					<!-- 	for="email">Email</Label -->
-					<!-- > -->
-					<input
-						class="input-bordered input-primary input bg-base-100 w-full rounded-xs"
-						id="email"
-						name="email"
-						autofocus
-						placeholder="Your email..."
-						type="email"
-						bind:value={email}
-						autocapitalize="none"
-						autocomplete="email"
-						autocorrect="off"
-						disabled={isLoading}
-					/>
-					<button
-						disabled={isLoading || !validEmail}
-						class="btn-primary btn btn-block btn-md mt-6 rounded-md"
-						onclick={requestOtp}
-					>
-						{#if isLoading && !redirectingToSocialLogin}
-							<span class="loading loading-spinner loading-md"></span>
-						{/if}
-						Request OTP
-					</button>
-					<div class="mt-4 text-error">{errorMessage}</div>
-				</form>
-				<div class="text-center">
-					<div class="my-4">or</div>
-					<!-- <button -->
-					<!-- 	class="btn btn-outline btn-block" -->
-					<!-- 	onclick={() => socialLogin('google')} -->
-					<!-- 	class:btn-disabled={redirectingToSocialLogin} -->
-					<!-- > -->
-					<!-- 	{#if redirectingToSocialLogin === 'google'} -->
-					<!-- 		<span class="loading loading-spinner loading-md"></span> -->
-					<!-- 	{/if} -->
-					<!-- 	<Icon icon="ph:google-logo-bold" /> -->
-					<!-- 	Sign in with Google</button -->
-					<!-- > -->
-					<button
-						class="btn btn-outline btn-block mt-4"
-						onclick={() => socialLogin('github')}
-						class:btn-disabled={redirectingToSocialLogin}
-					>
-						{#if redirectingToSocialLogin === 'github'}
-							<span class="loading loading-spinner loading-md"></span>
-						{/if}
-						<Icon icon="mdi:github" />
-						Sign in with GitHub</button
-					>
-				</div>
-			{/if}
 
-			{#if isOtpStep}
-				<form class="mx-auto flex max-w-lg flex-col justify-center">
-					<div class="flex justify-center space-x-2 p-4">
-						<!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -->
-						{#each otp as _value, index (index)}
-							<input
-								inputmode="numeric"
-								autofocus={index === 0}
-								type="text"
-								maxlength="1"
-								pattern="\d*"
-								class="bg-base-100 h-10 w-10 rounded-sm border text-center text-lg"
-								bind:value={otp[index]}
-								oninput={(event) => handleInput(event, index)}
-								onpaste={handlePaste}
-								onfocus={(e) => e.target.select()}
-								onkeydown={(event) => handleKeydown(event, index)}
-								id={`otp-input-${index}`}
-							/>
-						{/each}
-					</div>
-					<button
-						disabled={isLoading || otp.some((v) => v === '')}
-						class={`btn mt-4 w-full rounded-md ${success ? 'btn-success' : 'btn-primary'}`}
-						onclick={() => loginWithOtp()}
-					>
-						{#if isLoading}
-							<span class="loading loading-spinner loading-md"></span>
-						{:else}
-							{success ? 'Logging in...' : 'Login'}
-						{/if}
-					</button>
-					<div class="mt-4 text-error">{errorMessage}</div>
-				</form>
+	{#if !isOtpStep}
+		<form class="mt-8" onsubmit={requestOtp}>
+			<label class="sr-only" for="email">Email</label>
+			<input
+				class="input w-full"
+				id="email"
+				name="email"
+				autofocus
+				placeholder="you@company.com"
+				type="email"
+				bind:value={email}
+				autocapitalize="none"
+				autocomplete="email"
+				autocorrect="off"
+				disabled={isLoading}
+			/>
+			<button
+				type="submit"
+				disabled={isLoading || !validEmail}
+				class="btn mt-3 btn-block btn-neutral"
+			>
+				{#if isLoading && !redirectingToSocialLogin}
+					<span class="loading loading-sm loading-spinner"></span>
+				{/if}
+				Continue with email
+			</button>
+			{#if errorMessage}
+				<p class="mt-3 text-sm text-error">{errorMessage}</p>
 			{/if}
-		</div>
-	</div>
+		</form>
+
+		<div class="divider my-6 text-xs text-base-content/40">or</div>
+
+		<button
+			class="btn btn-block btn-outline"
+			onclick={() => socialLogin('github')}
+			class:btn-disabled={redirectingToSocialLogin}
+		>
+			{#if redirectingToSocialLogin === 'github'}
+				<span class="loading loading-sm loading-spinner"></span>
+			{:else}
+				<Icon icon="mdi:github" class="h-5 w-5" />
+			{/if}
+			Continue with GitHub
+		</button>
+	{:else}
+		<form class="mt-8" onsubmit={(e) => e.preventDefault()}>
+			<div class="flex justify-center gap-2">
+				<!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -->
+				{#each otp as _value, index (index)}
+					<input
+						inputmode="numeric"
+						autofocus={index === 0}
+						type="text"
+						maxlength="1"
+						pattern="\d*"
+						aria-label={`Digit ${index + 1}`}
+						class="input h-12 w-11 px-0 text-center font-mono text-lg"
+						bind:value={otp[index]}
+						oninput={(event) => handleInput(event, index)}
+						onpaste={handlePaste}
+						onfocus={(e) => e.target.select()}
+						onkeydown={(event) => handleKeydown(event, index)}
+						id={`otp-input-${index}`}
+					/>
+				{/each}
+			</div>
+			<button
+				type="button"
+				disabled={isLoading || otp.some((v) => v === '')}
+				class="btn mt-6 btn-block {success ? 'btn-success' : 'btn-neutral'}"
+				onclick={() => loginWithOtp()}
+			>
+				{#if isLoading}
+					<span class="loading loading-sm loading-spinner"></span>
+				{:else}
+					{success ? 'Signing in…' : 'Sign in'}
+				{/if}
+			</button>
+			{#if errorMessage}
+				<p class="mt-3 text-center text-sm text-error">{errorMessage}</p>
+			{/if}
+		</form>
+
+		<button
+			type="button"
+			class="mx-auto mt-6 block text-sm text-base-content/60 underline-offset-4 hover:underline"
+			onclick={() => backFromOtp()}
+		>
+			Use a different email
+		</button>
+	{/if}
 </div>

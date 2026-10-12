@@ -1,307 +1,1116 @@
 <script lang="ts">
-	import { config } from '#lib/config.js';
-	import { resolve } from '$app/paths';
-	import SignPlayground from '#lib/components/SignPlayground.svelte';
-
 	/**
-	 * Both pricing CTAs go to signup rather than straight to Stripe. The app has a
-	 * single Stripe payment link configured (config.stripePaymentLinks), not one
-	 * per tier, and wiring a second link would mean a new config entry — an
-	 * owner's call. Signup is the step a visitor has to take first anyway.
+	 * The landing page, acted out as a scroll demo: a chat window types the
+	 * prompt, the link opens a phone, a thumb signs it, and the signed doc refuses
+	 * an edit.
+	 *
+	 * The markup lives here. The choreography is plain JS in
+	 * static/scrolldemo/mdpubs-demo.js, next to the scroll engine it drives
+	 * (scrolldemo.js, copied verbatim from the scroll-demo skill). Both are loaded
+	 * on mount so the engine, which touches `window` at import, never runs on the
+	 * server, and its global stylesheet is only on the page while this route is.
 	 */
+	import { onMount } from 'svelte';
+	import { resolve } from '$app/paths';
+	import FeedbackWidget from '#lib/components/FeedbackWidget.svelte';
+
 	const signupHref = resolve('login');
 
-	const oldWay = [
-		'You hit the monthly envelope cap halfway through a deal.',
-		'A second person on your team means a second seat.',
-		'The price you saw needs a yearly contract. Cancelling means calling sales.',
-		'Your client is asked to make an account, then pinches a PDF on their phone.'
+	const PROMPT = 'Publish this proposal to mdpubs for Shawn and Matt to sign.';
+
+	const terms = [
+		['Total', '$11,000'],
+		['Timeline', '6 weeks'],
+		['Payment', '50% now, 50% at launch']
 	];
-	const newWay = [
-		'$20 a month. Send as many contracts as you like.',
-		'Your AI writes the contract and sends you a link.',
-		'Your client taps the box and signs with a thumb. No account, no app.',
-		'Locked once signed, with a log of every view and signature.'
+	const included = [
+		'4-page site: Home, About, Services, Contact',
+		'A blog your team can edit',
+		'Built for phones first'
+	];
+	const today = new Date().toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric'
+	});
+
+	// One scribble, drawn in the signing pad and then shown on the signed doc.
+	const SIG =
+		'M18 72 C 26 30, 44 14, 42 52 C 40 84, 16 88, 22 70 C 34 46, 54 52, 60 62 C 66 72, 72 50, 80 55 C 86 60, 84 72, 93 63 C 101 54, 104 40, 110 58 C 114 72, 121 70, 127 56 C 131 45, 137 70, 147 60 C 157 48, 161 28, 168 18 C 160 50, 157 72, 171 70 C 183 68, 186 52, 196 58 C 204 64, 200 73, 212 64 C 222 56, 226 54, 233 62 C 240 70, 252 66, 282 48';
+
+	const log = [
+		['Sent', 'Cupbots', '9:02 AM'],
+		['Signed', 'Shawn', '9:05 AM'],
+		['Opened', 'Matt', '9:40 AM'],
+		['Signed', 'Matt', '9:41 AM'],
+		['Locked', 'No more edits', '9:41 AM']
 	];
 
-	// Both paths end at the same login page, which sends new users through
-	// checkout before handing a key to the installer or a token to the connector.
+	// [text, accent?] runs. Each card carries one feature, its key phrase in accent.
+	const cards: [string, boolean][][] = [
+		[
+			['$20 a month.', true],
+			[' Send as many contracts as you like.', false]
+		],
+		[
+			['Parallel signers,', true],
+			[' each with their own box.', false]
+		],
+		[
+			['No sign-in', true],
+			[' needed to sign.', false]
+		],
+		[
+			['Works from ', false],
+			['Claude Code, Codex, Claude and ChatGPT.', true]
+		]
+	];
+
+	// Only the first step differs between the two ways in. Both then log in at
+	// the same page, which sends new users through checkout.
 	const setupPaths = [
 		{
 			name: 'Claude Code · Codex',
 			first: 'Paste this into Claude Code or Codex:',
-			paste: 'curl -fsSL https://mdpubs.com/install | sh',
-			second: 'Log in at the link it shows you. New here? Subscribe on the same page.'
+			paste: 'curl -fsSL https://mdpubs.com/install | sh'
 		},
 		{
 			name: 'Claude · ChatGPT',
 			first: 'Add a connector with this URL:',
-			paste: 'https://mdpubs.com/mcp',
-			second: 'Log in when it asks. New here? Subscribe on the same page.'
+			paste: 'https://mdpubs.com/mcp'
 		}
 	];
+	let tab = $state(0);
+
+	let root: HTMLDivElement;
+
+	// The footer's feedback button. The layout hides its floating one on this page.
+	let feedbackMessage = $state('');
+	let feedbackEmail = $state('');
+	let feedbackName = $state('');
+
+	onMount(() => {
+		let alive = true;
+		// Built from location at runtime so the bundler cannot fold it into a
+		// static import and try to bundle a file that only exists in static/.
+		const src = new URL('/scrolldemo/mdpubs-demo.js', location.origin).href;
+		import(/* @vite-ignore */ src).then((m) => {
+			if (alive) m.default(root);
+		});
+		return () => {
+			alive = false;
+		};
+	});
 </script>
 
 <svelte:head>
-	<title>MdPubs — your AI writes the contract, your client signs on a phone</title>
+	<title>MdPubs — write one prompt, get a signed contract back</title>
 	<meta
 		name="description"
-		content="$20 a month, flat. No envelopes, no seats, no per-document fees. Clients open a link and sign with a thumb. No account, no app, no printer."
+		content="$20 a month, flat. Your AI publishes the contract, your client signs it on their phone. No account, no app, no printer."
 	/>
-	<!--
-		JetBrains Mono carries the monospace accents on this page only. Loaded here
-		rather than in app.html so the rest of the app does not pay for a
-		third-party font request it never renders. `display=swap` keeps the page
-		readable in the system monospace until it arrives.
-	-->
-
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
-
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-
 	<link
 		rel="stylesheet"
-		href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+		href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
 	/>
+	<link rel="stylesheet" href="/scrolldemo/scrolldemo.css" />
+	<noscript>
+		<style>
+			.sdp .sd-scene {
+				height: auto !important;
+			}
+			.sdp .sd-stage {
+				position: static;
+				height: auto;
+				min-height: 100svh;
+				display: flex;
+				flex-direction: column;
+				gap: 32px;
+				padding: 48px 16px;
+			}
+			.sdp .captions,
+			.sdp .log {
+				display: grid;
+				gap: 16px;
+				position: static;
+			}
+			.sdp .captions > * {
+				grid-area: auto;
+			}
+			.sdp .sd-cursor,
+			.sdp .sd-caret,
+			.sdp .hide-nojs {
+				display: none !important;
+			}
+			.sdp .caption,
+			.sdp .bubble,
+			.sdp .reply,
+			.sdp .linkcard,
+			.sdp .log,
+			.sdp .log li,
+			.sdp .feat,
+			.sdp .act-cta .w {
+				opacity: 1 !important;
+				translate: none !important;
+			}
+		</style>
+	</noscript>
 </svelte:head>
 
-<div class="landing min-h-screen bg-base-100 text-base-content">
+{#snippet ghost(key: string)}
+	<div class="sd-cursor" data-k={key} data-mode="arrow" aria-hidden="true">
+		<svg class="sd-c-arrow" viewBox="0 0 24 24"
+			><path
+				d="M4 2l16 10-7 1.5L9.5 21z"
+				fill="#111"
+				stroke="#fff"
+				stroke-width="1.5"
+				stroke-linejoin="round"
+			/></svg
+		>
+		<svg class="sd-c-text" viewBox="0 0 24 24"
+			><path d="M8 3h8M8 21h8M12 3v18" stroke="#111" stroke-width="2" /></svg
+		>
+		<svg class="sd-c-hand" viewBox="0 0 24 24"
+			><path
+				d="M9 11V4.5a1.5 1.5 0 013 0V10m0-1.5a1.5 1.5 0 013 0V11m0-1a1.5 1.5 0 013 0v5a6 6 0 01-6 6h-1a6 6 0 01-5-2.7L4 15.5a1.5 1.5 0 012.4-1.8L9 16"
+				fill="#fff"
+				stroke="#111"
+				stroke-width="1.5"
+				stroke-linejoin="round"
+			/></svg
+		>
+		<svg class="c-touch" viewBox="0 0 32 32"
+			><circle
+				cx="16"
+				cy="16"
+				r="13"
+				fill="rgba(17,17,17,.16)"
+				stroke="rgba(17,17,17,.5)"
+				stroke-width="1.5"
+			/></svg
+		>
+	</div>
+{/snippet}
+
+{#snippet phone()}
+	<div class="phone">
+		<div class="phone-bar"><span>mdpubs.com/abc123</span></div>
+		<div class="screen" data-k="screen">
+			<article class="doc">
+				<header class="letterhead">
+					<!-- The Cupbots bot face, from cupbots/static/favicon.svg -->
+					<svg viewBox="0 0 100 100" aria-hidden="true"
+						><defs
+							><mask id="cb-eyes"
+								><rect width="100" height="100" fill="white" /><circle
+									cx="50.9"
+									cy="37.9"
+									r="6.25"
+									fill="black"
+								/><circle cx="67.4" cy="35.4" r="6.25" fill="black" /></mask
+							></defs
+						><circle cx="50" cy="50" r="48" fill="#0a0a0a" mask="url(#cb-eyes)" /></svg
+					>
+					<b>Cupbots</b>
+					<span>Proposal</span>
+				</header>
+				<h3>Website redesign for Acme Co</h3>
+				<p class="doc-for">Prepared for Shawn and Matt · {today}</p>
+				<dl>
+					{#each terms as [term, value] (term)}
+						<div>
+							<dt>{term}</dt>
+							<dd>
+								{value}
+							</dd>
+						</div>
+					{/each}
+				</dl>
+				<p class="doc-label">Scope</p>
+				<ul>
+					{#each included as item (item)}
+						<li>{item}</li>
+					{/each}
+				</ul>
+				<div class="signbox" data-k="signbox">
+					<span>Matt, Acme Co</span>
+					<span>✍️ Tap here to sign</span>
+				</div>
+				<div class="signed">
+					<svg viewBox="0 0 300 100" aria-label="Signature of Matt" role="img"><path d={SIG} /></svg
+					>
+					<div class="signed-line">
+						<b>Matt</b><span>Acme Co · {today}</span>
+					</div>
+				</div>
+				<p class="stamp" data-k="stamp">✓ Signed and locked</p>
+			</article>
+			<div class="sigdrawer hide-nojs">
+				<div class="scrim" data-k="scrim"></div>
+				<div class="sheet" data-k="sheet">
+					<div class="grip"></div>
+					<p class="sheet-title">Signing as Matt</p>
+					<p class="sheet-hint">Draw your signature</p>
+					<svg class="pad" data-k="pad" viewBox="0 0 300 100" aria-hidden="true"
+						><path data-k="ink" d={SIG} /></svg
+					>
+					<p class="sheet-name">Matt</p>
+					<div class="sheet-btns">
+						<span>Cancel</span><span class="sign-btn" data-k="signBtn">Sign</span>
+					</div>
+				</div>
+			</div>
+			{@render ghost('finger')}
+		</div>
+	</div>
+{/snippet}
+
+<div class="sdp" bind:this={root}>
 	<!--
-		Hero: copy on the left, the signable phone on the right, so the demo is on
-		the first screen. On a phone the order is copy, phone, then the prompt.
+		Acts 1 to 5 share one pinned stage, so the chat window and the phone are
+		each a single element that carries its state from act to act. Separate
+		scenes would each need their own copy, and the next copy would scroll in
+		from below as the last one left: the same screen, twice.
 	-->
-	<section
-		class="mx-auto grid max-w-6xl grid-cols-1 gap-x-12 gap-y-10 px-6 pt-12 pb-20 md:pt-16 lg:grid-cols-[1fr_390px] lg:items-start"
-	>
-		<div class="lg:pt-6">
-			<p class="font-mono text-xs tracking-widest text-base-content/50 uppercase">
-				E-sign · $20 a month, flat
-			</p>
-
-			<h1 class="mt-5 text-3xl leading-[1.15] font-semibold tracking-tight md:text-5xl">
-				Your AI wrote the contract. Your client signs it on their phone.
-			</h1>
-
-			<p class="mt-6 max-w-xl text-lg leading-relaxed text-base-content/70">
-				$20 a month, flat. No envelopes, no seats, no per-document fees. Clients open a link and
-				sign with a thumb. No account, no app, no printer.
-			</p>
-
-			<div class="mt-8 flex flex-wrap items-center gap-5">
-				<a
-					href={signupHref}
-					class="border border-base-content bg-base-content px-6 py-3 font-mono text-sm text-base-100 transition-colors hover:bg-transparent hover:text-base-content"
-				>
-					Start for $20/mo →
-				</a>
-				<span class="font-mono text-xs text-base-content/50"
-					>Cancel anytime. No yearly contract.</span
-				>
-			</div>
-		</div>
-
-		<div class="lg:row-span-2">
-			<SignPlayground />
-		</div>
-
-		<!-- What the user typed to get the proposal on the phone -->
-		<div class="max-w-xl">
-			<p class="font-mono text-[11px] tracking-wide text-base-content/50 uppercase">
-				You typed this into Claude
-			</p>
-			<p class="mt-2 border border-base-content/15 bg-base-200 p-4 text-[15px] leading-relaxed">
-				Write a proposal for Acme Co: a 4-page site with a blog. $11,000, six weeks, half up front.
-				Jordan Lee signs.
-			</p>
-			<p class="mt-2 text-sm text-base-content/60">It sent back the link on the right.</p>
-		</div>
-	</section>
-
-	<!-- Old way vs mdpubs way -->
-	<section class="border-y border-base-content/15">
-		<div class="mx-auto grid max-w-6xl gap-px bg-base-content/15 md:grid-cols-2">
-			<div class="bg-base-100 px-6 py-12 md:px-10">
-				<p class="font-mono text-xs tracking-widest text-base-content/40 uppercase">
-					The usual e-sign tool
+	<section class="sd-scene act-story" id="story">
+		<div class="sd-stage">
+			<div class="opener">
+				<h1>Write one prompt. <em>Get a signed contract back.</em></h1>
+				<p>
+					$20 a month, flat. No envelope caps, no seat fees. Your client opens a link and signs. No
+					login. Every view is logged.
 				</p>
-				<h2 class="mt-4 text-2xl font-semibold tracking-tight text-base-content/60">
-					Priced per envelope, billed per year
-				</h2>
-				<ul class="mt-6 space-y-4 text-base-content/60">
-					{#each oldWay as item, i (item)}
-						<li class="flex gap-3">
-							<span class="font-mono text-base-content/30">0{i + 1}</span>
-							<span>{item}</span>
-						</li>
-					{/each}
-				</ul>
 			</div>
 
-			<div class="bg-base-100 px-6 py-12 md:px-10">
-				<p class="font-mono text-xs tracking-widest text-base-content/50 uppercase">
-					The mdpubs way
-				</p>
-				<h2 class="mt-4 text-2xl font-semibold tracking-tight">One price. One link.</h2>
-				<ul class="mt-6 space-y-4 text-base-content/80">
-					{#each newWay as item, i (item)}
-						<li class="flex gap-3">
-							<span class="font-mono text-base-content/40">0{i + 1}</span>
-							<span>{item}</span>
-						</li>
-					{/each}
-				</ul>
-			</div>
-		</div>
-	</section>
-
-	<!-- Setup: one path for terminal agents, one for the web apps -->
-	<section class="mx-auto max-w-6xl px-6 py-20">
-		<h2 class="text-2xl font-semibold tracking-tight md:text-3xl">Set up in a minute</h2>
-		<p class="mt-3 max-w-xl text-base-content/70">
-			Use the AI you already have. Three steps either way, and no API key to copy.
-		</p>
-
-		<div class="mt-10 grid gap-px border border-base-content/15 bg-base-content/15 md:grid-cols-2">
-			{#each setupPaths as path (path.name)}
-				<div class="bg-base-100 p-6 md:p-8">
-					<p class="font-mono text-xs tracking-widest text-base-content/50 uppercase">
-						{path.name}
-					</p>
-					<ol class="mt-6 space-y-6">
-						<li class="flex gap-4">
-							<span class="font-mono text-sm text-base-content/40">01</span>
-							<div class="min-w-0 flex-1">
-								<p>{path.first}</p>
-								<code
-									class="mt-2 block overflow-x-auto border border-base-content/15 bg-base-200 p-3 font-mono text-xs whitespace-nowrap select-all"
-									>{path.paste}</code
+			<div class="chatwin sd-paper" data-k="chatwin">
+				<header class="chat-bar"><i></i><i></i><i></i><span>Your AI</span></header>
+				<div class="chat-body">
+					<div class="thread">
+						<p class="bubble" data-k="bubble">{PROMPT}</p>
+						<div class="reply" data-k="reply">
+							<p>Done. The proposal is live and ready for Shawn and Matt to sign.</p>
+							<div class="linkcard" data-k="link">
+								<span class="ico">md</span>
+								<span class="lc-text"
+									><b>Website redesign for Acme Co</b><span>mdpubs.com/abc123</span></span
 								>
 							</div>
-						</li>
-						<li class="flex gap-4">
-							<span class="font-mono text-sm text-base-content/40">02</span>
-							<p>{path.second}</p>
-						</li>
-						<li class="flex gap-4">
-							<span class="font-mono text-sm text-base-content/40">03</span>
-							<p>Ask for it: <em>"Write Acme a proposal and make it signable."</em></p>
-						</li>
-					</ol>
+						</div>
+					</div>
 				</div>
-			{/each}
+				<div class="chat-input" data-k="input">
+					<p class="sd-type" data-k="text">{PROMPT}</p>
+					<div class="sd-caret sd-blink" data-k="caret"></div>
+					<span class="send" data-k="send">↑</span>
+				</div>
+			</div>
+
+			<div class="duo">
+				<div class="side">
+					<div class="captions">
+						<p class="caption" data-k="capOpen">
+							Your client opens the link. <em>No account, no app.</em>
+						</p>
+						<p class="caption" data-k="capSign">They sign it <em>with a thumb.</em></p>
+						<p class="caption" data-k="capLocked">
+							Locked once signed. <em>Every view is logged.</em>
+						</p>
+					</div>
+					<div class="log sd-float" data-k="log">
+						<p class="log-title">Activity</p>
+						<ul>
+							{#each log as [what, who, when] (what + who)}
+								<li data-k="row"><b>{what}</b><span>{who}</span><time>{when}</time></li>
+							{/each}
+						</ul>
+					</div>
+				</div>
+				<div class="phone-fit">{@render phone()}</div>
+			</div>
+
+			{@render ghost('cursor')}
 		</div>
 	</section>
 
-	<!-- Pricing -->
-	<section id="pricing" class="border-t border-base-content/15 bg-base-200">
-		<div class="mx-auto max-w-6xl px-6 py-20">
-			<h2 class="text-2xl font-semibold tracking-tight md:text-3xl">Pricing</h2>
-			<p class="mt-3 max-w-xl text-base-content/70">One signed proposal pays for a year of it.</p>
-
-			<div
-				class="mt-10 grid gap-px border border-base-content/15 bg-base-content/15 md:grid-cols-2"
-			>
-				<div class="flex flex-col bg-base-100 p-8">
-					<p class="font-mono text-xs tracking-widest text-base-content/50 uppercase">Monthly</p>
-					<p class="mt-4 text-4xl font-semibold tracking-tight">
-						$20<span class="font-mono text-base font-normal text-base-content/50">/mo</span>
+	<!-- One price: the headline parts and the rest swings in -->
+	<section class="sd-scene act-more" id="more">
+		<div class="sd-stage">
+			<h2><span data-k="w1">One</span><span data-k="w2">price.</span></h2>
+			<div class="cards">
+				{#each cards as runs, i (i)}
+					<p class="feat sd-float">
+						{#each runs as [text, accent], j (j)}{#if accent}<em>{text}</em
+								>{:else}{text}{/if}{/each}
 					</p>
-					<p class="mt-2 font-mono text-xs text-base-content/50">Billed monthly. Cancel anytime.</p>
-					<ul class="mt-6 flex-1 space-y-3 text-sm text-base-content/80">
-						<li class="flex gap-3">
-							<span class="text-base-content/40">—</span> No envelope caps, no seat fees
-						</li>
-						<li class="flex gap-3">
-							<span class="text-base-content/40">—</span> Locked once signed
-						</li>
-						<li class="flex gap-3">
-							<span class="text-base-content/40">—</span> Audit log of every view and signature
-						</li>
-						<li class="flex gap-3">
-							<span class="text-base-content/40">—</span> Custom branded domain
-						</li>
-						<li class="flex gap-3"><span class="text-base-content/40">—</span> Parallel signers</li>
-					</ul>
-					<a
-						href={signupHref}
-						class="mt-8 border border-base-content px-6 py-3 text-center font-mono text-sm transition-colors hover:bg-base-content hover:text-base-100"
-					>
-						Start monthly
-					</a>
-				</div>
-
-				<div class="flex flex-col bg-base-100 p-8">
-					<p class="font-mono text-xs tracking-widest text-base-content/50 uppercase">Annual</p>
-					<p class="mt-4 text-4xl font-semibold tracking-tight">
-						$190<span class="font-mono text-base font-normal text-base-content/50">/yr</span>
-					</p>
-					<!-- $20 x 12 = $240, so $190 is $50 off. Stated as the saving rather than
-						 "N months free", which would not be a whole number of months. -->
-					<p class="mt-2 font-mono text-xs text-base-content/50">
-						Save $50 against paying monthly.
-					</p>
-					<ul class="mt-6 flex-1 space-y-3 text-sm text-base-content/80">
-						<li class="flex gap-3">
-							<span class="text-base-content/40">—</span> Everything in monthly
-						</li>
-						<li class="flex gap-3">
-							<span class="text-base-content/40">—</span> One invoice a year
-						</li>
-					</ul>
-					<a
-						href={signupHref}
-						class="mt-8 border border-base-content bg-base-content px-6 py-3 text-center font-mono text-sm text-base-100 transition-colors hover:bg-transparent hover:text-base-content"
-					>
-						Start annual
-					</a>
-				</div>
+				{/each}
 			</div>
 		</div>
 	</section>
 
-	<!-- Closing CTA -->
-	<section class="mx-auto max-w-6xl px-6 py-20 text-center">
-		<h2 class="text-2xl font-semibold tracking-tight md:text-3xl">
-			Your next contract is one prompt.
-		</h2>
-		<a
-			href={signupHref}
-			class="mt-8 inline-block border border-base-content bg-base-content px-8 py-3 font-mono text-sm text-base-100 transition-colors hover:bg-transparent hover:text-base-content"
-		>
-			Start for $20/mo →
-		</a>
+	<section class="setup">
+		<h2>Set up in a minute</h2>
+		<p class="setup-sub">Use the AI you already have. No API key to copy.</p>
+		<ol>
+			<li>
+				<span class="n">01</span>
+				<div class="step">
+					<div class="tabs" role="tablist">
+						{#each setupPaths as path, i (path.name)}
+							<button
+								role="tab"
+								aria-selected={tab === i}
+								class:on={tab === i}
+								onclick={() => (tab = i)}>{path.name}</button
+							>
+						{/each}
+					</div>
+					<p>{setupPaths[tab].first}</p>
+					<code>{setupPaths[tab].paste}</code>
+				</div>
+			</li>
+			<li>
+				<span class="n">02</span>
+				<p class="step">Log in when it asks.</p>
+			</li>
+			<li>
+				<span class="n">03</span>
+				<p class="step">
+					Ask for it: <em>"Publish this proposal to mdpubs for my client to sign."</em>
+				</p>
+			</li>
+		</ol>
 	</section>
 
-	<footer class="border-t border-base-content/15">
-		<div
-			class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-10 font-mono text-xs text-base-content/50"
-		>
-			<p>
-				&copy; {new Date().getFullYear()} MdPubs, built by
-
-				<a href="https://x.com/me_sshawn" target="_blank" class="underline underline-offset-4"
-					>Shawn</a
+	<section class="sd-scene act-cta" id="start">
+		<div class="sd-stage">
+			<div class="cta-inner">
+				<a href={signupHref}
+					><span class="w">Start</span> <span class="w">for</span>
+					<span class="w">$20/mo</span> <span class="w">→</span></a
 				>
-
-				.
-			</p>
-			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-			<a href={config.git} class="underline underline-offset-4">Docs</a>
+				<p>
+					<span class="w">Cancel</span> <span class="w">anytime.</span>
+				</p>
+				<p class="small"><span class="w">Or $190 a year, $50 less.</span></p>
+			</div>
 		</div>
+	</section>
+
+	<footer>
+		<p>
+			&copy; {new Date().getFullYear()} MdPubs, built by
+			<a href="https://x.com/me_sshawn" target="_blank">Shawn</a>.
+		</p>
+		<FeedbackWidget
+			bind:message={feedbackMessage}
+			bind:email={feedbackEmail}
+			bind:name={feedbackName}
+			variant="footer"
+		/>
 	</footer>
 </div>
 
 <style>
+	.sdp {
+		--sd-accent: oklch(45% 0.24 277);
+		--sd-font-display: 'Inter', system-ui, sans-serif;
+		--sd-font-text: 'Inter', system-ui, sans-serif;
+		--sd-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+		--phone-w: 340px;
+		--phone-h: 660px;
+		background: var(--sd-canvas);
+		color: var(--sd-ink);
+		font-family: var(--sd-font-text);
+	}
+
 	/*
-		Scope JetBrains Mono to this page's monospace accents. Setting it on the
-		Tailwind theme would repoint `font-mono` across the whole app, including the
-		code blocks and API keys in the dashboard, which do not load the font.
-		`:global` is needed because the rule has to reach the child component's
-		monospace text too.
+		Everything below is global but held under .sdp: the scroll engine toggles
+		classes and data attributes Svelte can't see, and scoped selectors for them
+		would be pruned as unused.
 	*/
-	.landing :global(.font-mono),
-	.landing :global(code),
-	.landing :global(pre) {
-		font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+	.sdp :global {
+		/*
+			Acts 1 to 5 in one scene. Budgets: hero 1200px, prompt 2600, open 1800,
+			sign 4000, locked 1400. mdpubs-demo.js splits the timeline the same way.
+		*/
+		.act-story {
+			height: calc(100lvh + 11000px);
+		}
+		.opener {
+			place-self: start center;
+			display: grid;
+			justify-items: center;
+			gap: 20px;
+			padding: 14lvh 16px 0;
+			text-align: center;
+		}
+		.opener h1 {
+			font: 600 clamp(32px, 5vw, 64px) / 1.06 var(--sd-font-display);
+			letter-spacing: -0.02em;
+			max-width: 17ch;
+		}
+		.opener p {
+			max-width: 46ch;
+			font-size: clamp(16px, 1.5vw, 19px);
+			line-height: 1.5;
+			color: var(--sd-ink-soft);
+		}
+		.act-story .chatwin,
+		.act-story .phone {
+			translate: 0 100lvh;
+		}
+
+		/* The chat window, shared by acts 1 to 3 */
+		.chatwin {
+			width: min(92vw, 880px);
+			height: min(80lvh, 620px);
+			border-radius: 18px;
+			overflow: hidden;
+			display: grid;
+			grid-template-rows: auto 1fr auto;
+		}
+		.chat-bar {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			padding: 12px 16px;
+			border-bottom: 1px solid var(--sd-hairline);
+			font-size: 13px;
+			color: var(--sd-ink-soft);
+		}
+		.chat-bar i {
+			width: 10px;
+			height: 10px;
+			border-radius: 50%;
+			background: #e5e5e5;
+		}
+		.chat-bar span {
+			margin-left: 10px;
+		}
+		.chat-body {
+			display: grid;
+			padding: 24px clamp(16px, 5vw, 56px);
+			overflow: hidden;
+			min-height: 0;
+		}
+		.chat-body > * {
+			grid-area: 1 / 1;
+		}
+		.thread {
+			align-self: end;
+			display: grid;
+			gap: 16px;
+			font-size: 15px;
+			line-height: 1.5;
+		}
+		.bubble {
+			justify-self: end;
+			max-width: min(520px, 85%);
+			background: #f1f1f1;
+			padding: 12px 16px;
+			border-radius: 18px 18px 4px 18px;
+		}
+		.reply {
+			max-width: min(520px, 92%);
+			display: grid;
+			gap: 10px;
+		}
+		.linkcard {
+			display: flex;
+			gap: 12px;
+			align-items: center;
+			padding: 12px 14px;
+			border-radius: 12px;
+			background: var(--sd-paper);
+			box-shadow: var(--sd-shadow);
+			transition: scale 0.12s;
+		}
+		.linkcard.is-pressed {
+			scale: 0.97;
+		}
+		.linkcard .ico {
+			flex: none;
+			width: 36px;
+			height: 36px;
+			border-radius: 9px;
+			background: var(--sd-ink);
+			color: #fff;
+			display: grid;
+			place-items: center;
+			font: 500 13px var(--sd-font-mono);
+		}
+		.lc-text b {
+			display: block;
+			font-size: 14px;
+			font-weight: 600;
+		}
+		.lc-text span {
+			font: 12px var(--sd-font-mono);
+			color: var(--sd-ink-soft);
+		}
+		.chat-input {
+			position: relative;
+			display: grid;
+			margin: 0 clamp(12px, 3vw, 24px) clamp(12px, 3vw, 24px);
+			border: 1px solid var(--sd-hairline);
+			border-radius: 16px;
+			padding: 14px 56px 14px 16px;
+			min-height: 76px;
+			font-size: 16px;
+			line-height: 1.5;
+		}
+		.chat-input > p {
+			grid-area: 1 / 1;
+		}
+		.send {
+			position: absolute;
+			right: 12px;
+			bottom: 12px;
+			width: 34px;
+			height: 34px;
+			border-radius: 50%;
+			background: #d4d4d4;
+			color: #fff;
+			display: grid;
+			place-items: center;
+			font-weight: 600;
+			transition:
+				background 0.15s,
+				scale 0.12s;
+		}
+		.send.is-ready {
+			background: var(--sd-ink);
+		}
+		.send.is-pressed {
+			scale: 0.86;
+		}
+		.chatwin.is-sent .chat-input .sd-type,
+		.chatwin.is-sent .chat-input .sd-caret {
+			visibility: hidden;
+		}
+		.act-story .bubble,
+		.act-story .reply,
+		.act-story .linkcard {
+			opacity: 0;
+		}
+
+		/* Caption + phone, acts 3 to 5 */
+		.duo {
+			display: grid;
+			grid-template-columns: minmax(0, 420px) var(--phone-w);
+			gap: clamp(32px, 7vw, 120px);
+			align-items: center;
+		}
+		.caption {
+			font: 600 clamp(24px, 2.8vw, 42px) / 1.12 var(--sd-font-display);
+			letter-spacing: -0.02em;
+			opacity: 0;
+		}
+		.phone-fit {
+			width: var(--phone-w);
+			height: var(--phone-h);
+			perspective: 1100px;
+			transform-origin: 50% 0;
+		}
+
+		/* The phone, rebuilt from SignPlayground */
+		.phone {
+			width: 100%;
+			height: 100%;
+			display: flex;
+			flex-direction: column;
+			background: #fff;
+			border: 8px solid #111;
+			border-radius: 46px;
+			overflow: hidden;
+			box-shadow: var(--sd-shadow-lift);
+			transform-style: preserve-3d;
+		}
+		.phone-bar {
+			display: flex;
+			justify-content: center;
+			padding: 14px 22px 6px;
+		}
+		.phone-bar span {
+			padding: 4px 12px;
+			border-radius: 99px;
+			background: #f3f4f6;
+			font: 11px var(--sd-font-mono);
+			color: #6b7280;
+		}
+		.screen {
+			position: relative;
+			flex: 1;
+			overflow: hidden;
+		}
+		.doc {
+			padding: 18px 24px 24px;
+			color: #1f2937;
+			font-size: 13.5px;
+			line-height: 1.5;
+		}
+		.letterhead {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			padding-bottom: 14px;
+			border-bottom: 1px solid #111827;
+		}
+		.letterhead svg {
+			width: 22px;
+			height: 22px;
+		}
+		.letterhead b {
+			font-size: 14px;
+			font-weight: 600;
+			letter-spacing: -0.01em;
+			color: #111827;
+		}
+		.letterhead span,
+		.doc-label {
+			font-size: 10px;
+			font-weight: 500;
+			letter-spacing: 0.12em;
+			text-transform: uppercase;
+			color: #9ca3af;
+		}
+		.letterhead span {
+			margin-left: auto;
+		}
+		.doc h3 {
+			margin-top: 22px;
+			font-size: 20px;
+			font-weight: 600;
+			line-height: 1.25;
+			letter-spacing: -0.015em;
+			text-wrap: balance;
+			color: #111827;
+		}
+		.doc-for {
+			margin-top: 6px;
+			font-size: 12px;
+			color: #6b7280;
+		}
+		.doc dl {
+			margin: 20px 0 0;
+			border-block: 1px solid #e5e7eb;
+		}
+		.doc dl > div {
+			display: flex;
+			justify-content: space-between;
+			gap: 16px;
+			padding: 8px 0;
+		}
+		.doc dl > div + div {
+			border-top: 1px solid #e5e7eb;
+		}
+		.doc dt {
+			color: #6b7280;
+		}
+		.doc dd {
+			margin: 0;
+			text-align: right;
+			font-weight: 500;
+			color: #111827;
+		}
+		.doc-label {
+			margin-top: 20px;
+		}
+		.doc ul {
+			margin: 8px 0 0;
+			padding: 0;
+			list-style: none;
+			display: grid;
+			gap: 6px;
+		}
+		.doc li {
+			padding-left: 12px;
+			border-left: 1px solid #e5e7eb;
+		}
+		.signbox {
+			margin-top: 20px;
+			display: grid;
+			gap: 4px;
+			padding: 14px 16px;
+			border: 1.5px dashed #9ca3af;
+			border-radius: 8px;
+			transition:
+				background 0.12s,
+				scale 0.12s;
+		}
+		.signbox.is-pressed {
+			background: #f3f4f6;
+			scale: 0.98;
+		}
+		.signbox span:first-child {
+			font-size: 11px;
+			font-weight: 500;
+			letter-spacing: 0.06em;
+			text-transform: uppercase;
+			color: #6b7280;
+		}
+		.signed {
+			margin-top: 16px;
+			max-width: 240px;
+		}
+		.signed svg {
+			display: block;
+			width: 150px;
+			height: 50px;
+		}
+		.signed path,
+		.pad path {
+			fill: none;
+			stroke: #111827;
+			stroke-width: 2.4;
+			stroke-linecap: round;
+			stroke-linejoin: round;
+		}
+		.signed-line {
+			display: grid;
+			border-top: 2px dotted #9ca3af;
+			padding-top: 4px;
+		}
+		.signed-line b {
+			font-size: 14px;
+			font-weight: 500;
+			color: #111827;
+		}
+		.signed-line span {
+			font-size: 12px;
+			color: #6b7280;
+		}
+		.stamp {
+			display: inline-block;
+			margin-top: 14px;
+			padding: 4px 12px;
+			border: 1.5px solid var(--sd-accent);
+			border-radius: 99px;
+			color: var(--sd-accent);
+			font-size: 12px;
+			font-weight: 600;
+		}
+		.phone:not(.is-signed) .signed,
+		.phone:not(.is-signed) .stamp,
+		.phone.is-signed .signbox {
+			display: none;
+		}
+		.sigdrawer {
+			position: absolute;
+			inset: 0;
+			pointer-events: none;
+		}
+		.scrim {
+			position: absolute;
+			inset: 0;
+			background: rgb(17 24 39 / 0.4);
+			opacity: 0;
+		}
+		.sheet {
+			position: absolute;
+			inset: auto 0 0;
+			padding: 14px 16px 18px;
+			background: #fff;
+			border-top: 1px solid #d1d5db;
+			border-radius: 18px 18px 0 0;
+			box-shadow: 0 -8px 24px rgb(0 0 0 / 0.12);
+			translate: 0 101%;
+			font-size: 13px;
+		}
+		.grip {
+			width: 40px;
+			height: 4px;
+			margin: 0 auto 12px;
+			border-radius: 4px;
+			background: #d1d5db;
+		}
+		.sheet-title {
+			font-size: 14px;
+			font-weight: 600;
+			color: #111827;
+		}
+		.sheet-hint {
+			margin: 8px 0 6px;
+			font-size: 12px;
+			color: #4b5563;
+		}
+		.pad {
+			display: block;
+			width: 100%;
+			aspect-ratio: 3 / 1;
+			border: 1px dashed #d1d5db;
+			border-radius: 10px;
+			background: #f9fafb;
+		}
+		.sheet-name {
+			margin-top: 8px;
+			padding: 8px 12px;
+			border: 1px solid #d1d5db;
+			border-radius: 10px;
+			color: #111827;
+		}
+		.sheet-btns {
+			display: flex;
+			gap: 8px;
+			margin-top: 10px;
+		}
+		.sheet-btns span {
+			flex: 1;
+			padding: 8px;
+			border: 1px solid #d1d5db;
+			border-radius: 10px;
+			text-align: center;
+			color: #374151;
+		}
+		.sheet-btns .sign-btn {
+			background: #111827;
+			border-color: #111827;
+			color: #fff;
+			font-weight: 500;
+			transition: scale 0.12s;
+		}
+		.sign-btn.is-pressed {
+			scale: 0.94;
+		}
+
+		/* A finger, for the phone acts */
+		.sd-cursor[data-mode='touch'] {
+			width: 32px;
+			height: 32px;
+			margin: -16px 0 0 -16px;
+			filter: none;
+		}
+		.sd-cursor[data-mode='touch'] .c-touch {
+			display: block;
+		}
+
+		/* Captions cross-fade in one cell; the log hangs below without moving them */
+		.side {
+			position: relative;
+		}
+		.captions {
+			display: grid;
+		}
+		.captions > * {
+			grid-area: 1 / 1;
+		}
+		.log {
+			position: absolute;
+			top: calc(100% + 28px);
+			left: 0;
+			right: 0;
+			padding: 18px 20px;
+			opacity: 0;
+		}
+		.log-title {
+			font: 500 11px var(--sd-font-mono);
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+			color: var(--sd-ink-soft);
+		}
+		.log ul {
+			margin: 10px 0 0;
+			padding: 0;
+			list-style: none;
+		}
+		.log li {
+			display: grid;
+			grid-template-columns: 64px 1fr auto;
+			gap: 12px;
+			padding: 9px 0;
+			font-size: 14px;
+			opacity: 0;
+		}
+		.log li + li {
+			border-top: 1px solid var(--sd-hairline);
+		}
+		.log li span {
+			color: var(--sd-ink-soft);
+		}
+		.log time {
+			font: 12px var(--sd-font-mono);
+			color: var(--sd-ink-soft);
+		}
+
+		/* Act 6 */
+		.act-more {
+			height: calc(100lvh + 2000px);
+		}
+		.act-more h2 {
+			display: flex;
+			gap: 0.25em;
+			font-size: clamp(56px, 10vw, 150px);
+		}
+		.cards {
+			display: flex;
+			gap: 18px;
+			perspective: 900px;
+		}
+		.feat {
+			width: min(70vw, 21vw, 250px);
+			padding: 22px;
+			border-radius: 10px;
+			font-size: 16px;
+			line-height: 1.4;
+			opacity: 0;
+		}
+
+		/* Setup: a plain section, no scroll scene */
+		.setup {
+			max-width: 640px;
+			margin: 0 auto;
+			padding: 120px 16px;
+		}
+		.setup h2 {
+			font: 600 clamp(28px, 3.6vw, 44px) / 1.1 var(--sd-font-display);
+			letter-spacing: -0.02em;
+		}
+		.setup-sub {
+			margin-top: 10px;
+			color: var(--sd-ink-soft);
+		}
+		.setup ol {
+			margin: 40px 0 0;
+			padding: 0;
+			list-style: none;
+			display: grid;
+			gap: 28px;
+		}
+		.setup li {
+			display: flex;
+			gap: 16px;
+		}
+		.setup .n {
+			font: 14px var(--sd-font-mono);
+			color: var(--sd-ink-soft);
+		}
+		.setup .step {
+			flex: 1;
+			min-width: 0;
+		}
+		.tabs {
+			display: flex;
+			gap: 4px;
+			margin-bottom: 14px;
+		}
+		.tabs button {
+			padding: 6px 12px;
+			border: 1px solid var(--sd-hairline);
+			border-radius: 99px;
+			background: none;
+			font: 12px var(--sd-font-mono);
+			color: var(--sd-ink-soft);
+			cursor: pointer;
+		}
+		.tabs button.on {
+			background: var(--sd-ink);
+			border-color: var(--sd-ink);
+			color: #fff;
+		}
+		.setup code {
+			display: block;
+			margin-top: 8px;
+			padding: 12px 14px;
+			overflow-x: auto;
+			white-space: nowrap;
+			border: 1px solid var(--sd-hairline);
+			border-radius: 10px;
+			background: var(--sd-paper);
+			font: 13px var(--sd-font-mono);
+			user-select: all;
+		}
+
+		/* Close */
+		.act-cta {
+			height: calc(100lvh + 600px);
+		}
+		.cta-inner {
+			display: grid;
+			gap: 8px;
+			text-align: center;
+			padding: 0 16px;
+		}
+		.cta-inner a {
+			font: 600 clamp(32px, 4.6vw, 60px) / 1.1 var(--sd-font-display);
+			letter-spacing: -0.02em;
+			color: var(--sd-accent);
+			text-decoration: none;
+		}
+		.cta-inner p {
+			font-size: clamp(20px, 2.6vw, 32px);
+			font-weight: 500;
+		}
+		.cta-inner .small {
+			margin-top: 8px;
+			font: 14px var(--sd-font-mono);
+			color: var(--sd-ink-soft);
+		}
+		.act-cta .w {
+			display: inline-block;
+			opacity: 0;
+		}
+
+		footer {
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: space-between;
+			gap: 16px;
+			padding: 40px 24px;
+			border-top: 1px solid var(--sd-hairline);
+			font: 12px var(--sd-font-mono);
+			color: var(--sd-ink-soft);
+		}
+		footer a {
+			text-decoration: underline;
+			text-underline-offset: 4px;
+		}
+	}
+
+	@media (max-width: 760px) {
+		.sdp :global {
+			.chatwin {
+				height: min(82lvh, 640px);
+			}
+			.chat-bar span {
+				margin-left: 6px;
+			}
+			.duo {
+				grid-template-columns: 1fr;
+				justify-items: center;
+				align-content: start;
+				align-self: start;
+				gap: 18px;
+				padding-top: 5lvh;
+			}
+			.caption {
+				max-width: 20ch;
+				text-align: center;
+				font-size: 24px;
+			}
+			.side {
+				display: contents;
+			}
+			.captions {
+				order: -1;
+			}
+			.log {
+				top: auto;
+				z-index: 2;
+				left: 16px;
+				right: 16px;
+				bottom: 3lvh;
+			}
+			.cards {
+				flex-direction: column;
+				gap: 10px;
+			}
+			.feat {
+				width: min(84vw, 340px);
+				padding: 14px 16px;
+			}
+		}
 	}
 </style>

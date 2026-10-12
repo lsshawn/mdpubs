@@ -7,12 +7,12 @@
 		KeyRound,
 		LogOut,
 		Menu,
-		Pencil,
 		Settings,
 		Users
 	} from 'lucide-svelte';
 	import { navigating, page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import Logo from '#lib/components/Logo.svelte';
 	import CompanySwitcher from '#lib/components/CompanySwitcher.svelte';
 	import FeedbackWidget from '#lib/components/FeedbackWidget.svelte';
 	import type { LayoutData } from './$types';
@@ -115,9 +115,8 @@
 			<label for="dashboard-drawer" class="btn btn-ghost btn-sm" aria-label="Open menu">
 				<Menu class="h-5 w-5" />
 			</label>
-			<a href="/notes" class="flex items-center gap-2">
-				<Pencil class="h-5 w-5 text-primary" />
-				<span class="font-bold">MdPubs</span>
+			<a href="/notes" class="flex items-center">
+				<Logo class="h-7 w-auto" />
 			</a>
 			<!--
 				Feedback lives here on mobile rather than as a floating button: the FAB
@@ -164,9 +163,8 @@
 		<label for="dashboard-drawer" aria-label="Close menu" class="drawer-overlay"></label>
 
 		<aside class="flex h-full w-72 flex-col border-r border-base-300 bg-base-100">
-			<div class="flex items-center gap-2 px-4 py-4">
-				<Pencil class="h-6 w-6 text-primary" />
-				<span class="text-lg font-bold">MdPubs</span>
+			<div class="flex items-center px-4 py-4">
+				<Logo class="h-8 w-auto" />
 			</div>
 
 			<!-- Company switcher (Personal + every org the user belongs to). -->

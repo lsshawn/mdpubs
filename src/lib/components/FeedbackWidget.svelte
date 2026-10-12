@@ -17,8 +17,10 @@
 		 * `navbar` renders just the trigger, sized to sit inline in a mobile top
 		 * bar — on a phone the FAB covered content and sat over the browser's own
 		 * bottom chrome, so it moves into the navbar instead.
+		 * `footer` is the same inline trigger for the bottom of a page, so its
+		 * panel opens upward.
 		 */
-		variant?: 'floating' | 'navbar';
+		variant?: 'floating' | 'navbar' | 'footer';
 	} = $props();
 
 	let isSignedIn = $derived(!!page.data.user?.email);
@@ -112,7 +114,7 @@
 	same panel markup — only the wrapper positioning differs.
 -->
 <div
-	class={variant === 'navbar'
+	class={variant !== 'floating'
 		? 'relative flex flex-col items-end'
 		: 'fixed right-4 bottom-4 z-50 hidden flex-col items-end md:flex'}
 >
@@ -121,7 +123,9 @@
 			class="bg-base-100 w-80 rounded-lg border border-base-300 p-4 shadow-lg sm:w-96 {variant ===
 			'navbar'
 				? 'absolute top-full right-0 z-50 mt-2 max-w-[calc(100vw-2rem)]'
-				: 'mb-2'}"
+				: variant === 'footer'
+					? 'absolute right-0 bottom-full z-50 mb-2 max-w-[calc(100vw-2rem)]'
+					: 'mb-2'}"
 			transition:scale={{ duration: 150, start: 0.95 }}
 		>
 			{#if status === 'success'}
@@ -213,7 +217,7 @@
 	{/if}
 
 	<button
-		class="btn btn-primary btn-sm inline-grid place-items-center {variant === 'navbar'
+		class="btn btn-primary btn-sm inline-grid place-items-center {variant !== 'floating'
 			? 'w-20'
 			: 'w-24 shadow-lg'}"
 		onclick={toggle}

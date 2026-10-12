@@ -1,12 +1,12 @@
 <script lang="ts">
 	import '../app.css';
-	import { CircleUser, Pencil } from 'lucide-svelte';
 	import type { LayoutData, Snapshot } from './$types';
 	import { config } from '#lib/config.js';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import type { Snippet } from 'svelte';
 	import FeedbackWidget from '#lib/components/FeedbackWidget.svelte';
+	import Logo from '#lib/components/Logo.svelte';
 	let { data, children }: { data: LayoutData; children: Snippet } = $props();
 
 	// Site-wide fallback OG image for routes that don't supply their own meta.
@@ -53,7 +53,10 @@
 			— Discord et al. then render both. The note view owns its meta, so skip the
 			site-wide set there.
 		-->
-		<meta name="description" content={config.description} />
+		<!-- The landing page writes its own description. -->
+		{#if page.route.id !== '/(public)'}
+			<meta name="description" content={config.description} />
+		{/if}
 
 		<!-- Search engine indexing control -->
 		<meta name="robots" content="index, follow" />
@@ -78,41 +81,34 @@
 	{#if !hideSiteChrome}
 		<header class="navbar shadow-sm md:px-8">
 			<div class="flex flex-1">
-				<a href={resolve('/(public)')} role="button" class="flex gap-2">
-					<Pencil class="h-8 w-8 text-primary" />
-					<span class="text-2xl font-bold text-base-content">MdPubs</span>
+				<a href={resolve('/(public)')} class="flex items-center text-base-content">
+					<Logo class="h-11 w-auto" />
 				</a>
 			</div>
 			<div class="flex items-center gap-2">
-				<!-- Mobile-only: the floating widget is suppressed below `md`. -->
-				<div class="md:hidden">
-					<FeedbackWidget bind:message bind:email bind:name variant="navbar" />
-				</div>
-				<a
-					href={resolve('notes')}
-					role="button"
-					class={page.url.pathname.startsWith('/notes')
-						? 'btn btn-ghost text-primary'
-						: 'btn btn-ghost text-base-content'}
-				>
-					Notes
-				</a>
-				<a
-					href={resolve('account')}
-					role="button"
-					class={page.url.pathname.startsWith('/account') || page.url.pathname.startsWith('/login')
-						? 'text-primary'
-						: 'text-base-content'}
-				>
-					<CircleUser class="h-8 w-8" />
-				</a>
+				<!-- Mobile-only: the floating widget is suppressed below `md`. The
+					landing page has its own in the footer; login has none. -->
+				{#if page.route.id !== '/(public)' && page.route.id !== '/(public)/login'}
+					<div class="md:hidden">
+						<FeedbackWidget bind:message bind:email bind:name variant="navbar" />
+					</div>
+				{/if}
+				{#if data.user}
+					<a href={resolve('account')} class="btn btn-sm btn-ghost">My account</a>
+				{:else if page.route.id !== '/(public)/login'}
+					<!-- `!`: the landing page's scrolldemo.css sets an unlayered `a { color: inherit }`. -->
+					<a href={resolve('login')} class="btn btn-sm btn-neutral text-neutral-content!"
+						>Start now</a
+					>
+				{/if}
 			</div>
 		</header>
 	{/if}
 	<main class="flex-1">
 		{@render children()}
 	</main>
-	{#if page.route.id !== '/(public)/[id]'}
+	<!-- The landing page puts its feedback button in its own footer instead. -->
+	{#if !['/(public)/[id]', '/(public)', '/(public)/login'].includes(page.route.id ?? '')}
 		<!--
 			Floating variant is desktop-only — the component hides its own root below
 			`md`. On mobile the trigger lives in the navbar instead (public navbar
