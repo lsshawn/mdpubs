@@ -11,8 +11,8 @@
 	let { data, children }: { data: LayoutData; children: Snippet } = $props();
 
 	// Site-wide fallback OG image for routes that don't supply their own meta.
-	// Use the 1200x630 card (the standard aspect ratio Discord/Slack/Twitter
-	// expect); `ogimage.webp` is 1200x684 and gets cropped oddly. Pages that own
+	// The 1200x630 card (the aspect ratio Discord/Slack/Twitter expect), a saved
+	// render of /api/og/default.png. Pages that own
 	// their meta (e.g. the public note view) render their own og:image and this
 	// block is skipped for them below.
 	let ogImage = $derived(`${page.url.origin}/og-default.png`);
