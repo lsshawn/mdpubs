@@ -8,6 +8,6 @@
 	<title>Sign in · mdpubs</title>
 </svelte:head>
 
-<div class="flex min-h-[calc(100svh-4rem)] items-center justify-center px-4 py-16">
+<div class="flex min-h-svh items-center justify-center px-4 py-16">
 	<LoginForm redirectTo={data.redirectTo} />
 </div>

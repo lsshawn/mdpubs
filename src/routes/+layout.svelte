@@ -19,11 +19,13 @@
 	/**
 	 * Logged-in routes render their own dashboard shell (sidebar + mobile top bar)
 	 * in src/routes/(app)/+layout.svelte, so the public navbar is suppressed there
-	 * to avoid two stacked headers. The public note view (/(public)/[id]) has
-	 * always opted out of the navbar too.
+	 * to avoid two stacked headers. The public note view (/(public)/[id]) and the
+	 * login screen opt out of the navbar too.
 	 */
 	let hideSiteChrome = $derived(
-		page.route.id === '/(public)/[id]' || page.route.id?.startsWith('/(app)') === true
+		page.route.id === '/(public)/[id]' ||
+			page.route.id === '/(public)/login' ||
+			page.route.id?.startsWith('/(app)') === true
 	);
 
 	let message = $state('');
