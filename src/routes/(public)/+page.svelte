@@ -11,10 +11,13 @@
 	 * server, and its global stylesheet is only on the page while this route is.
 	 */
 	import { onMount } from 'svelte';
-	import { resolve } from '$app/paths';
 	import FeedbackWidget from '#lib/components/FeedbackWidget.svelte';
+	import { config } from '#lib/config.js';
+	import { checkoutHref } from '#lib/helpers/checkout.js';
 
-	const signupHref = resolve('login');
+	// Every CTA on this page goes straight to Stripe monthly checkout, in the same
+	// window, rather than via /login. Falls back to /login if the link is unset.
+	const signupHref = checkoutHref(config.stripePaymentLinks.monthly.link);
 
 	const FONTS_URL =
 		'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap';
@@ -238,10 +241,12 @@
 						<li>{item}</li>
 					{/each}
 				</ul>
-				<div class="signbox" data-k="signbox">
+				<!-- A real button: the demo JS opens the signing drawer on tap, so a
+					 visitor can try signing without scrolling the demo to that act. -->
+				<button class="signbox" type="button" data-k="signbox">
 					<span>Matt, Acme Co</span>
 					<span>✍️ Tap here to sign</span>
-				</div>
+				</button>
 				<div class="signed">
 					<svg viewBox="0 0 300 100" aria-label="Signature of Matt" role="img"><path d={SIG} /></svg
 					>
@@ -262,7 +267,11 @@
 					>
 					<p class="sheet-name">Matt</p>
 					<div class="sheet-btns">
-						<span>Cancel</span><span class="sign-btn" data-k="signBtn">Sign</span>
+						<button type="button" data-k="cancelBtn">Cancel</button><button
+							type="button"
+							class="sign-btn"
+							data-k="signBtn">Sign</button
+						>
 					</div>
 				</div>
 			</div>
@@ -286,6 +295,12 @@
 					$20 a month, flat. No envelope caps, no seat fees. Your client opens a link and signs. No
 					login. Every view is logged.
 				</p>
+				<!--
+					Above the fold, before the demo starts: a visitor who is already sold
+					should not have to scroll 11000px to find the price.
+				-->
+				<a class="hero-cta" href={signupHref}>Start for $20/mo →</a>
+				<p class="hero-note">No account needed for clients. Cancel anytime.</p>
 			</div>
 
 			<div class="chatwin sd-paper" data-k="chatwin">
@@ -335,6 +350,33 @@
 			</div>
 
 			{@render ghost('cursor')}
+		</div>
+	</section>
+
+	<!--
+		The contrast, in plain sections after the demo: what signing costs today,
+		and what it costs here. A static block on purpose — it is the one part of
+		the page a visitor should be able to read without waiting for an animation.
+	-->
+	<section class="contrast">
+		<h2>Two ways to get this signed</h2>
+		<div class="contrast-cards">
+			<div class="con con-old">
+				<p class="con-tag">The old way</p>
+				<p class="con-name">DocuSign &amp; PDF</p>
+				<p class="con-body">
+					<em>$40/mo per seat</em>, envelope limits. Client pinches and zooms an unreadable PDF on a
+					phone, delays 4 days to sign on desktop.
+				</p>
+			</div>
+			<div class="con con-new">
+				<p class="con-tag">The MdPubs way</p>
+				<p class="con-name">MdPubs</p>
+				<p class="con-body">
+					<em>Flat $20/mo.</em> Client opens a clean web link and signs with a thumb in 8 seconds. Audit-locked
+					instantly.
+				</p>
+			</div>
 		</div>
 	</section>
 
@@ -446,9 +488,13 @@
 			place-self: start center;
 			display: grid;
 			justify-items: center;
-			gap: 20px;
+			/* The CTA and its microcopy sit tighter than headline-to-subhead. */
+			gap: 14px;
 			padding: 14lvh 16px 0;
 			text-align: center;
+		}
+		.opener h1 + p {
+			margin-bottom: 6px;
 		}
 		.opener h1 {
 			font: 600 clamp(32px, 5vw, 64px) / 1.06 var(--sd-font-display);
@@ -459,6 +505,32 @@
 			max-width: 46ch;
 			font-size: clamp(16px, 1.5vw, 19px);
 			line-height: 1.5;
+			color: var(--sd-ink-soft);
+		}
+		.hero-cta {
+			margin-top: 4px;
+			padding: 15px 30px;
+			border-radius: 99px;
+			background: var(--sd-accent);
+			/* `!`: scrolldemo.css sets an unlayered `a { color: inherit }`. */
+			color: #fff !important;
+			font: 600 clamp(17px, 1.6vw, 20px) / 1 var(--sd-font-display);
+			letter-spacing: -0.01em;
+			text-decoration: none;
+			white-space: nowrap;
+			transition:
+				scale 0.12s,
+				filter 0.12s;
+		}
+		.hero-cta:hover {
+			filter: brightness(1.12);
+		}
+		.hero-cta:active {
+			scale: 0.97;
+		}
+		.opener .hero-note {
+			margin-top: -6px;
+			font-size: 13.5px;
 			color: var(--sd-ink-soft);
 		}
 		.act-story .chatwin,
@@ -736,10 +808,19 @@
 		.signbox {
 			margin-top: 20px;
 			display: grid;
+			width: 100%;
 			gap: 4px;
 			padding: 14px 16px;
 			border: 1.5px dashed #9ca3af;
 			border-radius: 8px;
+			background: none;
+			font: inherit;
+			text-align: left;
+			color: inherit;
+			/* Tappable for real: a visitor on a phone can open the drawer and sign
+			   it themselves without waiting for the scroll to get there. */
+			cursor: pointer;
+			touch-action: manipulation;
 			transition:
 				background 0.12s,
 				scale 0.12s;
@@ -804,7 +885,25 @@
 		.sigdrawer {
 			position: absolute;
 			inset: 0;
+			/* Inert while the demo plays itself; live once the visitor taps the box. */
 			pointer-events: none;
+		}
+		.screen.is-live .sigdrawer {
+			pointer-events: auto;
+		}
+		/* Drawing must not scroll the page out from under the stroke. */
+		.screen.is-live .pad {
+			touch-action: none;
+			cursor: crosshair;
+		}
+		.screen.is-live .sheet-btns button {
+			cursor: pointer;
+			touch-action: manipulation;
+		}
+		/* Sign tapped with nothing drawn: say so instead of signing an empty box. */
+		.pad.is-asking {
+			border-color: var(--sd-accent);
+			background: #fff;
 		}
 		.scrim {
 			position: absolute;
@@ -860,11 +959,13 @@
 			gap: 8px;
 			margin-top: 10px;
 		}
-		.sheet-btns span {
+		.sheet-btns button {
 			flex: 1;
 			padding: 8px;
 			border: 1px solid #d1d5db;
 			border-radius: 10px;
+			background: none;
+			font: inherit;
 			text-align: center;
 			color: #374151;
 		}
@@ -959,6 +1060,68 @@
 			font-size: 16px;
 			line-height: 1.4;
 			opacity: 0;
+		}
+
+		/* The two ways in, side by side. A plain section, no scroll scene. */
+		.contrast {
+			max-width: 900px;
+			margin: 0 auto;
+			padding: 120px 16px 0;
+		}
+		.contrast h2 {
+			font: 600 clamp(28px, 3.6vw, 44px) / 1.1 var(--sd-font-display);
+			letter-spacing: -0.02em;
+			text-align: center;
+			text-wrap: balance;
+		}
+		.contrast-cards {
+			margin-top: 40px;
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 20px;
+		}
+		.con {
+			padding: 26px;
+			border: 1px solid var(--sd-hairline);
+			border-radius: 14px;
+		}
+		.con-new {
+			border-color: var(--sd-accent);
+			background: var(--sd-paper);
+			box-shadow: var(--sd-shadow);
+		}
+		.con-tag {
+			font: 500 11px var(--sd-font-mono);
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+			color: var(--sd-ink-soft);
+		}
+		.con-new .con-tag {
+			color: var(--sd-accent);
+		}
+		.con-name {
+			margin-top: 10px;
+			font: 600 clamp(20px, 2.2vw, 26px) / 1.15 var(--sd-font-display);
+			letter-spacing: -0.015em;
+		}
+		.con-body {
+			margin-top: 12px;
+			font-size: 15.5px;
+			line-height: 1.55;
+			color: var(--sd-ink-soft);
+		}
+		.con-body em {
+			font-style: normal;
+			font-weight: 600;
+			color: var(--sd-ink);
+		}
+		.con-new .con-body em {
+			color: var(--sd-accent);
+		}
+		/* The old way reads as the thing you are leaving behind. */
+		.con-old .con-name,
+		.con-old .con-body em {
+			color: var(--sd-ink-soft);
 		}
 
 		/* Setup: a plain section, no scroll scene */
@@ -1110,6 +1273,17 @@
 				left: 16px;
 				right: 16px;
 				bottom: 3lvh;
+			}
+			.contrast {
+				padding-top: 80px;
+			}
+			.contrast-cards {
+				grid-template-columns: minmax(0, 1fr);
+				margin-top: 28px;
+				gap: 14px;
+			}
+			.con {
+				padding: 20px;
 			}
 			.cards {
 				flex-direction: column;

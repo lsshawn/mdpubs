@@ -7,6 +7,7 @@
 	import type { Snippet } from 'svelte';
 	import FeedbackWidget from '#lib/components/FeedbackWidget.svelte';
 	import Logo from '#lib/components/Logo.svelte';
+	import { checkoutHref } from '#lib/helpers/checkout.js';
 	let { data, children }: { data: LayoutData; children: Snippet } = $props();
 
 	// Site-wide fallback OG image for routes that don't supply their own meta.
@@ -98,9 +99,16 @@
 				{#if data.user}
 					<a href={resolve('account')} class="btn btn-sm btn-ghost">My account</a>
 				{:else if page.route.id !== '/(public)/login'}
+					<!--
+						The primary button goes straight to Stripe monthly checkout, in the
+						same window. Returning users still have a quiet way back in, so a
+						visitor with an account is not pushed at a second subscription.
+					-->
+					<a href={resolve('login')} class="btn btn-sm btn-ghost">Log in</a>
 					<!-- `!`: the landing page's scrolldemo.css sets an unlayered `a { color: inherit }`. -->
-					<a href={resolve('login')} class="btn btn-sm btn-neutral text-neutral-content!"
-						>Start now</a
+					<a
+						href={checkoutHref(config.stripePaymentLinks.monthly.link)}
+						class="btn btn-sm btn-neutral text-neutral-content!">Start for $20/mo</a
 					>
 				{/if}
 			</div>
