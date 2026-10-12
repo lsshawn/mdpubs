@@ -7,7 +7,7 @@
  * serve anonymously (private, deleted, missing) gets the site card.
  */
 import { config } from '#lib/config.js';
-import { renderOgImage } from '#lib/server/og.js';
+import { cachedOgImage, plainTitle, renderOgImage } from '#lib/server/og.js';
 import { isCustomDomainHost } from '#lib/server/host.js';
 import type { RequestHandler } from './$types';
 
@@ -19,27 +19,20 @@ async function noteTitle(id: string, fetch: typeof globalThis.fetch): Promise<st
 	if (!noteRes.ok) return null;
 	const note = await noteRes.json();
 	const fm = fmRes.ok ? await fmRes.json() : {};
-	const title = fm?.title || note?.title;
-	if (typeof title !== 'string') return null;
-	// Titles derived from the first line can carry markdown (**TL;DR:**, # Heading).
-	const plain = title
-		.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-		.replace(/[*_`#>~]+/g, '')
-		.replace(/\s+/g, ' ')
-		.trim();
-	return plain || null;
+	return plainTitle(fm?.title || note?.title);
 }
 
 export const GET: RequestHandler = async ({ params, fetch, url }) => {
 	const id = params.file.replace(/\.png$/, '');
-	const title = id === 'default' ? null : await noteTitle(id, fetch);
 	try {
-		return await renderOgImage({
-			fetch,
-			origin: url.origin,
-			title,
-			customHost: isCustomDomainHost(url.host) ? url.host : null
-		});
+		return await cachedOgImage(url.href, async () =>
+			renderOgImage({
+				fetch,
+				origin: url.origin,
+				title: id === 'default' ? null : await noteTitle(id, fetch),
+				customHost: isCustomDomainHost(url.host) ? url.host : null
+			})
+		);
 	} catch (e) {
 		// A broken card must never break the share preview: fall back to the static one.
 		console.error('og render failed', e);

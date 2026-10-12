@@ -5,7 +5,7 @@
  * note card that puts the note's title on the page. Custom-domain pubs are
  * whitelabelled, so their card drops the mdpubs wordmark and shows the host.
  */
-import { env } from 'cloudflare:workers';
+import { env, waitUntil } from 'cloudflare:workers';
 import { CustomFont, ImageResponse } from '@cf-wasm/og';
 import logoSvg from '../../../static/logo.svg?raw';
 
@@ -133,4 +133,53 @@ export async function renderOgImage(opts: {
 		fonts: [font(500), font(600)],
 		headers: { 'Cache-Control': 'public, max-age=86400, s-maxage=604800' }
 	});
+}
+
+/** A note title as plain text: titles taken from the first line can carry markdown. */
+export function plainTitle(title: unknown): string | null {
+	if (typeof title !== 'string') return null;
+	const plain = title
+		.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+		.replace(/[*_`#>~]+/g, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+	return plain || null;
+}
+
+/**
+ * The edge cache (caches.default), keyed by the card's full URL with its ?v=.
+ * A render takes 1–4s, longer than WhatsApp waits for a preview image, so
+ * cards are rendered once and served from here. Null in Vite dev.
+ */
+function edgeCache(): Cache | null {
+	const c = (globalThis as { caches?: { default?: Cache } }).caches;
+	return c?.default ?? null;
+}
+
+export async function cachedOgImage(
+	cardUrl: string,
+	render: () => Promise<Response>
+): Promise<Response> {
+	const cache = edgeCache();
+	const hit = await cache?.match(cardUrl);
+	if (hit) return hit;
+	const res = await render();
+	if (cache && res.ok) waitUntil(cache.put(cardUrl, res.clone()));
+	return res;
+}
+
+/**
+ * Render a note's card into the edge cache while its page is served. A link
+ * preview fetches the page first and the image second, so the image is ready
+ * by the time it's asked for.
+ */
+export function warmOgImage(cardUrl: string, opts: Parameters<typeof renderOgImage>[0]): void {
+	const cache = edgeCache();
+	if (!cache) return;
+	const warm = async () => {
+		if (await cache.match(cardUrl)) return;
+		const res = await renderOgImage(opts);
+		if (res.ok) await cache.put(cardUrl, res);
+	};
+	waitUntil(warm().catch((e) => console.error('og warm failed', e)));
 }

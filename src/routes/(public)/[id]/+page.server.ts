@@ -4,6 +4,7 @@ import { config } from '#lib/config.js';
 import { db } from '#lib/server/db/index.js';
 import { note as noteTable } from '#lib/server/db/schema.js';
 import { isCustomDomainHost } from '#lib/server/host.js';
+import { plainTitle, warmOgImage } from '#lib/server/og.js';
 import { parseCustomComponentsInHtml } from '#lib/helpers/custom-components-parser.js';
 import type { PageServerLoad } from './$types';
 
@@ -92,10 +93,19 @@ export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
 		// override it via frontmatter (custom OG image, or its hero image).
 		const title = note?.frontmatter?.title || note?.title || 'Note';
 		const description = note?.frontmatter?.description || 'A published note from MdPubs';
+		const cardUrl = `${url.origin}/api/og/${params.id}.png?v=${note?.version ?? 1}`;
 		const ogImage =
-			note?.frontmatter?.['mdpubs-og-image'] ||
-			note?.frontmatter?.['mdpubs-hero-image'] ||
-			`${url.origin}/api/og/${params.id}.png?v=${note?.version ?? 1}`;
+			note?.frontmatter?.['mdpubs-og-image'] || note?.frontmatter?.['mdpubs-hero-image'] || cardUrl;
+		// Crawlers have no session, and only a signed-out read decides what the
+		// public card may show, so a private title never lands in the shared cache.
+		if (ogImage === cardUrl && !locals.session) {
+			warmOgImage(cardUrl, {
+				fetch,
+				origin: url.origin,
+				title: plainTitle(title),
+				customHost: isCustomDomainHost(url.host) ? url.host : null
+			});
+		}
 
 		// Check if note should be indexed (default: false for privacy)
 		const allowIndexing = note?.frontmatter?.['mdpubs-allow-indexing'] === true;
