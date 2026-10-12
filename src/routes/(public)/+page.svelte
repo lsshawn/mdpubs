@@ -12,6 +12,7 @@
 	 */
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
 	import FeedbackWidget from '#lib/components/FeedbackWidget.svelte';
 	import { config } from '#lib/config.js';
 	import { checkoutHref } from '#lib/helpers/checkout.js';
@@ -458,6 +459,7 @@
 			&copy; {new Date().getFullYear()} MdPubs, built by
 			<a href="https://x.com/me_sshawn" target="_blank">Shawn</a>.
 		</p>
+		<p><a href={resolve('/(public)/templates')}>Contract templates</a></p>
 		<FeedbackWidget
 			bind:message={feedbackMessage}
 			bind:email={feedbackEmail}

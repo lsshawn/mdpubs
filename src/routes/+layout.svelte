@@ -48,13 +48,13 @@
 <svelte:head>
 	<title>{config.name} - {config.description}</title>
 
-	{#if page.route.id !== '/(public)/[id]'}
+	{#if page.route.id !== '/(public)/[id]' && !page.route.id?.startsWith('/(public)/templates')}
 		<!--
 			Only emit site-wide social/meta tags on routes that don't supply their own.
 			`<svelte:head>` does NOT dedupe `og:*`/`twitter:*` tags, so emitting these
 			alongside the public note page's own set ships two competing og:image tags
-			— Discord et al. then render both. The note view owns its meta, so skip the
-			site-wide set there.
+			— Discord et al. then render both. The note view and the /templates pages
+			own their meta, so skip the site-wide set there.
 		-->
 		<!-- The landing page writes its own description. -->
 		{#if page.route.id !== '/(public)'}
