@@ -1008,6 +1008,9 @@
 			right: 0;
 			padding: 18px 20px;
 			opacity: 0;
+			/* Decoration only, and on mobile it sits over the phone at z-index 2 —
+			   without this it swallows the tap meant for the signing box. */
+			pointer-events: none;
 		}
 		.log-title {
 			font: 500 11px var(--sd-font-mono);
