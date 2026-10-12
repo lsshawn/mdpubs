@@ -350,6 +350,102 @@ export const signatureEvent = sqliteTable(
 	})
 );
 
+/**
+ * Access tokens issued to AI tools: the `mdpubs` CLI (installed by /install and
+ * logged in with the device flow) and MCP connectors (Claude, ChatGPT) that went
+ * through /oauth/authorize. One row per tool, so each can be revoked on its own
+ * without touching the user's API keys.
+ *
+ * Only the SHA-256 of the token is stored, like users.apiKey. The raw token is
+ * shown to the tool once, at issue time.
+ */
+export const apiToken = sqliteTable(
+	'api_tokens',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => nanoid()),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		tokenHash: text('token_hash').notNull(),
+		// 'cli' | 'mcp'
+		kind: text('kind').notNull(),
+		// Shown on the account page, e.g. "Claude" or "mdpubs CLI".
+		name: text('name').notNull(),
+		// The OAuth client this token was issued to (mcp only).
+		clientId: text('client_id'),
+		createdAt: CreatedAt,
+		lastUsedAt: integer('last_used_at', { mode: 'timestamp' }),
+		revokedAt: integer('revoked_at', { mode: 'timestamp' })
+	},
+	(t) => ({
+		tokenHashIdx: uniqueIndex('idx_api_tokens_token_hash').on(t.tokenHash),
+		userIdx: index('idx_api_tokens_user').on(t.userId)
+	})
+);
+
+/**
+ * Device-flow logins for the CLI (RFC 8628 shape). The CLI holds the secret
+ * device code and polls; the user approves the short user code in a browser.
+ * The token is minted when the CLI polls after approval, so no raw token is
+ * ever stored here.
+ */
+export const deviceCode = sqliteTable(
+	'device_codes',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => nanoid()),
+		deviceCodeHash: text('device_code_hash').notNull(),
+		// Shown in the terminal and on the approval page, e.g. "WDJB-MJHT".
+		userCode: text('user_code').notNull(),
+		userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+		// 'pending' | 'approved' | 'denied' | 'consumed'
+		status: text('status').notNull().default('pending'),
+		expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+		createdAt: CreatedAt
+	},
+	(t) => ({
+		deviceCodeHashIdx: uniqueIndex('idx_device_codes_device_code_hash').on(t.deviceCodeHash),
+		userCodeIdx: uniqueIndex('idx_device_codes_user_code').on(t.userCode)
+	})
+);
+
+/** OAuth clients registered through dynamic client registration (RFC 7591). */
+export const oauthClient = sqliteTable('oauth_clients', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => nanoid(32)),
+	name: text('name').notNull(),
+	redirectUris: text('redirect_uris', { mode: 'json' }).notNull().$type<string[]>(),
+	createdAt: CreatedAt
+});
+
+/** Single-use authorization codes, valid for a few minutes, PKCE (S256) only. */
+export const oauthCode = sqliteTable(
+	'oauth_codes',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => nanoid()),
+		codeHash: text('code_hash').notNull(),
+		clientId: text('client_id')
+			.notNull()
+			.references(() => oauthClient.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		redirectUri: text('redirect_uri').notNull(),
+		codeChallenge: text('code_challenge').notNull(),
+		expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+		usedAt: integer('used_at', { mode: 'timestamp' })
+	},
+	(t) => ({
+		codeHashIdx: uniqueIndex('idx_oauth_codes_code_hash').on(t.codeHash)
+	})
+);
+
 export type Organization = typeof organization.$inferSelect;
 export type NewOrganization = typeof organization.$inferInsert;
 export type OrgMember = typeof orgMember.$inferSelect;
@@ -369,3 +465,5 @@ export type Signature = typeof signature.$inferSelect;
 export type NewSignature = typeof signature.$inferInsert;
 export type SignatureEvent = typeof signatureEvent.$inferSelect;
 export type NewSignatureEvent = typeof signatureEvent.$inferInsert;
+export type ApiToken = typeof apiToken.$inferSelect;
+export type OAuthClient = typeof oauthClient.$inferSelect;

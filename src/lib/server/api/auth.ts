@@ -17,6 +17,7 @@ import { db } from '#lib/server/db/index.js';
 import { session, user as userSchema, type User } from '#lib/server/db/schema.js';
 import { UserService } from './services/user';
 import { InvalidAPIKeyError } from './db';
+import { TOKEN_PREFIX, isPaid, userForToken } from '#lib/server/tokens.js';
 
 const userService = new UserService();
 
@@ -33,7 +34,7 @@ export type ApiAuth = {
 	usedApiKey: boolean;
 };
 
-function getToken(request: Request): string | undefined {
+export function getToken(request: Request): string | undefined {
 	const key = request.headers.get('x-api-key');
 	if (key) return key;
 	const authHeader = request.headers.get('authorization');
@@ -45,10 +46,37 @@ function getToken(request: Request): string | undefined {
  * Resolve a token to auth. Returns `ApiAuth` or a `Response` (error) to return.
  * `method` is used to reject non-GET requests made with a read-only key.
  */
-async function authenticate(token: string, method: string): Promise<ApiAuth | Response> {
+export async function authenticate(token: string, method: string): Promise<ApiAuth | Response> {
 	const adminAPIKey = ADMIN_API_KEY;
 	if (adminAPIKey && token === adminAPIKey) {
 		return { user: null, isAdmin: true, isReadOnly: false, usedApiKey: true };
+	}
+
+	// Tokens issued to the CLI and MCP connectors (src/lib/server/tokens.ts).
+	// There is no free tier, so a lapsed subscription stops the tool rather than
+	// silently falling back to the free note limit.
+	if (token.startsWith(TOKEN_PREFIX)) {
+		try {
+			const user = await userForToken(token);
+			if (!user) {
+				return Response.json(
+					{ error: 'This token was revoked or is invalid. Run `mdpubs login` or reconnect.' },
+					{ status: 401 }
+				);
+			}
+			if (!isPaid(user)) {
+				return Response.json(
+					{
+						error: 'Your mdpubs subscription is not active. Renew it at https://mdpubs.com/account.'
+					},
+					{ status: 402 }
+				);
+			}
+			return { user, isAdmin: false, isReadOnly: false, usedApiKey: true };
+		} catch (error) {
+			console.error('Token authentication error:', error);
+			return Response.json({ error: 'Authentication failed' }, { status: 500 });
+		}
 	}
 
 	const isReadOnlyKey = token.startsWith('ro_');

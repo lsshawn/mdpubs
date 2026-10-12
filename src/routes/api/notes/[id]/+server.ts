@@ -4,6 +4,7 @@
  * preserving the ?version / ?parse=markdown / ?only=frontmatter behaviour.
  */
 import { type RequestEvent } from '@sveltejs/kit';
+import { noteUrl } from '#lib/server/tokens.js';
 import { z } from 'zod';
 import { requireApiAuth, optionalApiAuth, isAuthError } from '#lib/server/api/auth.js';
 import {
@@ -140,7 +141,10 @@ export async function PUT(event: RequestEvent): Promise<Response> {
 			{ ...validation.data, files, skipVersion: silent },
 			user.defaultOrgId
 		);
-		return Response.json(updatedNote);
+		return Response.json({
+			...updatedNote,
+			url: await noteUrl(updatedNote, event.url.origin)
+		});
 	} catch (error) {
 		if (error instanceof NotFoundError || error instanceof NoteNotOwnedError) {
 			return Response.json({ error: "Note not found or doesn't belong to you" }, { status: 404 });

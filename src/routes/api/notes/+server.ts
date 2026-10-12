@@ -4,6 +4,7 @@
  * shapes match the old API so the nvim plugin and UI work unchanged.
  */
 import { type RequestEvent } from '@sveltejs/kit';
+import { noteUrl } from '#lib/server/tokens.js';
 import { z } from 'zod';
 import { requireApiAuth, isAuthError } from '#lib/server/api/auth.js';
 import { parseNoteBody, UploadTooLargeError, BadRequestError } from '#lib/server/api/http.js';
@@ -68,7 +69,8 @@ export async function POST(event: RequestEvent): Promise<Response> {
 			{ ...validation.data, files },
 			user.defaultOrgId
 		);
-		return Response.json(note, { status: 201 });
+		// `url` is where the client opens it (branded domain if the org has one live).
+		return Response.json({ ...note, url: await noteUrl(note, event.url.origin) }, { status: 201 });
 	} catch (error) {
 		if (error instanceof UploadTooLargeError)
 			return Response.json({ error: error.message }, { status: 413 });

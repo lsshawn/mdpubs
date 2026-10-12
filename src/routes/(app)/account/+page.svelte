@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { dev } from '$app/env';
+	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import CopyableText from '#lib/components/CopyableText.svelte';
@@ -174,6 +175,34 @@
 			</p>
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 			<a href="/orgs" class="btn btn-outline">Manage accounts</a>
+		</div>
+
+		<div class="mb-10">
+			<h3 class="text-xl font-bold text-base-content">Connected AI tools</h3>
+			<p class="py-2 text-base-content/70">
+				Claude, ChatGPT, Claude Code or Codex. Disconnecting one stops it publishing right away.
+			</p>
+			{#if data.tools.length === 0}
+				<p class="text-sm text-base-content/50">None yet.</p>
+			{:else}
+				<ul class="divide-y divide-base-content/10 border-y border-base-content/10">
+					{#each data.tools as tool (tool.id)}
+						<li class="flex items-center justify-between gap-4 py-3">
+							<div>
+								<div class="font-medium">{tool.name}</div>
+								<div class="text-xs text-base-content/50">
+									Connected {tool.createdAt?.toLocaleDateString()}
+									{#if tool.lastUsedAt}· last used {tool.lastUsedAt.toLocaleDateString()}{/if}
+								</div>
+							</div>
+							<form method="POST" action="?/disconnect" use:enhance>
+								<input type="hidden" name="id" value={tool.id} />
+								<button class="btn btn-ghost btn-sm text-error">Disconnect</button>
+							</form>
+						</li>
+					{/each}
+				</ul>
+			{/if}
 		</div>
 
 		<h3 class="text-2xl font-bold text-base-content">Your API Keys</h3>
