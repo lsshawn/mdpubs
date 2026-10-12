@@ -11,6 +11,7 @@
 	 * server, and its global stylesheet is only on the page while this route is.
 	 */
 	import { onMount } from 'svelte';
+	import { page } from '$app/state';
 	import FeedbackWidget from '#lib/components/FeedbackWidget.svelte';
 	import { config } from '#lib/config.js';
 	import { checkoutHref } from '#lib/helpers/checkout.js';
@@ -18,6 +19,10 @@
 	// Every CTA on this page goes straight to Stripe monthly checkout, in the same
 	// window, rather than via /login. Falls back to /login if the link is unset.
 	const signupHref = checkoutHref(config.stripePaymentLinks.monthly.link);
+	const yearlyHref = checkoutHref(config.stripePaymentLinks.yearly.link);
+
+	// Local prices by IP country (root +layout.server.ts).
+	const price = $derived(page.data.pricing);
 
 	const FONTS_URL =
 		'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap';
@@ -25,11 +30,11 @@
 
 	const PROMPT = 'Publish this proposal to mdpubs for Shawn and Matt to sign.';
 
-	const terms = [
-		['Total', '$11,000'],
+	const terms = $derived([
+		['Total', `${price.symbol}11,000`],
 		['Timeline', '6 weeks'],
 		['Payment', '50% now, 50% at launch']
-	];
+	]);
 	const included = [
 		'4-page site: Home, About, Services, Contact',
 		'A blog your team can edit',
@@ -54,9 +59,9 @@
 	];
 
 	// [text, accent?] runs. Each card carries one feature, its key phrase in accent.
-	const cards: [string, boolean][][] = [
+	const cards: [string, boolean][][] = $derived([
 		[
-			['$20 a month.', true],
+			[`${price.monthly} a month.`, true],
 			[' Send as many contracts as you like.', false]
 		],
 		[
@@ -71,7 +76,7 @@
 			['Works from ', false],
 			['Claude Code, Codex, Claude and ChatGPT.', true]
 		]
-	];
+	]);
 
 	// Only the first step differs between the two ways in. Both then log in at
 	// the same page, which sends new users through checkout.
@@ -114,7 +119,7 @@
 	<title>MdPubs — write one prompt, get a signed contract back</title>
 	<meta
 		name="description"
-		content="$20 a month, flat. Your AI publishes the contract, your client signs it on their phone. No account, no app, no printer."
+		content="{price.monthly} a month, flat. Your AI publishes the contract, your client signs it on their phone. No account, no app, no printer."
 	/>
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
@@ -292,15 +297,15 @@
 			<div class="opener">
 				<h1>Write one prompt. <em>Get a signed contract back.</em></h1>
 				<p>
-					$20 a month, flat. No envelope caps, no seat fees. Your client opens a link and signs. No
-					login. Every view is logged.
+					{price.monthly} a month, unlimited proposals, no seat fees.
+					<br />Your client opens a link and signs without login.
 				</p>
 				<!--
 					Above the fold, before the demo starts: a visitor who is already sold
 					should not have to scroll 11000px to find the price.
 				-->
-				<a class="hero-cta" href={signupHref}>Start for $20/mo →</a>
-				<p class="hero-note">No account needed for clients. Cancel anytime.</p>
+				<a class="hero-cta" href={signupHref}>Start for {price.monthly}/mo →</a>
+				<p class="hero-note">Cancel anytime.</p>
 			</div>
 
 			<div class="chatwin sd-paper" data-k="chatwin">
@@ -365,16 +370,16 @@
 				<p class="con-tag">The old way</p>
 				<p class="con-name">DocuSign &amp; PDF</p>
 				<p class="con-body">
-					<em>$40/mo per seat</em>, envelope limits. Client pinches and zooms an unreadable PDF on a
-					phone, delays 4 days to sign on desktop.
+					<em>{price.docusign}/mo per seat</em>, envelope limits. Client pinches and zooms an
+					unreadable PDF on a phone, delays 4 days to sign on desktop.
 				</p>
 			</div>
 			<div class="con con-new">
 				<p class="con-tag">The MdPubs way</p>
 				<p class="con-name">MdPubs</p>
 				<p class="con-body">
-					<em>Flat $20/mo.</em> Client opens a clean web link and signs with a thumb in 8 seconds. Audit-locked
-					instantly.
+					<em>Flat {price.monthly}/mo.</em> Client opens a clean web link and signs with a thumb in 8
+					seconds. Audit-locked instantly.
 				</p>
 			</div>
 		</div>
@@ -423,7 +428,7 @@
 			<li>
 				<span class="n">03</span>
 				<p class="step">
-					Ask for it: <em>"Publish this proposal to mdpubs for my client to sign."</em>
+					Tell your AI: <em>"Publish this proposal to mdpubs for my client to sign."</em>
 				</p>
 			</li>
 		</ol>
@@ -434,12 +439,16 @@
 			<div class="cta-inner">
 				<a href={signupHref}
 					><span class="w">Start</span> <span class="w">for</span>
-					<span class="w">$20/mo</span> <span class="w">→</span></a
+					<span class="w">{price.monthly}/mo</span> <span class="w">→</span></a
 				>
 				<p>
 					<span class="w">Cancel</span> <span class="w">anytime.</span>
 				</p>
-				<p class="small"><span class="w">Or $190 a year, $50 less.</span></p>
+				<p class="small">
+					<a href={yearlyHref}
+						><span class="w">Or {price.yearly} a year, {price.yearlySaving} less.</span></a
+					>
+				</p>
 			</div>
 		</div>
 	</section>
@@ -1204,7 +1213,7 @@
 			text-align: center;
 			padding: 0 16px;
 		}
-		.cta-inner a {
+		.cta-inner > a {
 			font: 600 clamp(32px, 4.6vw, 60px) / 1.1 var(--sd-font-display);
 			letter-spacing: -0.02em;
 			color: var(--sd-accent);
@@ -1218,6 +1227,11 @@
 			margin-top: 8px;
 			font: 14px var(--sd-font-mono);
 			color: var(--sd-ink-soft);
+		}
+		.cta-inner .small a {
+			color: inherit;
+			text-decoration: underline;
+			text-underline-offset: 3px;
 		}
 		.act-cta .w {
 			display: inline-block;

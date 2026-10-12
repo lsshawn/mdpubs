@@ -5,6 +5,7 @@
 	 * there is no free tier, so Allow only appears on a paid plan.
 	 */
 	import type { Snippet } from 'svelte';
+	import { page } from '$app/state';
 
 	let {
 		title,
@@ -57,8 +58,8 @@
 			<div class="mt-6 border-t border-base-content/15 pt-6">
 				<p class="font-semibold">Subscribe to finish setup</p>
 				<p class="mt-1 text-sm text-base-content/70">
-					$20 a month, flat. Cancel anytime. Checkout opens in a new tab; come back here when it's
-					done.
+					{page.data.pricing.monthly} a month, flat. Cancel anytime. Checkout opens in a new tab; come
+					back here when it's done.
 				</p>
 				<div class="mt-4 grid gap-3">
 					{#if monthlyLink}
@@ -68,7 +69,7 @@
 							target="_blank"
 							rel="noopener"
 							class="border border-base-content bg-base-content px-4 py-3 text-center font-mono text-sm text-base-100 hover:bg-transparent hover:text-base-content"
-							>$20 / month</a
+							>{page.data.pricing.monthly} / month</a
 						>
 					{/if}
 					{#if yearlyLink}
@@ -78,7 +79,7 @@
 							target="_blank"
 							rel="noopener"
 							class="border border-base-content px-4 py-3 text-center font-mono text-sm hover:bg-base-content hover:text-base-100"
-							>$190 / year</a
+							>{page.data.pricing.yearly} / year</a
 						>
 					{/if}
 				</div>

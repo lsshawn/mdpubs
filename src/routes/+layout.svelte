@@ -108,7 +108,8 @@
 					<!-- `!`: the landing page's scrolldemo.css sets an unlayered `a { color: inherit }`. -->
 					<a
 						href={checkoutHref(config.stripePaymentLinks.monthly.link)}
-						class="btn btn-sm btn-neutral text-neutral-content!">Start for $20/mo</a
+						class="btn btn-sm btn-neutral text-neutral-content!"
+						>Start for {page.data.pricing.monthly}/mo</a
 					>
 				{/if}
 			</div>

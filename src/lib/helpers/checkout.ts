@@ -1,5 +1,5 @@
 /**
- * Where a "Start for $20/mo" button sends the visitor.
+ * Where a "Start for <price>/mo" button sends the visitor.
  *
  * The landing page's CTAs go straight to Stripe checkout instead of /login, so a
  * visitor who already wants it does not have to pick a login provider first.

@@ -252,7 +252,8 @@
 			<div class="mt-8 rounded-lg border border-info/50 bg-info/10 p-6 text-center">
 				<h4 class="text-xl font-bold text-base-content">Upgrade to Pro</h4>
 				<p class="my-2 text-base-content/70">
-					Publish <strong>unlimited notes</strong> for just $10/month
+					Publish <strong>unlimited notes</strong> for {data.pricing.monthly}/month or {data.pricing
+						.yearly}/year
 				</p>
 				<!-- eslint-disable svelte/no-navigation-without-resolve -->
 				<a
