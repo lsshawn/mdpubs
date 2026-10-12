@@ -13,6 +13,8 @@ const gitignorePath = fileURLToPath(new URL('./.gitignore', import.meta.url));
 
 export default ts.config(
 	includeIgnoreFile(gitignorePath),
+	// Scroll engine for /demo, copied verbatim from the scroll-demo skill.
+	{ ignores: ['static/scrolldemo/scrolldemo.js'] },
 	js.configs.recommended,
 	...ts.configs.recommended,
 	...svelte.configs.recommended,

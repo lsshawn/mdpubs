@@ -1,0 +1,98 @@
+/* scroll-demo base. Theme with tokens; never edit per project. */
+:root {
+  --sd-canvas: #fafafa;          /* near-white, never pure white */
+  --sd-paper: #ffffff;           /* the product's own surfaces */
+  --sd-ink: #111111;
+  --sd-ink-soft: #6b6b6b;
+  --sd-accent: #ff4f00;          /* ONE accent. Used for emphasis words and the CTA only */
+  --sd-select: rgba(141, 213, 255, 0.55); /* text-selection highlight in the demo */
+  --sd-hairline: rgba(0, 0, 0, 0.1);
+  --sd-font-display: "Inter", system-ui, sans-serif;
+  --sd-font-text: "Inter", system-ui, sans-serif;
+  --sd-font-mono: "Space Mono", ui-monospace, monospace;
+  --sd-nav-h: 56px;
+  --sd-radius: 14px;
+  /* Layered soft shadow: wide ambient + tight contact + inset top lip. The house look for floating UI. */
+  --sd-shadow: rgba(0,0,0,.05) 0 16px 24px, rgba(0,0,0,.075) 0 0 5px, rgba(0,0,0,.1) 0 7px 5px -5px, rgba(0,0,0,.2) 0 -1px 1px inset;
+  --sd-shadow-lift: rgba(0,0,0,.075) 0 32px 48px, rgba(0,0,0,.075) 0 0 5px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--sd-canvas);
+  color: var(--sd-ink);
+  font: 400 clamp(16px, 1.1vw + 10px, 19px) / 1.5 var(--sd-font-text);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+h1, h2, h3 { font-family: var(--sd-font-display); font-weight: 600; letter-spacing: -0.02em; line-height: 1.05; margin: 0; }
+p { margin: 0; }
+em, .sd-em { font-style: normal; font-weight: 600; color: var(--sd-accent); }
+a { color: inherit; }
+
+/* Nav: tiny, quiet, out of the way. The product is the show. */
+.sd-nav {
+  position: fixed; inset: 0 0 auto; height: var(--sd-nav-h); z-index: 50;
+  display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+  font-size: 13px; font-weight: 500;
+}
+.sd-nav .sd-cta-sm { background: var(--sd-paper); padding: 6px 12px; border-radius: 99px; box-shadow: var(--sd-shadow); text-decoration: none; }
+
+/* A scene: tall section, sticky stage. Section height = 100lvh + scroll budget in px. */
+.sd-scene { position: relative; }
+.sd-stage {
+  position: sticky; top: 0; height: 100lvh; overflow: hidden;
+  display: grid; place-items: center;
+}
+.sd-stage > * { grid-area: 1 / 1; }
+
+/* Floating UI pieces: toolbars, panels, cards, browser frames. */
+.sd-float { background: var(--sd-paper); border-radius: var(--sd-radius); box-shadow: var(--sd-shadow); }
+.sd-paper { background: var(--sd-paper); box-shadow: var(--sd-shadow-lift); }
+
+/* Ghost cursor. Absolutely positioned at the stage origin; JS moves it with translate. */
+.sd-cursor {
+  position: absolute; left: 0; top: 0; width: 22px; height: 22px; pointer-events: none; z-index: 40;
+  opacity: 0; margin: -2px 0 0 -2px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.25));
+}
+.sd-cursor svg { position: absolute; inset: 0; display: none; }
+.sd-cursor[data-mode="arrow"] .sd-c-arrow,
+.sd-cursor:not([data-mode]) .sd-c-arrow,
+.sd-cursor[data-mode="text"] .sd-c-text,
+.sd-cursor[data-mode="hand"] .sd-c-hand,
+.sd-cursor[data-mode="grab"] .sd-c-grab,
+.sd-cursor[data-mode="grabbing"] .sd-c-grab { display: block; }
+.sd-cursor[data-mode="text"] { margin: -11px 0 0 -11px; }
+.sd-cursor[data-mode="grabbing"] { scale: 0.9; }
+
+/* Typed text. Characters exist in the HTML; JS only hides the untyped ones. */
+.sd-word { white-space: nowrap; }
+.sd-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.sd-type .sd-char { color: transparent; transition: color 0s; }
+.sd-type .sd-char.sd-typed { color: inherit; }
+.sd-caret {
+  position: absolute; left: 0; top: 0; width: 2px; background: var(--sd-ink); pointer-events: none;
+}
+.sd-caret.sd-blink { animation: sd-blink 1s steps(1) infinite; }
+@keyframes sd-blink { 50% { opacity: 0; } }
+
+/* Fake selection on a phrase. A background sweep, so it wraps across lines
+   like a real selection (box-decoration-break: slice lays the fragments end to end). */
+.sd-sel {
+  background: linear-gradient(var(--sd-select), var(--sd-select)) no-repeat 0 0 / calc(var(--sel, 0) * 100%) 100%;
+  border-radius: 3px;
+}
+.sd-sel.is-formatted { color: var(--sd-accent); font-weight: 600; }
+
+/* Reduced motion: springs snap (engine), blur is skipped (engine), nothing loops. */
+@media (prefers-reduced-motion: reduce) {
+  .sd-caret.sd-blink { animation: none; }
+}
+
+/* No JS: show everything, collapse scroll budgets. */
+.sd-nojs .sd-scene { height: auto !important; }
+.sd-nojs .sd-stage { position: static; height: auto; min-height: 100svh; }
+.sd-nojs .sd-type .sd-char { color: inherit; }
+.sd-nojs .sd-cursor, .sd-nojs .sd-caret { display: none; }
