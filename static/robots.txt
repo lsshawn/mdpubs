@@ -1,22 +1,28 @@
+# Open to search engines: the landing page and /templates (programmatic SEO,
+# see pseo/plan.md). The old blanket `Disallow: /*/` hid every nested URL,
+# /templates/<slug> included. Profile and org listings stay out, as before.
+# Published notes carry their own noindex header.
 User-agent: *
 Allow: /
-Disallow: /*/
+Disallow: /api/
 Disallow: /og/
+Disallow: /u/
+Disallow: /o/
+Disallow: /notes
+Disallow: /account
+Disallow: /orgs
+Disallow: /device
+Disallow: /oauth/
+Disallow: /login
 
-# Allow social media crawlers for link previews
+# Social crawlers fetch any shared link for its preview card.
 User-agent: facebookexternalhit/*
 Allow: /
-Allow: /*/
-Allow: /og/
 
 User-agent: Twitterbot
 Allow: /
-Allow: /*/
-Allow: /og/
 
 User-agent: LinkedInBot
 Allow: /
-Allow: /*/
-Allow: /og/
 
-Sitemap: https://mdpubs.com/sitemap.xml 
+Sitemap: https://mdpubs.com/sitemap.xml
