@@ -16,6 +16,10 @@
 
 	const signupHref = resolve('login');
 
+	const FONTS_URL =
+		'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap';
+	const FONTS = `<link rel="stylesheet" href="${FONTS_URL}" media="print" onload="this.media='all'" /><noscript><link rel="stylesheet" href="${FONTS_URL}" /></noscript>`;
+
 	const PROMPT = 'Publish this proposal to mdpubs for Shawn and Matt to sign.';
 
 	const terms = [
@@ -111,10 +115,9 @@
 	/>
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-	<link
-		rel="stylesheet"
-		href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-	/>
+	<!-- Loaded as print media and switched on load, so the font CSS never blocks first paint -->
+	<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+	{@html FONTS}
 	<link rel="stylesheet" href="/scrolldemo/scrolldemo.css" />
 	<noscript>
 		<style>
@@ -217,7 +220,7 @@
 					<b>Cupbots</b>
 					<span>Proposal</span>
 				</header>
-				<h3>Website redesign for Acme Co</h3>
+				<p class="doc-title">Website redesign for Acme Co</p>
 				<p class="doc-for">Prepared for Shawn and Matt · {today}</p>
 				<dl>
 					{#each terms as [term, value] (term)}
@@ -680,7 +683,7 @@
 		.letterhead span {
 			margin-left: auto;
 		}
-		.doc h3 {
+		.doc-title {
 			margin-top: 22px;
 			font-size: 20px;
 			font-weight: 600;
@@ -977,6 +980,8 @@
 			padding: 0;
 			list-style: none;
 			display: grid;
+			/* minmax(0, …) so the unwrapped command scrolls inside its box instead of widening the page */
+			grid-template-columns: minmax(0, 1fr);
 			gap: 28px;
 		}
 		.setup li {
@@ -1093,8 +1098,11 @@
 			.side {
 				display: contents;
 			}
+			/* Two caption lines, fixed, so the phone below doesn't jump when Inter swaps in */
 			.captions {
 				order: -1;
+				height: calc(2 * 1.12 * 24px);
+				align-content: end;
 			}
 			.log {
 				top: auto;

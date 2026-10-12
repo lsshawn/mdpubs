@@ -221,14 +221,14 @@
 			? 'w-20'
 			: 'w-24 shadow-lg'}"
 		onclick={toggle}
-		aria-label={isOpen ? 'Close feedback form' : 'Open feedback form'}
+		aria-label={isOpen ? 'Close feedback form' : undefined}
 	>
 		{#if isOpen}
 			<X class="col-start-1 row-start-1 h-4 w-4" />
 		{:else}
 			{#key texts[textIndex]}
 				<span class="col-start-1 row-start-1 text-xs" transition:fade={{ duration: 500 }}
-					>{texts[textIndex]}?</span
+					><span class="sr-only">Open feedback form: </span>{texts[textIndex]}?</span
 				>
 			{/key}
 		{/if}
