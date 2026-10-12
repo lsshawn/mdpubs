@@ -10,6 +10,8 @@ declare global {
 			BUCKET: import('@cloudflare/workers-types').R2Bucket;
 			// Cloudflare Images binding (resize/format transforms).
 			IMAGES: import('@cloudflare/workers-types').ImagesBinding;
+			// Static assets (static/), e.g. the TTF fonts the OG cards read.
+			ASSETS: import('@cloudflare/workers-types').Fetcher;
 		}
 	}
 

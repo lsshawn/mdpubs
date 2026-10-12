@@ -1,9 +1,9 @@
 import { error } from '@sveltejs/kit';
 import { and, eq, isNull } from 'drizzle-orm';
 import { config } from '#lib/config.js';
-import { PUBLIC_DOMAIN, PUBLIC_CNAME_TARGET } from '$app/env/public';
 import { db } from '#lib/server/db/index.js';
 import { note as noteTable } from '#lib/server/db/schema.js';
+import { isCustomDomainHost } from '#lib/server/host.js';
 import { parseCustomComponentsInHtml } from '#lib/helpers/custom-components-parser.js';
 import type { PageServerLoad } from './$types';
 
@@ -30,28 +30,6 @@ async function assertNotPrivate(id: string, currentUserId?: string): Promise<voi
 	if (row?.isPrivate && row.userId !== currentUserId) {
 		throw error(403, 'PRIVATE_NOTE');
 	}
-}
-
-/**
- * True when this note is being served on an org's custom domain rather than on
- * mdpubs.com. Note paths are not rerouted (see src/hooks.ts), so the only signal
- * is the host itself: anything that isn't one of our own hostnames only reaches
- * the Worker because handleUnknownDomain resolved it to an org.
- *
- * Custom-domain pubs are whitelabelled — no "Powered by MdPubs" footer.
- */
-function isCustomDomainHost(host: string): boolean {
-	const base = (PUBLIC_DOMAIN || 'mdpubs.com').toLowerCase();
-	const cnameTarget = (PUBLIC_CNAME_TARGET || `origin.${base}`).toLowerCase();
-	const h = host.toLowerCase();
-	return !(
-		h === base ||
-		h === `www.${base}` ||
-		h === cnameTarget ||
-		h.startsWith('localhost') ||
-		h.startsWith('127.0.0.1') ||
-		h.endsWith('.workers.dev')
-	);
 }
 
 export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
@@ -109,14 +87,15 @@ export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
 
 		// Generate meta tags for social sharing. The note title/description carry the
 		// per-note context (WhatsApp, iMessage, Slack, etc. show og:title as the
-		// preview heading); the image is a single static branded card. A note can
+		// preview heading); the image is a card drawn with the note's title (see
+		// /api/og). ?v= busts crawler caches when the note changes. A note can
 		// override it via frontmatter (custom OG image, or its hero image).
 		const title = note?.frontmatter?.title || note?.title || 'Note';
 		const description = note?.frontmatter?.description || 'A published note from MdPubs';
 		const ogImage =
 			note?.frontmatter?.['mdpubs-og-image'] ||
 			note?.frontmatter?.['mdpubs-hero-image'] ||
-			'https://mdpubs.com/og-default.png';
+			`${url.origin}/api/og/${params.id}.png?v=${note?.version ?? 1}`;
 
 		// Check if note should be indexed (default: false for privacy)
 		const allowIndexing = note?.frontmatter?.['mdpubs-allow-indexing'] === true;
