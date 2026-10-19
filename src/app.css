@@ -69,3 +69,12 @@ html {
 .prose blockquote p:last-of-type::after {
 	content: none;
 }
+
+/* The typography plugin sets `th, td { text-align: start }`, which beats the
+   align attribute marked emits for GFM `|---:|` columns. Honour it again. */
+.prose :where(th, td)[align='right'] {
+	text-align: right;
+}
+.prose :where(th, td)[align='center'] {
+	text-align: center;
+}
