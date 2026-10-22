@@ -738,7 +738,8 @@ class SignService {
 	 *    so the remaining signatures stay bound to the same bytes they signed and
 	 *    the re-signature binds to them too. The note stays edit-locked.
 	 *  - all signers: every signature goes, and with nothing left bound to it the
-	 *    request is dropped too. That unlocks the note for editing, so the next
+	 *    request is dropped too. The same happens when single-slot voids clear the
+	 *    last signature. That unlocks the note for editing, so the next
 	 *    signature re-snapshots whatever the content is by then.
 	 *
 	 * Never mutates `signature_events`. The voids are appended to it instead, so
@@ -769,6 +770,18 @@ class SignService {
 		const request = await database.getSignatureRequestByNoteId(note.id);
 		const existing = await database.getSignaturesByNoteId(note.id);
 		if (existing.length === 0) {
+			// A request left behind with no signatures (voided one slot at a time
+			// before the drop below covered that case) still pins the old hash and
+			// blocks signing. Drop it so the next signature re-snapshots.
+			if (request) {
+				await this.dropRequest(note.id, request.contentHash, {
+					ipAddress,
+					location,
+					userAgent,
+					detail: 'Stale request with no signatures dropped; the document is open for signing again.'
+				});
+				return { voided: 0, state: await this.getState(note) };
+			}
 			throw new SignError('Nobody has signed this document yet, so there is nothing to reopen.');
 		}
 
@@ -815,15 +828,11 @@ class SignService {
 			}
 		}
 
-		// Only once NOTHING binds to the snapshot any more. With signatures left,
-		// dropping it would cascade them away and strand their content hash.
-		if (all && request) {
-			await database.deleteSignatureRequest(note.id);
-			await database.recordSignatureEvent({
-				noteId: note.id,
-				requestId: null,
-				action: 'request_voided',
-				contentHash: request.contentHash,
+		// Only once NOTHING binds to the snapshot any more, whether that took one
+		// call or one slot at a time. With signatures left, dropping it would
+		// cascade them away and strand their content hash.
+		if (request && targets.length === existing.length) {
+			await this.dropRequest(note.id, request.contentHash, {
 				ipAddress,
 				location,
 				userAgent,
@@ -832,6 +841,21 @@ class SignService {
 		}
 
 		return { voided: targets.length, state: await this.getState(note) };
+	}
+
+	private async dropRequest(
+		noteId: number,
+		contentHash: string,
+		meta: { ipAddress?: string; location?: string; userAgent?: string; detail: string }
+	): Promise<void> {
+		await database.deleteSignatureRequest(noteId);
+		await database.recordSignatureEvent({
+			noteId,
+			requestId: null,
+			action: 'request_voided',
+			contentHash,
+			...meta
+		});
 	}
 
 	/**
