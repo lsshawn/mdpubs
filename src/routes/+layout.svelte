@@ -7,6 +7,7 @@
 	import type { Snippet } from 'svelte';
 	import FeedbackWidget from '#lib/components/FeedbackWidget.svelte';
 	import Logo from '#lib/components/Logo.svelte';
+	import SecretThemeToggle from '#lib/components/SecretThemeToggle.svelte';
 	import { checkoutHref } from '#lib/helpers/checkout.js';
 	let { data, children }: { data: LayoutData; children: Snippet } = $props();
 
@@ -79,6 +80,8 @@
 		<meta name="twitter:image" content={ogImage} />
 	{/if}
 </svelte:head>
+
+<SecretThemeToggle />
 
 <div class="flex min-h-screen flex-col">
 	{#if !hideSiteChrome}
