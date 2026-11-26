@@ -419,6 +419,26 @@ test.describe('guests', () => {
 		await expect(composer(page)).toHaveCount(0);
 	});
 
+	test('a click in the empty margin above or below the comment box puts it away', async ({
+		page
+	}) => {
+		await open(page, 'e2e-public');
+		await clickBeside(page, para(page, 'Payment is due'));
+		const box = (await composer(page).boundingBox())!;
+		// Below the box, in the margin, level with other lines of the page.
+		await page.mouse.click(box.x + box.width / 2, box.y + box.height + 120);
+		await expect(composer(page)).toHaveCount(0);
+		await expect(page.locator('.mc-mark')).toHaveCount(0);
+		// With nothing open, the margin beside a line still starts a comment.
+		const p = (await para(page, 'We will build').boundingBox())!;
+		await page.mouse.click(box.x + box.width / 2, p.y + p.height / 2);
+		await expect(composer(page)).toBeVisible();
+		// And above the box.
+		const again = (await composer(page).boundingBox())!;
+		await page.mouse.click(again.x + again.width / 2, again.y - 40);
+		await expect(composer(page)).toHaveCount(0);
+	});
+
 	test('a click on highlighted words puts away a half-started comment and opens their thread', async ({
 		page
 	}) => {
@@ -1711,7 +1731,7 @@ test.describe('embedded in another app', () => {
 		const res = await mint(request, 'e2e-embed', priya);
 		expect(res.status()).toBe(200);
 		const { token, url } = await res.json();
-		expect(url).toContain('/e2e-embed?embed=mde_');
+		expect(url).toContain('/embed/e2e-embed?embed=mde_');
 
 		// No token, a tampered token, or a token for another note: all refused.
 		expect((await request.get('/api/notes/e2e-embed')).status()).toBe(404);
@@ -1744,7 +1764,8 @@ test.describe('embedded in another app', () => {
 		request
 	}) => {
 		const { url } = await (await mint(request, 'e2e-embed', priya)).json();
-		await page.goto(url);
+		// The link is a frame page (tested below); these checks are on the page inside it.
+		await page.goto(url.replace('/embed/', '/'));
 		await expect(page.locator('article')).toContainText('We will build the onboarding flow');
 		await expect(page.locator('.mc-layer')).toBeAttached();
 		await expect(page.getByRole('button', { name: /History/ })).toBeVisible();
@@ -1790,12 +1811,30 @@ test.describe('embedded in another app', () => {
 		await expect(page.locator('.hp-panel')).not.toContainText('Could not');
 	});
 
+	test('the link shows an outline of a page at once, then the note inside it', async ({
+		page,
+		request
+	}) => {
+		const { url } = await (await mint(request, 'e2e-embed', priya)).json();
+		// The outline is in the very first response, before any note is fetched.
+		const first = await (await request.get(`${url}&theme=night`)).text();
+		expect(first).toContain('Loading the document');
+		expect(first).toContain('#0f172a');
+		expect(first).not.toContain('We will build');
+
+		await page.goto(url);
+		const inside = page.frameLocator('#f');
+		await expect(inside.locator('article')).toContainText('We will build the onboarding flow');
+		await expect(page.locator('#s')).toHaveClass('out');
+		await expect(inside.locator('.mc-toggle-btn')).toBeVisible();
+	});
+
 	test('comments: false in the request leaves a note without the key comment-free', async ({
 		page,
 		request
 	}) => {
 		const { url } = await (await mint(request, 'e2e-embed', { ...priya, comments: false })).json();
-		await page.goto(`${url}&theme=night`);
+		await page.goto(`${url.replace('/embed/', '/')}&theme=night`);
 		await expect(page.locator('article')).toContainText('We will build');
 		await expect(page.locator('.mc-toggle-btn')).toHaveCount(0);
 		await expect(page.locator('html')).toHaveAttribute('data-theme', 'night');
@@ -2147,6 +2186,30 @@ test.describe('history', () => {
 
 		await page.keyboard.press('Escape');
 		await expect(panel).toHaveCount(0);
+	});
+
+	test('saves that changed only settings are counted, not listed', async ({ page }) => {
+		// v3 saved three more times with nothing but frontmatter and tags touched.
+		const settings = (extra: string) => v3.replace('title: Proposal', `title: Proposal\n${extra}`);
+		await setHistory('e2e-history', [
+			v1,
+			v2,
+			v3,
+			settings('mdpubs-is-private: true'),
+			settings('mdpubs-is-private: true\nmdpubs-tags:\n  - a'),
+			settings('mdpubs-is-private: true\nmdpubs-tags:\n  - a\n  - b')
+		]);
+		await page.goto('/e2e-history');
+		const panel = await openHistory(page);
+		await expect(panel.locator('.hp-version')).toHaveCount(3);
+		await expect(panel).not.toContainText('No changes to the text');
+		await expect(panel).toContainText('3 other saves changed only settings, not the text.');
+		// The newest save that changed the text is the one marked current and opened.
+		await expect(panel.locator('.hp-version').first()).toContainText('current');
+		await expect(panel.locator('.hp-version-head').first()).toHaveAttribute(
+			'aria-expanded',
+			'true'
+		);
 	});
 
 	test('one paragraph, or a whole section, followed back through the versions', async ({

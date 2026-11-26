@@ -78,6 +78,19 @@
 	const changes = $derived.by<Change[][]>(() =>
 		(versions ?? []).map((v, i, all) => (i === 0 ? [] : diffBlocks(all[i - 1].blocks, v.blocks)))
 	);
+	/**
+	 * The versions worth a row: the first publish and every save that changed the
+	 * text. A save that only touched settings (tags, privacy, frontmatter, the
+	 * table of contents) says nothing to a reader, so it is counted, not listed.
+	 * Newest first; each is an index into `versions`.
+	 */
+	const listed = $derived(
+		(versions ?? [])
+			.map((_, i) => i)
+			.filter((i) => i === 0 || changes[i].length > 0)
+			.reverse()
+	);
+	const quiet = $derived((versions?.length ?? 0) - listed.length);
 	const trail = $derived.by(() =>
 		picked && versions
 			? follow(
@@ -109,7 +122,12 @@
 				.sort((a, b) => a.version - b.version);
 			versions = list;
 			// Start with the latest change open.
-			expanded = { [list.length - 1]: true };
+			// Open on the newest save that changed the text.
+			let newest = list.length - 1;
+			while (newest > 0 && !diffBlocks(list[newest - 1].blocks, list[newest].blocks).length) {
+				newest--;
+			}
+			expanded = { [newest]: true };
 		} catch {
 			error = 'Could not load the history. Try again.';
 		}
@@ -275,8 +293,8 @@
 				<p class="hp-note">
 					<ins>Green</ins> is new. <del>Red</del> was taken out. Newest first.
 				</p>
-				{#each versions.toReversed() as v, k (v.version)}
-					{@const i = versions.length - 1 - k}
+				{#each listed as i, k (versions[i].version)}
+					{@const v = versions[i]}
 					<section class="hp-version">
 						<button
 							type="button"
@@ -295,13 +313,17 @@
 							<div class="hp-cards">
 								{#each changes[i] as c, n (n)}
 									{@render card(c)}
-								{:else}
-									<p class="hp-note">Only settings changed, not the text.</p>
 								{/each}
 							</div>
 						{/if}
 					</section>
 				{/each}
+				{#if quiet}
+					<p class="hp-note">
+						{quiet}
+						{quiet === 1 ? 'other save' : 'other saves'} changed only settings, not the text.
+					</p>
+				{/if}
 			{:else if !picked}
 				<p class="hp-note hp-pick">
 					Click any paragraph in the page to see how it changed over time. Click a heading to follow

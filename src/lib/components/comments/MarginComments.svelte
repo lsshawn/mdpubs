@@ -635,6 +635,15 @@
 		const sel = window.getSelection();
 		if (sel && !sel.isCollapsed) return;
 
+		// With a comment box open, a click on the empty space round the text (the
+		// margin above or below the box, the gutters) puts it away. It does not
+		// start another one somewhere else.
+		if ((draft || replyTo) && !index.root.contains(target)) {
+			closeDraft();
+			replyTo = null;
+			return;
+		}
+
 		// A click on highlighted text goes to its comment.
 		const host = hostRect();
 		const x = e.clientX - host.left;

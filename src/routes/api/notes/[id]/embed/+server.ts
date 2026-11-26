@@ -34,7 +34,8 @@ export async function POST(event: RequestEvent): Promise<Response> {
 		return Response.json(
 			{
 				...made,
-				url: `${event.url.origin}/${note.publicId}?embed=${encodeURIComponent(made.token)}`
+				// The frame page: an outline at once, then the note (routes/embed/[id]).
+				url: `${event.url.origin}/embed/${note.publicId}?embed=${encodeURIComponent(made.token)}`
 			},
 			{ headers: { 'cache-control': 'private, no-store' } }
 		);
