@@ -1,6 +1,6 @@
 ---
 name: mdpubs
-description: Add mdpubs e-signing frontmatter and inline sign-here anchors to a markdown proposal or agreement so it can be published and signed online. Use when a user wants to make a .md document e-signable, add signers, or wire up signature slots.
+description: Add mdpubs e-signing frontmatter and inline sign-here anchors to a markdown proposal or agreement so it can be published and signed online, or turn on margin comments so readers can leave feedback on it. Use when a user wants to make a .md document e-signable, add signers, wire up signature slots, or let clients comment on a published document.
 ---
 
 # mdpubs E-Signing
@@ -99,6 +99,34 @@ Rules that actually bite (verified against the renderer):
 - **Signed documents lock.** HTML edits change the signed body like any other edit, so a change after the first signature is rejected with `409`. Settle layout before sending the link.
 
 This is the markdown path. A whole-file `.html` pub (`file_extension: html`) is different — it is served verbatim in a sandboxed iframe and uses the comment markers from the note above, not frontmatter.
+
+## Margin comments
+
+Readers can comment in the right margin of a published markdown document: click
+any line (text, list item, table row, image, video, code block) or select a few
+words. Comments are stored against the document, never written into its content,
+so they work on a signable document too and do not touch the signed text. Two
+frontmatter keys control them:
+
+```yaml
+# --- mdpubs comments ---
+mdpubs-comments: public # public = anyone with the link, guests give a name. true = signed-in mdpubs users only. Omit = off.
+mdpubs-comments-email: optional # guests' email field: optional (default) | required | off
+```
+
+- Use `public` for a client: they have no mdpubs account. `true` is for a team
+  that all log in.
+- A guest's email is shown to the document's owner only.
+- The owner (the author, or an owner/admin of its company) resolves, reopens and
+  deletes comments on the page while logged in. Everyone can hide comments with
+  the speech-bubble button.
+- Comments follow their text when the document is republished: moved, reworded
+  and rewritten paragraphs keep theirs. A comment on deleted text stays, marked
+  "the text this was on was removed".
+- Markdown only. An `.html` document has no comments.
+- Typical use: publish the draft with `mdpubs-comments: public`, collect
+  feedback, edit and republish, then send it for signing. Signing locks the
+  text; comments stay open unless you remove the key before the first signature.
 
 ## Steps
 

@@ -70,6 +70,9 @@ export async function canReopenSigning(
 	return !!note.orgId && (await canManageOrg(note.orgId, userId));
 }
 
+/** True if the user may moderate a note's comments: the same people who may reopen its signing. */
+export const canManageNote = canReopenSigning;
+
 export type ResolveOrgResult =
 	| { ok: true; orgId: string | null } // orgId null = personal note (no org)
 	| { ok: false; error: string };

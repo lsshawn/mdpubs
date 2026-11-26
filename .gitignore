@@ -42,3 +42,6 @@ vite.config.ts.timestamp-*
 # Syncthing temp files and sync-conflict copies
 .syncthing.*.tmp
 *.sync-conflict-*
+
+# Playwright e2e scratch (database, traces)
+/e2e/.tmp

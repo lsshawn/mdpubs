@@ -125,9 +125,27 @@ export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
 			// Signing is a progressive enhancement; never fail the page over it.
 		}
 
+		// Margin comments (mdpubs-comments). Markdown pubs only; like signing, the
+		// page still renders if this fails.
+		let comments = null;
+		if (!isHtml && note?.frontmatter?.['mdpubs-comments']) {
+			try {
+				const commentsRes = await fetch(`${config.apiUrl}/notes/${params.id}/comments`, {
+					headers: locals.session ? { Authorization: `Bearer ${locals.session.id}` } : {}
+				});
+				if (commentsRes.ok) {
+					const c = await commentsRes.json();
+					if (c?.enabled) comments = c;
+				}
+			} catch {
+				// Comments are an extra; never fail the page over them.
+			}
+		}
+
 		return {
 			note,
 			isHtml,
+			comments,
 			rawUrl: isHtml ? `${config.apiUrl}/notes/${params.id}/raw` : null,
 			apiUrl: config.apiUrl,
 			noteId: params.id,

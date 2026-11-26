@@ -351,6 +351,68 @@ export const signatureEvent = sqliteTable(
 );
 
 /**
+ * Margin comments on a published markdown note (`mdpubs-comments` frontmatter).
+ *
+ * A comment hangs off a piece of the rendered document, not a line number: the
+ * `anchor` records the block it was made on (tag, text, neighbours) and, for a
+ * text selection, the quoted words with a little context either side. The page
+ * re-finds that spot on every render (src/lib/helpers/comment-anchor.ts), so a
+ * comment follows its paragraph through edits and moves.
+ *
+ * Replies point at the thread's first comment through `parentId` and carry no
+ * anchor. Resolving applies to the first comment and covers the whole thread.
+ */
+export type CommentAnchorRow = {
+	v: 1;
+	kind: 'text' | 'block';
+	tag: string;
+	index: number;
+	text: string;
+	before?: string;
+	after?: string;
+	src?: string;
+	heading?: string;
+	quote?: string;
+	prefix?: string;
+	suffix?: string;
+};
+
+export const noteComment = sqliteTable(
+	'note_comments',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => nanoid()),
+		noteId: integer('note_id')
+			.notNull()
+			.references(() => note.id, { onDelete: 'cascade' }),
+		parentId: text('parent_id'),
+		anchor: text('anchor', { mode: 'json' }).$type<CommentAnchorRow>(),
+		body: text('body').notNull(),
+		// Set when a signed-in user commented; null for a guest.
+		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+		authorName: text('author_name').notNull(),
+		// Shown to the note's owner only.
+		authorEmail: text('author_email'),
+		// SHA-256 of a secret kept in the guest's browser, so a guest can delete
+		// their own comment without an account.
+		authorKeyHash: text('author_key_hash'),
+		// For the per-IP rate limit on guest comments.
+		ipAddress: text('ip_address'),
+		resolvedAt: integer('resolved_at', { mode: 'timestamp' }),
+		resolvedByUserId: text('resolved_by_user_id'),
+		createdAt: integer('created_at', { mode: 'timestamp' })
+			.notNull()
+			.$defaultFn(() => new Date()),
+		deletedAt: DeletedAt
+	},
+	(t) => ({
+		noteIdx: index('idx_note_comments_note_id').on(t.noteId),
+		parentIdx: index('idx_note_comments_parent_id').on(t.parentId)
+	})
+);
+
+/**
  * Access tokens issued to AI tools: the `mdpubs` CLI (installed by /install and
  * logged in with the device flow) and MCP connectors (Claude, ChatGPT) that went
  * through /oauth/authorize. One row per tool, so each can be revoked on its own
@@ -465,5 +527,7 @@ export type Signature = typeof signature.$inferSelect;
 export type NewSignature = typeof signature.$inferInsert;
 export type SignatureEvent = typeof signatureEvent.$inferSelect;
 export type NewSignatureEvent = typeof signatureEvent.$inferInsert;
+export type NoteComment = typeof noteComment.$inferSelect;
+export type NewNoteComment = typeof noteComment.$inferInsert;
 export type ApiToken = typeof apiToken.$inferSelect;
 export type OAuthClient = typeof oauthClient.$inferSelect;

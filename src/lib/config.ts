@@ -31,8 +31,5 @@ export const config = {
 		free: { maxNotes: '5' },
 		paid: { maxNotes: 'unlimited' }
 	},
-	feedbackProjectId: 1,
-	featureFlags: {
-		discussionSidebar: false
-	}
+	feedbackProjectId: 1
 } as const;

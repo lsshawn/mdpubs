@@ -64,6 +64,12 @@ Rules:
   fields at signing (`?` = optional). Name, email and date are always collected.
 - Optional: `mdpubs-is-private: true` hides it from the user's public profile.
   Anyone with the link can still open and sign it.
+- Optional: `mdpubs-comments: public` lets anyone with the link comment in the
+  margin (click a line or select text; guests give a name). Use it when the
+  user wants feedback on a draft. `mdpubs-comments: true` limits it to
+  signed-in mdpubs users. `mdpubs-comments-email: required` or `off` changes
+  the guest email field (default `optional`). Comments survive later edits to
+  the document and never change its text.
 - Quote any frontmatter value that contains `: `.
 - End the frontmatter with a one-line key such as `mdpubs-sign: true`, never
   with a list. A list that is the last key is ignored.
