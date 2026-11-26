@@ -16,6 +16,12 @@
 			try {
 				if (localStorage.getItem('theme') === 'night')
 					document.documentElement.dataset.theme = 'night';
+				// Shown inside another app: that app says which theme, with &theme=night|light.
+				var q = new URLSearchParams(location.search);
+				if (q.get('embed') && q.get('theme')) {
+					if (q.get('theme') === 'night') document.documentElement.dataset.theme = 'night';
+					else delete document.documentElement.dataset.theme;
+				}
 			} catch {}
 		</script>
 		%sveltekit.head%

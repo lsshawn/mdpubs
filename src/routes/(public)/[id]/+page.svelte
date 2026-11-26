@@ -852,6 +852,7 @@
 											noteId={data.noteId}
 											apiUrl={data.apiUrl}
 											initial={data.comments}
+											embedToken={data.embed?.token}
 											tools={data.history ? historyButton : undefined}
 										/>
 									{/key}
@@ -871,6 +872,7 @@
 											article={articleElement}
 											noteId={data.noteId}
 											apiUrl={data.apiUrl}
+											embedToken={data.embed?.token}
 											bind:open={historyOpen}
 										/>
 									{/key}

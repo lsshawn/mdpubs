@@ -7,6 +7,7 @@ import { isCustomDomainHost } from '#lib/server/host.js';
 import { canManageNote } from '#lib/server/org.js';
 import { plainTitle, warmOgImage } from '#lib/server/og.js';
 import { parseCustomComponentsInHtml } from '#lib/helpers/custom-components-parser.js';
+import { embedAllows, readEmbedGrant } from '#lib/server/embed.js';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -40,9 +41,14 @@ export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
 
 		// Forward the viewer's session to the API so a logged-in owner can load
 		// their own private note (the API hides private notes from anonymous calls).
-		const res = await fetch(`${config.apiUrl}/notes/${params.id}?parse=markdown`, {
-			headers: locals.session ? { Authorization: `Bearer ${locals.session.id}` } : {}
-		});
+		// Shown inside another app (?embed=<token>, see src/lib/server/embed.ts):
+		// the token goes along on every call, and opens this one note.
+		const embedToken = url.searchParams.get('embed');
+		const headers: Record<string, string> = {};
+		if (locals.session) headers.Authorization = `Bearer ${locals.session.id}`;
+		if (embedToken) headers['x-embed-token'] = embedToken;
+
+		const res = await fetch(`${config.apiUrl}/notes/${params.id}?parse=markdown`, { headers });
 
 		if (!res.ok) {
 			// The public API hides a private note's existence, but it may signal that
@@ -73,7 +79,7 @@ export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
 		if (showDiffs && note?.frontmatter?.mdpubs) {
 			const versionsRes = await fetch(
 				`${config.apiUrl}/notes/${note.frontmatter.mdpubs}/versions?diffs=true`,
-				{ headers: locals.session ? { Authorization: `Bearer ${locals.session.id}` } : {} }
+				{ headers }
 			);
 			if (versionsRes.ok) {
 				const versionsData = await versionsRes.json();
@@ -115,9 +121,7 @@ export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
 		// and reports progress; a non-signable pub returns { enabled: false }.
 		let signState = null;
 		try {
-			const signRes = await fetch(`${config.apiUrl}/notes/${params.id}/sign`, {
-				headers: locals.session ? { Authorization: `Bearer ${locals.session.id}` } : {}
-			});
+			const signRes = await fetch(`${config.apiUrl}/notes/${params.id}/sign`, { headers });
 			if (signRes.ok) {
 				const s = await signRes.json();
 				if (s?.enabled) signState = s;
@@ -128,11 +132,14 @@ export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
 
 		// Margin comments (mdpubs-comments). Markdown pubs only; like signing, the
 		// page still renders if this fails.
+		const grant = embedToken
+			? embedAllows(await readEmbedGrant(embedToken, params.id), { userId: note?.userId })
+			: null;
 		let comments = null;
-		if (!isHtml && note?.frontmatter?.['mdpubs-comments']) {
+		if (!isHtml && (note?.frontmatter?.['mdpubs-comments'] || grant?.c)) {
 			try {
 				const commentsRes = await fetch(`${config.apiUrl}/notes/${params.id}/comments`, {
-					headers: locals.session ? { Authorization: `Bearer ${locals.session.id}` } : {}
+					headers
 				});
 				if (commentsRes.ok) {
 					const c = await commentsRes.json();
@@ -149,7 +156,7 @@ export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
 		let historyOpen = false;
 		if (!isHtml) {
 			const setting = note?.frontmatter?.['mdpubs-history'];
-			historyOpen = setting === 'public' || setting === true;
+			historyOpen = setting === 'public' || setting === true || !!grant?.h;
 			if (!historyOpen && locals.user && note?.userId) {
 				historyOpen = await canManageNote(
 					{ userId: note.userId, orgId: note.orgId ?? null },
@@ -163,10 +170,14 @@ export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
 			isHtml,
 			comments,
 			history: historyOpen,
-			rawUrl: isHtml ? `${config.apiUrl}/notes/${params.id}/raw` : null,
+			embed: grant && embedToken ? { token: embedToken } : null,
+			rawUrl: isHtml
+				? `${config.apiUrl}/notes/${params.id}/raw${grant && embedToken ? `?embed=${encodeURIComponent(embedToken)}` : ''}`
+				: null,
 			apiUrl: config.apiUrl,
 			noteId: params.id,
-			isCustomDomain: isCustomDomainHost(url.host),
+			// Inside another app the page is that app's: no mdpubs footer or badge.
+			isCustomDomain: isCustomDomainHost(url.host) || !!grant,
 			signState,
 			versions,
 			meta: {

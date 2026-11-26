@@ -108,14 +108,28 @@ function millis(d: Date | null): number | null {
 	return d ? d.getTime() : null;
 }
 
-export type Viewer = { user: User | null; key?: string | null };
+export type Viewer = {
+	user: User | null;
+	key?: string | null;
+	/** Reading inside another app's embed: the name it vouches for, and whether comments are on regardless. */
+	embed?: { name: string; comments: boolean };
+};
+
+/** The note's own comment settings, or comments switched on by the app embedding it. */
+function configFor(note: Note, viewer: Viewer): CommentsConfig {
+	const config = parseCommentsConfig(note);
+	if (config.enabled || !viewer.embed?.comments) return config;
+	const ext = (note.fileExtension || '').toLowerCase();
+	if (ext === 'html' || ext === 'htm') return config;
+	return { enabled: true, guests: false, email: 'off' };
+}
 
 async function moderates(note: Note, viewer: Viewer): Promise<boolean> {
 	return !!viewer.user && (await canManageNote(note, viewer.user.id));
 }
 
 export async function getCommentsState(note: Note, viewer: Viewer): Promise<CommentsState> {
-	const config = parseCommentsConfig(note);
+	const config = configFor(note, viewer);
 	if (!config.enabled) {
 		return { ...config, canComment: false, canModerate: false, viewer: null, comments: [] };
 	}
@@ -150,11 +164,13 @@ export async function getCommentsState(note: Note, viewer: Viewer): Promise<Comm
 
 	return {
 		...config,
-		canComment: config.guests || !!viewer.user,
+		canComment: config.guests || !!viewer.user || !!viewer.embed,
 		canModerate,
 		viewer: viewer.user
 			? { name: displayName(viewer.user), picture: viewer.user.picture ?? null }
-			: null,
+			: viewer.embed
+				? { name: viewer.embed.name, picture: null }
+				: null,
 		comments
 	};
 }
@@ -204,9 +220,9 @@ export async function addComment(
 	input: NewCommentInput,
 	ipAddress: string | null
 ): Promise<CommentDto> {
-	const config = parseCommentsConfig(note);
+	const config = configFor(note, viewer);
 	if (!config.enabled) throw new CommentError('Comments are off for this document.', 403);
-	if (!viewer.user && !config.guests) {
+	if (!viewer.user && !viewer.embed && !config.guests) {
 		throw new CommentError('Log in to comment on this document.', 401);
 	}
 	if (typeof input.website === 'string' && input.website) {
@@ -225,6 +241,10 @@ export async function addComment(
 	if (viewer.user) {
 		authorName = displayName(viewer.user);
 		authorEmail = viewer.user.email;
+	} else if (viewer.embed) {
+		// The embedding app says who this is: no name to type, nothing to forge.
+		authorName = viewer.embed.name.slice(0, NAME_MAX);
+		authorKeyHash = viewer.key ? sha256Hex(viewer.key) : null;
 	} else {
 		authorName = typeof input.name === 'string' ? input.name.replace(/\s+/g, ' ').trim() : '';
 		if (!authorName) throw new CommentError('Add your name.');
@@ -272,9 +292,12 @@ export async function addComment(
 
 	if (ipAddress) {
 		const since = new Date(Date.now() - RATE_WINDOW_MS);
+		// A team reading through an embed often shares one address: count each person.
 		const who = viewer.user
 			? or(eq(noteComment.userId, viewer.user.id), eq(noteComment.ipAddress, ipAddress))
-			: eq(noteComment.ipAddress, ipAddress);
+			: viewer.embed && authorKeyHash
+				? eq(noteComment.authorKeyHash, authorKeyHash)
+				: eq(noteComment.ipAddress, ipAddress);
 		const [{ recent }] = await db
 			.select({ recent: sql<number>`count(*)` })
 			.from(noteComment)

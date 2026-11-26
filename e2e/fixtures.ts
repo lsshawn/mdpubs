@@ -108,5 +108,7 @@ export const NOTES: Record<string, { content: string; isPrivate?: boolean }> = {
 	'e2e-report': {
 		content: `---\ntitle: Annual report\nmdpubs-comments: public\n---\n${report}`
 	},
+	// Private, and no comments key: only an embed token opens it and turns comments on.
+	'e2e-embed': { content: page(''), isPrivate: true },
 	'e2e-private': { content: page('mdpubs-comments: public\n'), isPrivate: true }
 };

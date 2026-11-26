@@ -47,6 +47,8 @@
 		visible?: boolean;
 		/** More buttons for the corner bar, beside the comments toggle. */
 		tools?: Snippet;
+		/** Shown inside another app: the token that opens this note and names the reader. */
+		embedToken?: string | null;
 	};
 	let {
 		article,
@@ -55,7 +57,8 @@
 		apiUrl,
 		initial,
 		visible = $bindable(true),
-		tools
+		tools,
+		embedToken = null
 	}: Props = $props();
 
 	const HIDDEN_KEY = 'mdpubs:comments-hidden';
@@ -702,7 +705,8 @@
 	async function api(path: string, method: string, body?: unknown) {
 		const headers: Record<string, string> = { 'content-type': 'application/json' };
 		const key = commenterKey();
-		if (key) headers['x-comment-key'] = key;
+		if (embedToken) headers['x-embed-token'] = embedToken;
+		else if (key) headers['x-comment-key'] = key;
 		const res = await fetch(`${apiUrl}/notes/${noteId}/comments${path}`, {
 			method,
 			headers,

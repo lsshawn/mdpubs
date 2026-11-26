@@ -1656,6 +1656,126 @@ test.describe('frontmatter', () => {
 	});
 });
 
+test.describe('embedded in another app', () => {
+	const asOwner = { Authorization: `Bearer ${OWNER.session}` };
+	const mint = async (request: APIRequestContext, id: string, data: Row, headers = asOwner) =>
+		request.post(`/api/notes/${id}/embed`, { data, headers });
+	const priya = { viewer: { id: 'user-42', name: 'Priya Shah' } };
+
+	test.beforeAll(async () => {
+		// Tokens are signed with the owner's stored API-key hash.
+		await db.execute({
+			sql: `update users set api_key = 'e2e-owner-api-key-hash' where id = ?`,
+			args: [OWNER.id]
+		});
+	});
+
+	test('only the owner can make a link; the note stays private without it', async ({
+		page,
+		request
+	}) => {
+		expect((await request.post('/api/notes/e2e-embed/embed', { data: priya })).status()).toBe(401);
+		expect(
+			(
+				await mint(request, 'e2e-embed', priya, { Authorization: `Bearer ${MEMBER.session}` })
+			).status()
+		).toBe(404);
+		expect((await mint(request, 'e2e-embed', { viewer: { id: 'x' } })).status()).toBe(400);
+
+		const res = await mint(request, 'e2e-embed', priya);
+		expect(res.status()).toBe(200);
+		const { token, url } = await res.json();
+		expect(url).toContain('/e2e-embed?embed=mde_');
+
+		// No token, a tampered token, or a token for another note: all refused.
+		expect((await request.get('/api/notes/e2e-embed')).status()).toBe(404);
+		expect((await page.goto('/e2e-embed'))!.status()).toBe(403);
+		const forged = token.slice(0, -3) + (token.endsWith('aaa') ? 'bbb' : 'aaa');
+		expect(
+			(await request.get('/api/notes/e2e-embed', { headers: { 'x-embed-token': forged } })).status()
+		).toBe(404);
+		expect(
+			(
+				await request.get('/api/notes/e2e-private', { headers: { 'x-embed-token': token } })
+			).status()
+		).toBe(404);
+		expect(
+			(await request.get('/api/notes/e2e-embed', { headers: { 'x-embed-token': token } })).status()
+		).toBe(200);
+		// A token reads and comments. It never edits the note.
+		expect(
+			(
+				await request.put('/api/notes/e2e-embed', {
+					data: { content: 'x' },
+					headers: { 'x-embed-token': token }
+				})
+			).status()
+		).toBe(401);
+	});
+
+	test('the reader sees the private note, with comments and history, under the name the app gave', async ({
+		page,
+		request
+	}) => {
+		const { url } = await (await mint(request, 'e2e-embed', priya)).json();
+		await page.goto(url);
+		await expect(page.locator('article')).toContainText('We will build the onboarding flow');
+		await expect(page.locator('.mc-layer')).toBeAttached();
+		await expect(page.getByRole('button', { name: /History/ })).toBeVisible();
+		await expect(page.locator('footer')).toHaveCount(0);
+
+		// No name to type: the app already said who this is.
+		await clickBeside(page, para(page, 'Payment is due'));
+		await expect(composer(page).getByPlaceholder('Your name')).toHaveCount(0);
+		await write(page, 'thirty days would suit us better');
+		await expect(note(page, 'thirty days would suit us better')).toContainText('Priya Shah');
+
+		const [row] = await comments('e2e-embed');
+		expect(row.author_name).toBe('Priya Shah');
+		expect(row.user_id).toBeNull();
+		expect(row.author_key_hash).toBeTruthy();
+
+		// A later visit with a fresh token: still her comment, hers to edit.
+		const again = await (await mint(request, 'e2e-embed', priya)).json();
+		const mine = await (
+			await request.get('/api/notes/e2e-embed/comments', {
+				headers: { 'x-embed-token': again.token }
+			})
+		).json();
+		expect(mine.comments[0].mine).toBe(true);
+		expect(mine.viewer.name).toBe('Priya Shah');
+
+		// A colleague sees it, but it is not theirs.
+		const other = await (
+			await mint(request, 'e2e-embed', { viewer: { id: 'user-7', name: 'Omar Haddad' } })
+		).json();
+		const theirs = await (
+			await request.get('/api/notes/e2e-embed/comments', {
+				headers: { 'x-embed-token': other.token }
+			})
+		).json();
+		expect(theirs.comments[0].mine).toBe(false);
+		expect(theirs.canComment).toBe(true);
+		expect(theirs.canModerate).toBe(false);
+
+		// History loads through the token too.
+		await page.getByRole('button', { name: /History/ }).click();
+		await expect(page.locator('.hp-panel')).toBeVisible();
+		await expect(page.locator('.hp-panel')).not.toContainText('Could not');
+	});
+
+	test('comments: false in the request leaves a note without the key comment-free', async ({
+		page,
+		request
+	}) => {
+		const { url } = await (await mint(request, 'e2e-embed', { ...priya, comments: false })).json();
+		await page.goto(`${url}&theme=night`);
+		await expect(page.locator('article')).toContainText('We will build');
+		await expect(page.locator('.mc-toggle-btn')).toHaveCount(0);
+		await expect(page.locator('html')).toHaveAttribute('data-theme', 'night');
+	});
+});
+
 test.describe('bad input', () => {
 	const anchor = { v: 1, kind: 'block', tag: 'p', index: 1, text: 'x' };
 	const post = (request: APIRequestContext, data: Row) =>

@@ -10,6 +10,7 @@ import { config } from '#lib/server/api/config.js';
 import { NoteService } from '#lib/server/api/services/note.js';
 import { signService } from '#lib/server/api/services/sign.js';
 import { NotFoundError, NoteNotOwnedError } from '#lib/server/api/db.js';
+import { embedTokenOf, readEmbedGrant } from '#lib/server/embed.js';
 
 const noteService = new NoteService();
 
@@ -21,9 +22,10 @@ export async function GET(event: RequestEvent): Promise<Response> {
 		const noteId = await resolveNoteId(event.params.id);
 		if (noteId === null) return Response.json({ error: 'Note not found' }, { status: 404 });
 
+		const grant = await readEmbedGrant(embedTokenOf(event.request, event.url), event.params.id);
 		const note = auth.isAdmin
 			? await noteService.getNoteByIdAdmin(noteId)
-			: await signService.getNoteForSigning(noteId, auth.user?.id);
+			: await signService.getNoteForSigning(noteId, grant?.o ?? auth.user?.id);
 
 		if (!noteService.isHtmlFile(note.fileExtension || undefined)) {
 			return Response.json({ error: 'Not an HTML pub' }, { status: 404 });

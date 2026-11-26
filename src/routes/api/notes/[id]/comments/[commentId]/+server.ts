@@ -5,7 +5,7 @@
  */
 import { type RequestEvent } from '@sveltejs/kit';
 import { optionalApiAuth, isAuthError } from '#lib/server/api/auth.js';
-import { loadNote, commentKey, clientIp, fail } from '../shared.js';
+import { access, clientIp, fail } from '../shared.js';
 import {
 	deleteComment,
 	editComment,
@@ -17,7 +17,7 @@ export async function PATCH(event: RequestEvent): Promise<Response> {
 	const auth = await optionalApiAuth(event);
 	if (isAuthError(auth)) return auth;
 	try {
-		const note = await loadNote(event.params.id, auth);
+		const { note, viewer } = await access(event, auth);
 		const input = await event.request.json().catch(() => null);
 		if (!input || typeof input !== 'object') {
 			return Response.json({ error: 'Send the change as JSON.' }, { status: 400 });
@@ -26,14 +26,14 @@ export async function PATCH(event: RequestEvent): Promise<Response> {
 		if ('body' in input) {
 			const edited = await editComment(
 				note,
-				{ user: auth.user, key: commentKey(event.request) },
+				viewer,
 				event.params.commentId!,
 				(input as { body: unknown }).body,
 				clientIp(event.request)
 			);
 			return Response.json(edited);
 		}
-		await updateComment(note, { user: auth.user }, event.params.commentId!, input);
+		await updateComment(note, viewer, event.params.commentId!, input);
 		return Response.json({ ok: true });
 	} catch (error) {
 		return fail(error);
@@ -44,12 +44,8 @@ export async function DELETE(event: RequestEvent): Promise<Response> {
 	const auth = await optionalApiAuth(event);
 	if (isAuthError(auth)) return auth;
 	try {
-		const note = await loadNote(event.params.id, auth);
-		await deleteComment(
-			note,
-			{ user: auth.user, key: commentKey(event.request) },
-			event.params.commentId!
-		);
+		const { note, viewer } = await access(event, auth);
+		await deleteComment(note, viewer, event.params.commentId!);
 		return Response.json({ ok: true });
 	} catch (error) {
 		return fail(error);
@@ -60,12 +56,8 @@ export async function GET(event: RequestEvent): Promise<Response> {
 	const auth = await optionalApiAuth(event);
 	if (isAuthError(auth)) return auth;
 	try {
-		const note = await loadNote(event.params.id, auth);
-		const edits = await getCommentEdits(
-			note,
-			{ user: auth.user, key: commentKey(event.request) },
-			event.params.commentId!
-		);
+		const { note, viewer } = await access(event, auth);
+		const edits = await getCommentEdits(note, viewer, event.params.commentId!);
 		return Response.json({ edits }, { headers: { 'cache-control': 'private, no-store' } });
 	} catch (error) {
 		return fail(error);

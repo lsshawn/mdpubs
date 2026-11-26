@@ -7,17 +7,21 @@ import { optionalApiAuth, isAuthError } from '#lib/server/api/auth.js';
 import { resolveNoteId } from '#lib/server/api/http.js';
 import { NoteService } from '#lib/server/api/services/note.js';
 import { NotFoundError, NoteNotOwnedError } from '#lib/server/api/db.js';
+import { embedTokenOf, readEmbedGrant } from '#lib/server/embed.js';
 
 const noteService = new NoteService();
 
 export async function GET(event: RequestEvent): Promise<Response> {
 	const auth = await optionalApiAuth(event);
 	if (isAuthError(auth)) return auth;
-	const { isAdmin, user } = auth;
+	const { isAdmin } = auth;
 
 	try {
 		const noteId = await resolveNoteId(event.params.id);
 		if (noteId === null) return Response.json({ error: 'Note not found' }, { status: 404 });
+		// An embed token that allows history reads as the owner who signed it.
+		const grant = await readEmbedGrant(embedTokenOf(event.request, event.url), event.params.id);
+		const user = grant?.h ? { id: grant.o } : auth.user;
 
 		const withDiffs = event.url.searchParams.get('diffs') === 'true';
 		const limitParam = event.url.searchParams.get('limit');

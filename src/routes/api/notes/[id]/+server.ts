@@ -20,6 +20,7 @@ import {
 } from '#lib/server/api/services/note.js';
 import { signService } from '#lib/server/api/services/sign.js';
 import { NotFoundError, NoteNotOwnedError, NoteLockedError } from '#lib/server/api/db.js';
+import { embedTokenOf, readEmbedGrant } from '#lib/server/embed.js';
 import { env } from 'cloudflare:workers';
 
 const noteService = new NoteService();
@@ -84,9 +85,12 @@ export async function GET(event: RequestEvent): Promise<Response> {
 
 		// Current version. Signable private notes are reachable via link (so signers
 		// can view) — getNoteForSigning applies that rule, else the privacy gate.
+		// An embed token reads as the owner who signed it: the same gate then
+		// passes for that owner's notes and for no one else's.
+		const grant = await readEmbedGrant(embedTokenOf(event.request, url), event.params.id);
 		const note = isAdmin
 			? await noteService.getNoteByIdAdmin(noteId)
-			: await signService.getNoteForSigning(noteId, user?.id);
+			: await signService.getNoteForSigning(noteId, grant?.o ?? user?.id);
 
 		if (
 			(parseMarkdown || only === 'frontmatter') &&

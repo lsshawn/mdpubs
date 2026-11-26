@@ -28,8 +28,10 @@
 		noteId: string;
 		apiUrl: string;
 		open?: boolean;
+		/** Shown inside another app: the token that opens this note there. */
+		embedToken?: string | null;
 	};
-	let { article, noteId, apiUrl, open = $bindable(false) }: Props = $props();
+	let { article, noteId, apiUrl, open = $bindable(false), embedToken = null }: Props = $props();
 
 	type Version = { version: number; at: Date | null; blocks: HistoryBlock[] };
 
@@ -88,7 +90,9 @@
 	async function load() {
 		error = '';
 		try {
-			const res = await fetch(`${apiUrl}/notes/${noteId}/versions?limit=40`);
+			const res = await fetch(`${apiUrl}/notes/${noteId}/versions?limit=40`, {
+				headers: embedToken ? { 'x-embed-token': embedToken } : {}
+			});
 			if (!res.ok) throw new Error();
 			const data: {
 				versions: { version: number; createdAt: string | number | null; content: string | null }[];

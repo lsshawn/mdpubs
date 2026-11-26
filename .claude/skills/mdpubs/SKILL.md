@@ -127,6 +127,15 @@ mdpubs-comments-email: optional # guests' email field: optional (default) | requ
   and rewritten paragraphs keep theirs. A comment on deleted text stays, marked
   "the text this was on was removed".
 - Markdown only. An `.html` document has no comments.
+- **Embedding in another app.** The app's server calls
+  `POST /api/notes/<id>/embed` with its API key and
+  `{"viewer": {"id": "<their user id>", "name": "<their name>"}}` (optional:
+  `comments`, `history` booleans, `ttl` seconds, default one hour, max a day).
+  It gets back `{token, url, expiresAt}` and loads `url` in an iframe that fills
+  the page (add `&theme=night` or `&theme=light`). The link opens that one note,
+  private or not, turns comments and history on without any frontmatter, and
+  posts comments under the given name. The same viewer id keeps a person's
+  comments theirs across visits. It cannot edit the note.
 - Typical use: publish the draft with `mdpubs-comments: public`, collect
   feedback, edit and republish, then send it for signing. Signing locks the
   text; comments stay open unless you remove the key before the first signature.
