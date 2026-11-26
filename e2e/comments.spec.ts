@@ -221,6 +221,13 @@ test.describe('guests', () => {
 		expect(highlight.y).toBeGreaterThanOrEqual(p.y - 2);
 		expect(highlight.y + highlight.height).toBeLessThanOrEqual(p.y + p.height + 2);
 		expect(highlight.width).toBeGreaterThan(150);
+
+		// The bracket stands beside the selected words' line, not the whole paragraph.
+		const mark = (await page.locator('.mc-mark').boundingBox())!;
+		expect(p.height).toBeGreaterThan(40);
+		expect(mark.height).toBeLessThan(p.height - 12);
+		expect(mark.y).toBeGreaterThanOrEqual(highlight.y - 10);
+		expect(mark.y + mark.height).toBeLessThanOrEqual(highlight.y + highlight.height + 10);
 	});
 
 	test('a selection across two paragraphs brackets both', async ({ page }) => {
@@ -241,7 +248,9 @@ test.describe('guests', () => {
 		const a = (await para(page, 'We will build').boundingBox())!;
 		const b = (await para(page, 'Payment is due').boundingBox())!;
 		expect(mark.y).toBeLessThan(a.y + a.height);
-		expect(mark.y + mark.height).toBeGreaterThan(b.y + b.height - 4);
+		// From the last line of the first paragraph into the first line of the second.
+		expect(mark.y).toBeGreaterThan(a.y);
+		expect(mark.y + mark.height).toBeGreaterThan(b.y + 8);
 	});
 
 	test('links and the comment box itself do not start a comment', async ({ page }) => {
@@ -351,6 +360,57 @@ test.describe('guests', () => {
 			})
 			.toBe(true);
 	});
+
+	test('every note starts level with its bracket, however long the one above it is', async ({
+		page,
+		request
+	}) => {
+		const long = 'a long comment that wraps over several lines in the margin '.repeat(3);
+		const root = await seedComment(request, 'e2e-public', 'We will build', `${long}one`);
+		await seedComment(request, 'e2e-public', 'We will build', `${long}reply`, { parentId: root });
+		await seedComment(request, 'e2e-public', 'Payment is due', 'short, on the next paragraph');
+		await open(page, 'e2e-public');
+		await expect(page.locator('.mc-note')).toHaveCount(2);
+		await expect(async () => {
+			const top = (await para(page, 'Payment is due').boundingBox())!.y;
+			const second = (await note(page, 'short, on the next paragraph').boundingBox())!;
+			expect(Math.abs(second.y - top)).toBeLessThan(14);
+			const first = (await note(page, `${long}one`).boundingBox())!;
+			expect(Math.abs(first.y - (await para(page, 'We will build').boundingBox())!.y)).toBeLessThan(
+				14
+			);
+			// The long one is cut short to make room, not laid over its neighbour.
+			expect(first.y + first.height).toBeLessThanOrEqual(second.y);
+		}).toPass({ timeout: 5000 });
+
+		// Under the pointer it shows whole, and nothing else moves.
+		const cut = (await note(page, `${long}one`).boundingBox())!.height;
+		const before = (await note(page, 'short, on the next paragraph').boundingBox())!.y;
+		await note(page, `${long}one`).hover();
+		await expect
+			.poll(async () => (await note(page, `${long}one`).boundingBox())!.height)
+			.toBeGreaterThan(cut + 20);
+		expect((await note(page, 'short, on the next paragraph').boundingBox())!.y).toBe(before);
+	});
+
+	test('a click on highlighted words puts away a half-started comment and opens their thread', async ({
+		page
+	}) => {
+		await open(page, 'e2e-public');
+		await selectText(page, para(page, 'We will build'), 'onboarding flow');
+		await write(page, 'on these words', 'Maya Lin');
+		await page.evaluate(() => window.getSelection()!.removeAllRanges());
+		await clickBeside(page, para(page, 'Payment is due'));
+		await expect(composer(page)).toBeVisible();
+		// No ghost bracket follows the pointer: only real brackets are drawn.
+		await page.mouse.move(600, 300);
+		await expect(page.locator('.mc-hover')).toHaveCount(0);
+
+		const h = (await page.locator('.mc-hl:not(.mc-plain) .mc-highlight').first().boundingBox())!;
+		await page.mouse.click(h.x + h.width / 2, h.y + h.height / 2);
+		await expect(composer(page)).toHaveCount(0);
+		await expect(page.locator('.mc-drawer')).toContainText('on these words');
+	});
 });
 
 test.describe('long comments, long threads and colours', () => {
@@ -390,11 +450,18 @@ test.describe('long comments, long threads and colours', () => {
 		await expect(drawer.locator('.mc-entry')).toHaveCount(10);
 		// The pane does not repeat the paragraph. The page is tinted and the paragraph left bright.
 		await expect(drawer).not.toContainText('Payment is due within fourteen');
-		const spot = (await page.locator('.mc-spot').boundingBox())!;
-		const lit = (await para(page, 'Payment is due').boundingBox())!;
-		expect(spot.y).toBeLessThanOrEqual(lit.y);
-		expect(spot.y + spot.height).toBeGreaterThanOrEqual(lit.y + lit.height);
-		expect(spot.height).toBeLessThan(lit.height + 40);
+		// (Measured once the page has finished scrolling the paragraph into view.)
+		await expect
+			.poll(() =>
+				page.evaluate(() => {
+					const spot = document.querySelector('.mc-spot')!.getBoundingClientRect();
+					const lit = Array.from(document.querySelectorAll('article p'))
+						.find((p) => p.textContent!.includes('Payment is due'))!
+						.getBoundingClientRect();
+					return spot.top <= lit.top && spot.bottom >= lit.bottom && spot.height < lit.height + 40;
+				})
+			)
+			.toBe(true);
 		expect(
 			await page.locator('.mc-spot').evaluate((el) => getComputedStyle(el).boxShadow)
 		).not.toBe('none');
@@ -707,6 +774,100 @@ test.describe('long comments, long threads and colours', () => {
 	});
 });
 
+test.describe('opening a thread', () => {
+	test('a click on any comment, or on its bracket, opens the pane on it', async ({
+		page,
+		request
+	}) => {
+		const root = await seedComment(request, 'e2e-public', 'Payment is due', 'the opener');
+		for (let i = 1; i <= 12; i++) {
+			await seedComment(request, 'e2e-public', 'Payment is due', `answer ${i}`, { parentId: root });
+		}
+		await seedComment(request, 'e2e-public', 'Work starts on', 'a lone comment');
+		await open(page, 'e2e-public');
+		await page.setViewportSize({ width: 1440, height: 520 });
+		const drawer = page.locator('.mc-drawer');
+
+		// The first comment of a long thread: the pane opens at the top, on it.
+		await note(page, 'the opener').locator('.mc-hand').first().click();
+		await expect(drawer.locator('.mc-turn')).toHaveCount(13);
+		await expect(drawer.getByText('the opener')).toBeInViewport();
+		await expect(drawer.getByText('answer 12')).not.toBeInViewport();
+		await page.keyboard.press('Escape');
+
+		// A comment with no replies opens too.
+		await note(page, 'a lone comment').locator('.mc-hand').click();
+		await expect(drawer.locator('.mc-turn')).toHaveCount(1);
+		await page.keyboard.press('Escape');
+
+		// Buttons inside a comment keep their own job.
+		const lone = note(page, 'a lone comment');
+		await lone.hover();
+		await lone.getByRole('button', { name: 'Reply' }).click();
+		await expect(drawer).toHaveCount(0);
+		await expect(lone.locator('textarea')).toBeVisible();
+		await page.keyboard.press('Escape');
+
+		// The bracket opens the thread it stands for, at the newest comment.
+		await para(page, 'Payment is due').scrollIntoViewIfNeeded();
+		await page.locator('.mc-mark-hit').first().click();
+		await expect(drawer.locator('.mc-turn')).toHaveCount(13);
+		await expect(drawer.getByText('answer 12')).toBeInViewport();
+		// It did not start a new comment on that line.
+		await page.keyboard.press('Escape');
+		await expect(composer(page)).toHaveCount(0);
+	});
+
+	test('the menu lists the latest comments, newest first; one click goes there and opens the thread', async ({
+		page,
+		request
+	}) => {
+		await seedComment(request, 'e2e-public', 'We will build', 'first, near the top');
+		const root = await seedComment(request, 'e2e-public', 'Work starts on', 'second, far down');
+		await seedComment(request, 'e2e-public', 'Work starts on', 'a reply, the newest', {
+			parentId: root,
+			name: 'Sam Ortiz',
+			key: 'seed-key-sam-0123456789abcdef'
+		});
+		// Same-second seeds: spread them so the order is certain.
+		const rows = await comments('e2e-public');
+		for (let i = 0; i < rows.length; i++) {
+			await db.execute({
+				sql: `update note_comments set created_at = ? where id = ?`,
+				args: [Math.floor(Date.now() / 1000) - (rows.length - i) * 60, rows[i].id as string]
+			});
+		}
+		await open(page, 'e2e-public');
+		await page.locator('.mc-toggle-btn').hover();
+		const items = page.locator('.mc-latest-item');
+		await expect(items).toHaveCount(3);
+		await expect(items.nth(0)).toContainText('Sam Ortiz replied');
+		await expect(items.nth(0)).toContainText('a reply, the newest');
+		await expect(items.nth(2)).toContainText('first, near the top');
+
+		await items.nth(0).click();
+		const drawer = page.locator('.mc-drawer');
+		await expect(drawer).toContainText('second, far down');
+		await expect(drawer.locator('.mc-flash')).toContainText('a reply, the newest');
+		await expect(page.locator('.mc-menu')).toHaveCount(0);
+		await expect(para(page, 'Work starts on')).toBeInViewport();
+	});
+
+	test('the settings menu has an explicit switch for comments', async ({ page, request }) => {
+		await seedComment(request, 'e2e-public', 'Payment is due', 'switch me off');
+		await open(page, 'e2e-public');
+		await page.locator('.mc-toggle-btn').hover();
+		const sw = page.getByRole('switch', { name: 'Show comments' });
+		await expect(sw).toHaveAttribute('aria-checked', 'true');
+		await sw.click();
+		await expect(sw).toHaveAttribute('aria-checked', 'false');
+		await expect(page.locator('.mc-note')).toHaveCount(0);
+		await sw.click();
+		await expect(note(page, 'switch me off')).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Comment settings' })).toHaveCount(0);
+	});
+});
+
 test.describe('settings', () => {
 	test('hovering the comments button offers writing style, size and colour; a click still toggles', async ({
 		page,
@@ -828,10 +989,13 @@ test.describe('every kind of element', () => {
 			// The bracket stands beside the element it was made on.
 			await page.reload();
 			await expect(note(page, `about the ${c.name}`)).toBeVisible();
-			const mark = (await page.locator('.mc-mark').boundingBox())!;
-			const box = (await c.target(page).boundingBox())!;
-			expect(mark.y).toBeLessThanOrEqual(box.y + box.height / 2);
-			expect(mark.y + mark.height).toBeGreaterThanOrEqual(box.y + box.height / 2);
+			// Measured again until it holds: a late image can still move the page.
+			await expect(async () => {
+				const mark = (await page.locator('.mc-mark').boundingBox())!;
+				const box = (await c.target(page).boundingBox())!;
+				expect(mark.y).toBeLessThanOrEqual(box.y + box.height / 2);
+				expect(mark.y + mark.height).toBeGreaterThanOrEqual(box.y + box.height / 2);
+			}).toPass({ timeout: 5000 });
 		});
 	}
 
@@ -857,9 +1021,11 @@ test.describe('every kind of element', () => {
 		await page.reload();
 		await expect(note(page, 'which tax?')).toBeVisible();
 		await expect(page.locator('.mc-mark')).toHaveCount(1);
-		const mark = (await page.locator('.mc-mark').boundingBox())!;
-		const summary = (await page.locator('article details').boundingBox())!;
-		expect(Math.abs(mark.y - summary.y)).toBeLessThan(20);
+		await expect(async () => {
+			const mark = (await page.locator('.mc-mark').boundingBox())!;
+			const summary = (await page.locator('article details').boundingBox())!;
+			expect(Math.abs(mark.y - summary.y)).toBeLessThan(20);
+		}).toPass({ timeout: 5000 });
 	});
 
 	test('clicking a video plays it; the space beside it comments', async ({ page }) => {
@@ -868,6 +1034,155 @@ test.describe('every kind of element', () => {
 		await expect(composer(page)).toHaveCount(0);
 		await clickBeside(page, page.locator('article video'));
 		await expect(composer(page)).toBeVisible();
+	});
+});
+
+test.describe("pins on pictures and the author's own HTML", () => {
+	const stat = (page: Page, text: string) => page.locator('article .stat', { hasText: text });
+	/** Where the point of the only pin is, in page pixels. */
+	const pinPoint = (page: Page) =>
+		// Read from where the pin is placed: its drawn box tilts and drops in.
+		page.locator('.mc-pin').evaluate((el: HTMLElement) => {
+			const layer = el.closest('.mc-layer')!.getBoundingClientRect();
+			return {
+				x: layer.left + parseFloat(el.style.left) + 10,
+				y: layer.top + parseFloat(el.style.top) + 30
+			};
+		});
+
+	test('a click inside an HTML block sticks a pin at that point, and it stays there', async ({
+		page
+	}) => {
+		await open(page, 'e2e-report');
+		const box = (await stat(page, 'Customers').boundingBox())!;
+		const at = { x: box.x + box.width * 0.75, y: box.y + box.height * 0.3 };
+		await page.mouse.click(at.x, at.y);
+		await expect(page.locator('.mc-pin')).toHaveCount(1);
+		// A pin, not a bracket.
+		await expect(page.locator('.mc-mark')).toHaveCount(0);
+		await write(page, 'is this net of churn?', 'Maya Lin');
+
+		const [row] = await comments('e2e-report');
+		const anchor = row.anchor as Row & { pin: { x: number; y: number } };
+		expect(anchor.kind).toBe('block');
+		expect(anchor.text).toBe('1,280 Customers');
+		expect(anchor.pin.x).toBeCloseTo(0.75, 1);
+		expect(anchor.pin.y).toBeCloseTo(0.3, 1);
+
+		await page.reload();
+		await expect(note(page, 'is this net of churn?')).toBeVisible();
+		await expect(page.locator('.mc-mark')).toHaveCount(0);
+		const again = (await stat(page, 'Customers').boundingBox())!;
+		const point = await pinPoint(page);
+		expect(Math.abs(point.x - (again.x + again.width * 0.75))).toBeLessThan(3);
+		expect(Math.abs(point.y - (again.y + again.height * 0.3))).toBeLessThan(3);
+
+		// The pin opens its thread.
+		await page.locator('.mc-pin').click();
+		await expect(page.locator('.mc-drawer')).toContainText('is this net of churn?');
+		await expect(page.locator('.mc-spot')).toBeVisible();
+	});
+
+	test('the gap between two boxes takes a pin too, and so does a picture', async ({ page }) => {
+		await open(page, 'e2e-report');
+		const a = (await stat(page, 'Revenue').boundingBox())!;
+		const b = (await stat(page, 'Customers').boundingBox())!;
+		const gap = { x: (a.x + a.width + b.x) / 2, y: a.y + a.height / 2 };
+		await page.mouse.click(gap.x, gap.y);
+		await expect(page.locator('.mc-pin')).toHaveCount(1);
+		const point = await pinPoint(page);
+		expect(Math.abs(point.x - gap.x)).toBeLessThan(3);
+		expect(Math.abs(point.y - gap.y)).toBeLessThan(3);
+		await write(page, 'between the two', 'Maya Lin');
+
+		const img = page.locator('article img');
+		await img.scrollIntoViewIfNeeded();
+		const box = (await img.boundingBox())!;
+		await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+		await write(page, 'on the chart');
+		await expect(page.locator('.mc-pin')).toHaveCount(2);
+
+		const rows = await comments('e2e-report');
+		const first = rows[0].anchor as Row & { pin: { x: number } };
+		const second = rows[1].anchor as Row & { pin: { x: number; y: number } };
+		expect(first.pin.x < 0 || first.pin.x > 1).toBe(true);
+		expect(second.src).toBe('/favicon.png');
+		expect(second.pin.x).toBeCloseTo(0.5, 1);
+		expect(second.pin.y).toBeCloseTo(0.5, 1);
+	});
+
+	test('ordinary text beside the HTML still gets a bracket, and a pin moves with its box', async ({
+		page
+	}) => {
+		await open(page, 'e2e-report');
+		await clickBeside(page, para(page, 'The board approved'));
+		await write(page, 'a plain line', 'Maya Lin');
+		await expect(page.locator('.mc-mark')).toHaveCount(1);
+		await expect(page.locator('.mc-pin')).toHaveCount(0);
+
+		const box = (await stat(page, 'Renewals').boundingBox())!;
+		await page.mouse.click(box.x + 20, box.y + 12);
+		await write(page, 'pinned on renewals');
+
+		// The author adds a paragraph above: the pin is still 20px into the same box.
+		await setContent(
+			'e2e-report',
+			NOTES['e2e-report'].content.replace(
+				'## Annual report',
+				'## Annual report\n\nA new opening paragraph, added after the comments were made.'
+			)
+		);
+		await page.reload();
+		await expect(note(page, 'pinned on renewals')).toBeVisible();
+		const moved = (await stat(page, 'Renewals').boundingBox())!;
+		const point = await pinPoint(page);
+		expect(moved.y).toBeGreaterThan(box.y + 10);
+		expect(Math.abs(point.x - (moved.x + 20))).toBeLessThan(3);
+		expect(Math.abs(point.y - (moved.y + 12))).toBeLessThan(3);
+	});
+
+	test('a pin far outside its block is pulled back by the server', async ({ request }) => {
+		const res = await request.post('/api/notes/e2e-report/comments', {
+			data: {
+				body: 'way off',
+				name: 'Maya Lin',
+				anchor: {
+					v: 1,
+					kind: 'block',
+					tag: 'div',
+					index: 3,
+					text: '97% Renewals',
+					pin: { x: 9999, y: 0.5 }
+				}
+			}
+		});
+		expect(res.status()).toBe(201);
+		const [row] = await comments('e2e-report');
+		expect((row.anchor as Row).pin).toEqual({ x: 5, y: 0.5 });
+	});
+
+	test.describe('on a phone', () => {
+		test.use({ viewport: { width: 390, height: 800 }, hasTouch: true, isMobile: true });
+
+		test('a tap pins the spot and offers to comment on it', async ({ page }) => {
+			await open(page, 'e2e-report');
+			await stat(page, 'Customers').tap();
+			await expect(page.locator('.mc-pin')).toHaveCount(1);
+			const pill = page.locator('.mc-pill-fixed');
+			await expect(pill).toHaveText('Comment on this spot');
+			await pill.tap();
+			const sheet = page.locator('.mc-sheet');
+			await sheet.getByPlaceholder('Your name').fill('Sam Ortiz');
+			await sheet.locator('textarea').fill('pinned from a phone');
+			await sheet.getByRole('button', { name: 'Comment' }).tap();
+			await expect(sheet).toHaveCount(0);
+			await expect(page.locator('.mc-pin')).toHaveCount(1);
+			expect(((await comments('e2e-report'))[0].anchor as Row).pin).toBeTruthy();
+
+			// Tapping the pin opens what was said there.
+			await page.locator('.mc-pin').tap();
+			await expect(page.locator('.mc-sheet')).toContainText('pinned from a phone');
+		});
 	});
 });
 
@@ -1177,7 +1492,8 @@ test.describe('the owner', () => {
 		await expect(composer(page).locator('input:not(.mc-trap)')).toHaveCount(0);
 		await expect(composer(page).locator('.mc-who')).toContainText('as Dana Owner');
 		await write(page, 'noted, will change');
-		await expect(note(page, 'noted, will change')).toContainText('Dana Owner (author)');
+		await expect(note(page, 'noted, will change')).toContainText('Dana Owner');
+		await expect(note(page, 'noted, will change')).not.toContainText('(author)');
 
 		// Deleting someone else's thread.
 		await resolved.hover();
@@ -1453,7 +1769,9 @@ test.describe('phone', () => {
 		await expect(sheet).toHaveCount(0);
 
 		// No hover on a phone: the ⋯ button opens the settings, and a tap elsewhere closes them.
-		await page.getByRole('button', { name: 'Comment settings' }).tap();
+		// No hover on a phone: a tap on the comments button opens the settings instead of toggling.
+		await page.locator('.mc-toggle-btn').tap();
+		await expect(page.locator('.mc-mark')).toHaveCount(1);
 		const menu = page.locator('.mc-menu');
 		await expect(menu).toBeVisible();
 		const m = (await menu.boundingBox())!;
@@ -1463,6 +1781,20 @@ test.describe('phone', () => {
 		await menu.getByRole('button', { name: 'Plain' }).tap();
 		await para(page, 'We will build').tap();
 		await expect(menu).toHaveCount(0);
+
+		// The switch inside the menu is how comments are hidden on a phone.
+		await page.locator('.mc-toggle-btn').tap();
+		await page.getByRole('switch', { name: 'Show comments' }).tap();
+		await expect(page.locator('.mc-mark')).toHaveCount(0);
+		await page.getByRole('switch', { name: 'Show comments' }).tap();
+		await expect(page.locator('.mc-mark')).toHaveCount(1); // both comments are on one paragraph
+		await para(page, 'We will build').tap();
+
+		// Tapping a bracket opens that line's comments straight away.
+		await para(page, 'Payment is due').scrollIntoViewIfNeeded();
+		await page.locator('.mc-mark-hit').first().tap();
+		await expect(sheet).toContainText('from my phone');
+		await page.locator('.mc-backdrop').tap({ position: { x: 20, y: 20 } });
 
 		// The toggle sits bottom-left, clear of the title.
 		const toggle = (await page.locator('.mc-toggle-btn').boundingBox())!;
@@ -1541,6 +1873,7 @@ test.describe('history', () => {
 		await page.evaluate(() => window.scrollTo(0, 0));
 		await newest.locator('.hp-changed').click();
 		await expect(para(page, 'Work starts on')).toBeInViewport();
+		await expect(page.locator('[data-history-lit]')).toBeVisible();
 
 		await page.keyboard.press('Escape');
 		await expect(panel).toHaveCount(0);
@@ -1556,7 +1889,14 @@ test.describe('history', () => {
 		await expect(panel).toContainText('Click any paragraph');
 
 		await para(page, 'Payment is due').click();
-		await expect(para(page, 'Payment is due')).toHaveClass(/mdp-history-picked/);
+		// The same dim as an open comment thread: the page tinted, this paragraph bright.
+		const litBox = async () => (await page.locator('[data-history-lit]').boundingBox())!;
+		const covers = async (block: Locator) => {
+			const a = await litBox();
+			const b = (await block.boundingBox())!;
+			return a.y <= b.y && a.y + a.height >= b.y + b.height && a.height < b.height + 40;
+		};
+		await expect.poll(() => covers(para(page, 'Payment is due'))).toBe(true);
 		await expect(panel).toContainText('This paragraph changed 1 time');
 		const steps = panel.locator('.hp-step');
 		await expect(steps).toHaveCount(2);
@@ -1568,7 +1908,7 @@ test.describe('history', () => {
 		// A paragraph nobody touched.
 		await para(page, 'We will build').click();
 		await expect(panel).toContainText('This paragraph changed 0 times');
-		await expect(para(page, 'Payment is due')).not.toHaveClass(/mdp-history-picked/);
+		await expect.poll(() => covers(para(page, 'We will build'))).toBe(true);
 
 		// A heading follows everything under it.
 		await page.locator('article h2', { hasText: 'Timeline' }).click();
@@ -1580,7 +1920,7 @@ test.describe('history', () => {
 		await expect(panel).toContainText('This paragraph changed 0 times');
 
 		await panel.getByRole('button', { name: 'Close history' }).click();
-		await expect(page.locator('.mdp-history-picked')).toHaveCount(0);
+		await expect(page.locator('[data-history-lit]')).toHaveCount(0);
 	});
 
 	test('with comments on: the button joins the comments bar and picking does not start a comment', async ({

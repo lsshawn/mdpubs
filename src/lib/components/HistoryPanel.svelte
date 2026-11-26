@@ -40,6 +40,20 @@
 	/** Versions opened in the whole-document list, by position in `versions`. */
 	let expanded = $state<Record<number, boolean>>({});
 	let picked = $state.raw<{ text: string; el: Element } | null>(null);
+	/**
+	 * The part of the page lit up while the rest is tinted: the picked paragraph,
+	 * or the one a change card pointed at. Top and height inside the box that
+	 * wraps the article (this component sits in that box).
+	 */
+	let lit = $state.raw<{ el: Element; top: number; height: number } | null>(null);
+
+	function light(el: Element | null) {
+		const host = article?.parentElement;
+		if (!el || !host) return (lit = null);
+		const r = el.getBoundingClientRect();
+		const h = host.getBoundingClientRect();
+		lit = r.height ? { el, top: r.top - h.top, height: r.height } : null;
+	}
 
 	const INTERACTIVE =
 		'a,button,input,textarea,select,label,video,audio,iframe,[data-comments-ignore]';
@@ -109,14 +123,13 @@
 	}
 
 	function unpick() {
-		picked?.el.classList.remove('mdp-history-picked');
 		picked = null;
+		lit = null;
 	}
 
 	function pick(el: Element, text: string) {
-		unpick();
-		el.classList.add('mdp-history-picked');
 		picked = { text, el };
+		light(el);
 		tab = 'one';
 	}
 
@@ -145,8 +158,7 @@
 		}
 		if (!best) return;
 		best.scrollIntoView({ behavior: 'smooth', block: 'center' });
-		best.classList.add('mdp-history-flash');
-		setTimeout(() => best?.classList.remove('mdp-history-flash'), 1600);
+		light(best);
 	}
 
 	function close() {
@@ -173,10 +185,13 @@
 			const onKey = (e: KeyboardEvent) => {
 				if (e.key === 'Escape' && !e.defaultPrevented) close();
 			};
+			const onResize = () => light(lit?.el ?? null);
+			window.addEventListener('resize', onResize);
 			document.addEventListener('click', onClick, true);
 			document.addEventListener('keydown', onKey);
 			root.classList.add('mdp-history-picking');
 			return () => {
+				window.removeEventListener('resize', onResize);
 				document.removeEventListener('click', onClick, true);
 				document.removeEventListener('keydown', onKey);
 				root.classList.remove('mdp-history-picking');
@@ -216,6 +231,14 @@
 		</span>
 	</button>
 {/snippet}
+
+{#if open && lit}
+	<div
+		class="hp-spot print:hidden"
+		data-history-lit
+		style="top:{lit.top - 6}px;height:{lit.height + 12}px"
+	></div>
+{/if}
 
 {#if open}
 	<aside
@@ -482,21 +505,17 @@
 	:global(.mdp-history-picking) {
 		cursor: pointer;
 	}
-	/* A tint, not an outline: the article clips anything drawn outside it. */
-	:global(.mdp-history-picked) {
-		border-radius: 3px;
-		background-color: oklch(0.9 0.11 85 / 0.45);
-		box-shadow: inset 3px 0 0 oklch(0.75 0.13 85);
+	/* Same as an open comment thread: the page is tinted and this part stays bright. */
+	.hp-spot {
+		position: absolute;
+		left: -0.75rem;
+		right: -0.75rem;
+		z-index: 57;
+		border-radius: 0.5rem;
+		box-shadow: 0 0 0 200vmax oklch(0.2 0.02 265 / 0.16);
+		pointer-events: none;
 	}
-	:global(.mdp-history-flash) {
-		animation: mdp-history-flash 1.6s ease-out;
-	}
-	@keyframes -global-mdp-history-flash {
-		from {
-			background-color: oklch(0.9 0.12 85 / 0.8);
-		}
-		to {
-			background-color: transparent;
-		}
+	:global([data-theme='night']) .hp-spot {
+		box-shadow: 0 0 0 200vmax oklch(0 0 0 / 0.5);
 	}
 </style>

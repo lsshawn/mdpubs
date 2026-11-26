@@ -26,12 +26,14 @@
 		blockBox,
 		blockOfNode,
 		indexArticle,
+		pinAt,
+		pinFrame,
 		selectionOffsets,
 		textBoxes,
 		type Box,
 		type DomIndex
 	} from './comment-dom.js';
-	import { bracket, marker, type BracketStroke } from './bracket.js';
+	import { bracket, line, marker, type BracketStroke } from './bracket.js';
 	import CommentComposer, { commenterKey } from './CommentComposer.svelte';
 
 	type Props = {
@@ -87,7 +89,6 @@
 	let showResolved = $state(false);
 	let active = $state<string | null>(null);
 	let replyTo = $state<string | null>(null);
-	let hover = $state<number | null>(null);
 	let sheetOpen = $state(false);
 	/** The thread shown whole in the side drawer (its first comment's id). */
 	let openThread = $state<string | null>(null);
@@ -230,6 +231,9 @@
 		key: string;
 		ids: string[];
 		strokes: BracketStroke[];
+		block: number;
+		top: number;
+		bottom: number;
 	};
 
 	function span(block: number, endBlock: number): { top: number; bottom: number } | null {
@@ -247,19 +251,33 @@
 		if (!frame) return [];
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local to this pass, never read reactively
 		const map = new Map<string, Mark>();
-		const add = (block: number, endBlock: number, id: string) => {
-			const s = span(block, endBlock);
+		const add = (block: number, endBlock: number, id: string, range = '') => {
+			// A pinned comment has its pin; it needs no bracket.
+			if (pinOf[id]) return;
+			const s = spanOf(id, block, endBlock);
 			if (!s) return;
-			const key = `${block}:${endBlock}`;
+			const key = `${block}:${endBlock}${range}`;
 			let m = map.get(key);
 			if (!m) {
-				m = { key, ids: [], strokes: bracket(frame.right + 2, s.top, s.bottom, key) };
+				m = {
+					key,
+					ids: [],
+					strokes: bracket(frame.right + 2, s.top, s.bottom, key),
+					block,
+					top: s.top,
+					bottom: s.bottom
+				};
 				map.set(key, m);
 			}
 			m.ids.push(id);
 		};
-		for (const p of placed) if (!p.detached) add(p.block, p.endBlock, p.root.id);
-		if (draft) add(draft.block, draft.endBlock, 'draft');
+		// A comment on a few words is bracketed by the lines those words are on,
+		// not by the whole paragraph.
+		const words = (start?: number, end?: number) => (start === undefined ? '' : `:${start}:${end}`);
+		for (const p of placed) {
+			if (!p.detached) add(p.block, p.endBlock, p.root.id, words(p.r.start, p.r.end));
+		}
+		if (draft) add(draft.block, draft.endBlock, 'draft', words(draft.start, draft.end));
 		return [...map.values()];
 	});
 
@@ -272,13 +290,6 @@
 			if (b) out.push({ id: p.root.id, y: b.bottom + 2 });
 		}
 		return out;
-	});
-
-	const hoverStrokes = $derived.by(() => {
-		if (!frame || hover === null || !config.canComment) return null;
-		if (marks.some((m) => m.key === `${hover}:${hover}`)) return null;
-		const s = span(hover, hover);
-		return s && bracket(frame.right + 2, s.top, s.bottom, `${hover}:${hover}`);
 	});
 
 	const highlights = $derived.by(() => {
@@ -306,45 +317,116 @@
 		return out;
 	});
 
-	/** Notes down the margin: each beside its block, pushed apart where they would overlap. */
-	const tops = $derived.by<Record<string, number>>(() => {
-		if (!frame?.wide) return {};
-		const items: { id: string; center: number; order: number }[] = [];
-		for (const p of placed) {
-			const a = frame.boxes[p.block];
-			const b = frame.boxes[p.endBlock];
-			if (!a || !b) continue;
-			items.push({
-				id: p.root.id,
-				center: p.detached ? a.bottom + 2 : (a.top + b.bottom) / 2,
-				order: p.root.createdAt
-			});
-		}
-		if (draft) {
-			const s = span(draft.block, draft.endBlock);
-			if (s) items.push({ id: 'draft', center: (s.top + s.bottom) / 2, order: Infinity });
-		}
-		items.sort((x, y) => x.center - y.center || x.order - y.order);
-		const h = (id: string) => heights[id] ?? 60;
-		const gap = 14;
-		const out: Record<string, number> = {};
-		// The note being written keeps its place; the others make room around it.
-		const focus = items.findIndex((i) => i.id === (draft ? 'draft' : replyTo));
-		const from = Math.max(focus, 0);
-		let floor = -Infinity;
-		for (let i = from; i < items.length; i++) {
-			const top = Math.max(items[i].center - h(items[i].id) / 2, floor, i === from ? 0 : -Infinity);
-			out[items[i].id] = top;
-			floor = top + h(items[i].id) + gap;
-		}
-		let ceiling = from < items.length ? out[items[from].id] : Infinity;
-		for (let i = from - 1; i >= 0; i--) {
-			const top = Math.min(items[i].center - h(items[i].id) / 2, ceiling - gap - h(items[i].id));
-			out[items[i].id] = top;
-			ceiling = top;
+	/** For a comment on selected words: from the top of their first line to the bottom of their last. */
+	const quoteSpans = $derived.by(() => {
+		const out: Record<string, { top: number; bottom: number }> = {};
+		for (const h of highlights) {
+			out[h.id] = {
+				top: Math.min(...h.boxes.map((b) => b.top)) - 2,
+				bottom: Math.max(...h.boxes.map((b) => b.bottom)) + 2
+			};
 		}
 		return out;
 	});
+
+	type Pin = { id: string; block: number; x: number; y: number };
+
+	/** Pins stuck in pictures and in the author's own HTML, at the point that was clicked. */
+	const pins = $derived.by<Pin[]>(() => {
+		if (!frame) return [];
+		const out: Pin[] = [];
+		const host = hostRect();
+		const add = (id: string, block: number, pin: { x: number; y: number }) => {
+			const b = frame.boxes[block] && pinFrame(index!, block);
+			if (!b) return;
+			out.push({
+				id,
+				block,
+				x: b.left - host.left + pin.x * (b.right - b.left),
+				y: b.top - host.top + pin.y * (b.bottom - b.top)
+			});
+		};
+		for (const p of placed) {
+			if (!p.detached && p.root.anchor?.pin) add(p.root.id, p.block, p.root.anchor.pin);
+		}
+		if (draft?.anchor.pin) add('draft', draft.block, draft.anchor.pin);
+		return out;
+	});
+	const pinOf = $derived<Record<string, Pin>>(Object.fromEntries(pins.map((p) => [p.id, p])));
+
+	/** The stretch of the page a comment is about: its pin, its words, or its whole block. */
+	function spanOf(id: string, block: number, endBlock: number) {
+		const pin = pinOf[id];
+		if (pin) return { top: pin.y - 32, bottom: pin.y + 4 };
+		return quoteSpans[id] ?? span(block, endBlock);
+	}
+
+	/** The thread from a pin to its note, shown for the one under the pointer or being written. */
+	const leader = $derived.by(() => {
+		if (!frame?.wide) return null;
+		const id = draft?.anchor.pin ? 'draft' : active;
+		const pin = id ? pinOf[id] : null;
+		const top = id ? tops[id] : undefined;
+		if (!pin || top === undefined) return null;
+		return {
+			id: id!,
+			d: line(pin.x + 15, pin.y - 19, frame.right + NOTE_GAP - 14, top + 18, `pin:${id}`)
+		};
+	});
+
+	/** The least of a note that is always shown: a line of the comment and who wrote it. */
+	const NOTE_MIN = 54;
+
+	/**
+	 * Notes down the margin. Each starts level with the top of its bracket (or
+	 * pin). Where the next note would be in its way, a note is cut short to fit
+	 * rather than pushing the next one down the page; it opens whole under the
+	 * pointer. Only when notes are closer together than the least a note needs
+	 * is one moved down, and then by as little as possible.
+	 */
+	const arranged = $derived.by(() => {
+		const tops: Record<string, number> = {};
+		const room: Record<string, number> = {};
+		if (!frame?.wide) return { tops, room };
+		const items: { id: string; want: number; order: number; open: boolean }[] = [];
+		const editingRoot = editing
+			? (comments.find((c) => c.id === editing!.id)?.parentId ?? editing.id)
+			: null;
+		for (const p of placed) {
+			const a = frame.boxes[p.block];
+			const s = p.detached ? null : spanOf(p.root.id, p.block, p.endBlock);
+			if (!a || (!p.detached && !s)) continue;
+			items.push({
+				id: p.root.id,
+				want: (s ? s.top : a.bottom - 12) - 4,
+				order: p.root.createdAt,
+				// Being replied to or reworded: never cut short.
+				open: p.root.id === replyTo || p.root.id === editingRoot
+			});
+		}
+		if (draft) {
+			const s = spanOf('draft', draft.block, draft.endBlock);
+			if (s) items.push({ id: 'draft', want: s.top - 4, order: Infinity, open: true });
+		}
+		items.sort((x, y) => x.want - y.want || x.order - y.order);
+		const gap = 8;
+		let floor = 0;
+		items.forEach((it, i) => {
+			const natural = heights[it.id] ?? 60;
+			const top = Math.max(it.want, floor);
+			const next = items[i + 1];
+			const space = next ? next.want - gap - top : Infinity;
+			let shown = natural;
+			if (!it.open && natural > space) {
+				shown = Math.max(Math.min(NOTE_MIN, natural), space);
+				room[it.id] = shown;
+			}
+			tops[it.id] = top;
+			floor = top + shown + gap;
+		});
+		return { tops, room };
+	});
+	const tops = $derived(arranged.tops);
 
 	/** Too much for the margin: more than two replies, or a comment that runs long. */
 	function isLong(p: Placed): boolean {
@@ -404,8 +486,16 @@
 	 * discussed is left bright, so nobody has to be told which paragraph it is.
 	 */
 	const spot = $derived.by(() => {
-		if (drawer) return drawer.detached ? null : span(drawer.block, drawer.endBlock);
-		if (sheetOpen && draft) return span(draft.block, draft.endBlock);
+		const lit = (id: string, block: number, endBlock: number) => {
+			const pin = pinOf[id];
+			if (!pin) return spanOf(id, block, endBlock);
+			// A pin: its block, and the pin itself where it stands outside the block.
+			const s = span(block, endBlock);
+			if (!s) return null;
+			return { top: Math.min(s.top, pin.y - 32), bottom: Math.max(s.bottom, pin.y + 4) };
+		};
+		if (drawer) return drawer.detached ? null : lit(drawer.root.id, drawer.block, drawer.endBlock);
+		if (sheetOpen && draft) return lit('draft', draft.block, draft.endBlock);
 		return null;
 	});
 
@@ -422,6 +512,54 @@
 			});
 		});
 	}
+
+	/** A click or tap on a bracket opens the comments it stands for. */
+	function openMark(m: Mark) {
+		const id = m.ids.find((x) => x !== 'draft');
+		if (!id) return;
+		if (frame?.wide) return showThread(id);
+		startDraft(m.block);
+		openSheet();
+	}
+
+	/** A click or tap on a pin opens its comment. */
+	function openPin(pin: Pin) {
+		if (frame?.wide) return showThread(pin.id);
+		startDraft(pin.block);
+		openSheet();
+	}
+
+	/** The newest comments and replies, newest first: what happened lately, in one list. */
+	const latest = $derived.by(() => {
+		const shown = new Set(placed.map((p) => p.root.id));
+		return comments
+			.filter((c) => shown.has(c.parentId ?? c.id))
+			.slice()
+			.sort((a, b) => b.createdAt - a.createdAt)
+			.slice(0, 30);
+	});
+
+	/** From the list of latest comments: go to where it was said and open the thread on it. */
+	function jumpTo(c: CommentDto) {
+		menuOpen = false;
+		const rootId = c.parentId ?? c.id;
+		const p = placed.find((x) => x.root.id === rootId);
+		if (!p) return;
+		if (frame?.wide || p.detached) return showThread(rootId, c.id);
+		startDraft(p.block);
+		openSheet();
+	}
+
+	/** A click anywhere on a comment in the margin opens its thread on that comment. */
+	function openEntry(e: MouseEvent, c: CommentDto) {
+		if ((e.target as Element).closest('button,a,textarea,input')) return;
+		const sel = window.getSelection();
+		if (sel && !sel.isCollapsed) return;
+		showThread(c.parentId ?? c.id, c.id);
+	}
+
+	/** Set by the pointer that pressed the comments button: a finger opens the menu, a mouse toggles. */
+	let touched = false;
 
 	function openSheet() {
 		sheetOpen = true;
@@ -460,11 +598,14 @@
 	function startDraft(
 		block: number,
 		range?: { start: number; end: number },
-		keepSelection = false
+		keepSelection = false,
+		pin?: { x: number; y: number }
 	) {
 		if (!index) return;
+		const anchor = makeAnchor(index.doc, block, range);
+		if (pin && !range) anchor.pin = pin;
 		draft = {
-			anchor: makeAnchor(index.doc, block, range),
+			anchor,
 			block,
 			endBlock: range ? Math.max(block, docBlockAt(index.doc, range.end - 1)) : block,
 			start: range?.start,
@@ -501,13 +642,21 @@
 				const p = placed.find((q) => q.root.id === h.id);
 				if (!p) continue;
 				active = h.id;
-				if (!frame.wide) {
+				// Whatever was being started elsewhere is put away (its words are kept).
+				closeDraft();
+				replyTo = null;
+				if (frame.wide) showThread(h.id);
+				else {
 					startDraft(p.block);
 					openSheet();
 				}
 				return;
 			}
 		}
+
+		// In a picture or the author's own HTML, the comment is pinned to the point clicked.
+		const pin = config.canComment ? pinAt(index, target, e.clientX, e.clientY) : null;
+		if (pin) return startDraft(pin.block, undefined, false, { x: pin.x, y: pin.y });
 
 		const i = blockAtPoint(target, e.clientY);
 		if (i === null) return;
@@ -638,6 +787,7 @@
 				r.block,
 				hasRange ? { start: r.start!, end: r.end! } : undefined
 			);
+			if (c.anchor.pin && !hasRange) anchor.pin = c.anchor.pin;
 			api(`/${c.id}`, 'PATCH', { anchor })
 				.then(() => {
 					comments = comments.map((x) => (x.id === c.id ? { ...x, anchor } : x));
@@ -722,15 +872,6 @@
 				pointerDown = false;
 				onSelection();
 			};
-			const onMove = (e: PointerEvent) => {
-				if (e.pointerType !== 'mouse' || !visible) return;
-				const target = e.target as Element;
-				hover =
-					rootEl?.contains(target) || target.closest(INTERACTIVE)
-						? null
-						: blockAtPoint(target, e.clientY);
-			};
-			const onLeave = () => (hover = null);
 			const onKey = (e: KeyboardEvent) => {
 				if (e.key !== 'Escape' || e.defaultPrevented) return;
 				if (openThread) return void (openThread = null);
@@ -752,8 +893,6 @@
 			root.addEventListener('load', relayout, { signal: ac.signal, capture: true });
 			root.addEventListener('toggle', relayout, { signal: ac.signal, capture: true });
 			zone.addEventListener('click', onZoneClick, opts);
-			zone.addEventListener('pointermove', onMove, opts);
-			zone.addEventListener('pointerleave', onLeave, opts);
 			document.addEventListener('selectionchange', onSelection, opts);
 			document.addEventListener('pointerdown', onDown, opts);
 			document.addEventListener('pointerup', onUp, opts);
@@ -787,7 +926,13 @@
 
 {#snippet entry(c: CommentDto, roomy = false)}
 	{@const wordy = isWordy(c, roomy)}
-	<div class="mc-entry" class:mc-turn={roomy} data-comment={c.id}>
+	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+	<div
+		class="mc-entry"
+		class:mc-turn={roomy}
+		data-comment={c.id}
+		onclick={roomy ? undefined : (e) => openEntry(e, c)}
+	>
 		{#if roomy}
 			<span
 				class="mc-avatar"
@@ -853,7 +998,7 @@
 			{/if}
 			<p class="mc-meta">
 				<span class="mc-author" class:mc-hue={prefs.colours} style="--h:{hues[c.authorId]}"
-					>{c.authorName}{c.byOwner ? ' (author)' : ''}</span
+					>{c.authorName}</span
 				>
 				<span>· {ago(c.createdAt)}</span>
 				{#if c.editedAt}
@@ -993,13 +1138,6 @@
 			</svg>
 
 			<svg class="mc-svg" aria-hidden="true">
-				{#if hoverStrokes}
-					<g class="mc-hover">
-						{#each hoverStrokes as s, i (i)}
-							<path d={s.d} />
-						{/each}
-					</g>
-				{/if}
 				{#each marks as m (m.key)}
 					<g
 						class="mc-mark"
@@ -1017,28 +1155,89 @@
 				{#each dots as d (d.id)}
 					<circle class="mc-dot" cx={frame.right + 8} cy={d.y} r="2.5" />
 				{/each}
+				{#if leader}
+					<g
+						class="mc-leader"
+						class:mc-hue={leader.id !== 'draft' && prefs.colours}
+						style="--h:{hueOf(leader.id)}"
+					>
+						<path d={leader.d} />
+					</g>
+				{/if}
 			</svg>
+
+			<!-- Pushpins: one per comment stuck on a picture or a piece of HTML. -->
+			{#each pins as pin (pin.id)}
+				{@const mine = pin.id === 'draft'}
+				<button
+					type="button"
+					class="mc-pin"
+					class:mc-pin-new={mine}
+					class:mc-on={active === pin.id || openThread === pin.id}
+					class:mc-faded={resolvedIds.has(pin.id)}
+					class:mc-hue={!mine && prefs.colours}
+					style="left:{pin.x - 10}px;top:{pin.y - 30}px;--h:{hueOf(pin.id)}"
+					aria-label="Open the comment pinned here"
+					tabindex={mine ? -1 : 0}
+					onpointerenter={() => !mine && (active = pin.id)}
+					onpointerleave={() => (active = active === pin.id ? null : active)}
+					onclick={() => openPin(pin)}
+				>
+					<svg viewBox="-8 -24 24 28" width="30" height="35" aria-hidden="true">
+						<ellipse class="mc-pin-shadow" cx="3.6" cy="0.9" rx="5" ry="1.5" />
+						<path class="mc-pin-needle" d="M0 0 L4.4 -10.5" />
+						<circle class="mc-pin-head" cx="5.8" cy="-15" r="6.2" />
+						<circle class="mc-pin-shine" cx="3.7" cy="-17.3" r="1.9" />
+					</svg>
+				</button>
+			{/each}
+
+			<!-- The bracket itself is a drawing; this is what takes the click on it. -->
+			{#each marks as m (m.key)}
+				{#if m.ids.some((id) => id !== 'draft')}
+					<button
+						type="button"
+						class="mc-mark-hit"
+						aria-label="Open the comments on this part"
+						style="left:{frame.right - 4}px;top:{m.top}px;height:{m.bottom - m.top}px"
+						onpointerenter={() => (active = m.ids.find((id) => id !== 'draft') ?? null)}
+						onpointerleave={() => (active = null)}
+						onclick={() => openMark(m)}
+					></button>
+				{/if}
+			{/each}
 
 			{#if frame.wide}
 				<div class="mc-column" style="left:{frame.right + NOTE_GAP}px;width:{NOTE_WIDTH}px">
 					{#each placed as p (p.root.id)}
+						{@const cut = arranged.room[p.root.id]}
+						{@const on = active === p.root.id || replyTo === p.root.id}
 						<!-- svelte-ignore a11y_no_static_element_interactions -->
 						<div
 							class="mc-note"
 							class:mc-resolved={!!p.root.resolvedAt}
-							class:mc-on={active === p.root.id || replyTo === p.root.id}
+							class:mc-on={on}
 							class:mc-long={isLong(p)}
-							style="top:{tops[p.root.id] ?? 0}px"
-							bind:offsetHeight={heights[p.root.id]}
+							class:mc-cut={cut !== undefined && !on}
+							class:mc-lifted={cut !== undefined && on}
+							style="top:{tops[p.root.id] ?? 0}px;{cut !== undefined && !on
+								? `max-height:${cut}px`
+								: ''}"
 							onpointerenter={() => (active = p.root.id)}
 							onpointerleave={() => (active = active === p.root.id ? null : active)}
 							onfocusin={() => (active = p.root.id)}
 						>
-							{@render thread(p, false)}
+							<div class="mc-note-in" bind:offsetHeight={heights[p.root.id]}>
+								{@render thread(p, false)}
+							</div>
 						</div>
 					{/each}
 					{#if draft}
-						<div class="mc-note" style="top:{tops.draft ?? 0}px" bind:offsetHeight={heights.draft}>
+						<div
+							class="mc-note mc-note-in"
+							style="top:{tops.draft ?? 0}px"
+							bind:offsetHeight={heights.draft}
+						>
 							{#if config.canComment}
 								<!-- After a click the box takes the keyboard. After a selection it
 								     does not, or the selection (and Ctrl+C) would be lost. -->
@@ -1071,7 +1270,9 @@
 				<button type="button" class="mc-pill mc-pill-fixed" onclick={openSheet}>
 					{sheetThreads.length
 						? `${sheetThreads.length} comment${sheetThreads.length === 1 ? '' : 's'}`
-						: 'Comment on this line'}
+						: draft.anchor.pin
+							? 'Comment on this spot'
+							: 'Comment on this line'}
 				</button>
 			{/if}
 			{#if draft && sheetOpen}
@@ -1166,12 +1367,20 @@
 		onpointerleave={(e) => e.pointerType === 'mouse' && (menuOpen = false)}
 	>
 		{@render tools?.()}
+		<!-- A mouse hovers for the menu and clicks to toggle. A finger cannot hover,
+		     so a tap opens the menu, where the same toggle sits as a switch. -->
 		<button
 			type="button"
 			class="mc-toggle-btn"
 			aria-pressed={visible}
-			aria-label={visible ? 'Hide comments' : 'Show comments'}
-			onclick={toggle}
+			aria-expanded={menuOpen}
+			aria-label={visible ? 'Comments: showing' : 'Comments: hidden'}
+			onpointerdown={(e) => (touched = e.pointerType !== 'mouse')}
+			onclick={() => {
+				if (touched) menuOpen = !menuOpen;
+				else toggle();
+				touched = false;
+			}}
 		>
 			{#if visible}
 				<MessageSquare size={16} />
@@ -1180,16 +1389,6 @@
 			{/if}
 			{#if openCount}<span>{openCount}</span>{/if}
 		</button>
-		<!-- No hover on a touch screen: this opens the same menu. -->
-		<button
-			type="button"
-			class="mc-toggle-more"
-			aria-label="Comment settings"
-			aria-expanded={menuOpen}
-			onclick={() => (menuOpen = !menuOpen)}
-		>
-			⋯
-		</button>
 
 		{#if menuOpen}
 			<div class="mc-menu" transition:fade={{ duration: 100 }}>
@@ -1197,11 +1396,22 @@
 					{#if !visible}
 						Comments are hidden.
 					{:else if config.canComment}
-						Click a line or select text to comment.
+						Click a line or select text to comment. Click a picture or chart to pin one.
 					{:else}
 						Log in to MdPubs to comment.
 					{/if}
 				</p>
+				<div class="mc-menu-row">
+					<span>Show comments</span>
+					<button
+						type="button"
+						role="switch"
+						class="mc-switch"
+						aria-checked={visible}
+						aria-label="Show comments"
+						onclick={toggle}><span></span></button
+					>
+				</div>
 				{#snippet choice(label: string, on: boolean, pick: () => void)}
 					<button type="button" class="mc-choice" aria-pressed={on} onclick={pick}>{label}</button>
 				{/snippet}
@@ -1243,15 +1453,38 @@
 						{/each}
 					</ul>
 				{/if}
+				{#if visible && latest.length}
+					<div class="mc-latest">
+						<p class="mc-menu-hint">Latest</p>
+						<ol aria-label="Latest comments">
+							{#each latest as c (c.id)}
+								<li>
+									<button type="button" class="mc-latest-item" onclick={() => jumpTo(c)}>
+										<span
+											class="mc-bullet"
+											class:mc-hue={prefs.colours}
+											style="--h:{hues[c.authorId]}"
+											aria-hidden="true"
+										></span>
+										<span class="mc-latest-main">
+											<span class="mc-latest-who">
+												<b>{c.authorName}</b>
+												{c.parentId ? 'replied' : 'commented'} · {ago(c.createdAt)}
+											</span>
+											<span class="mc-latest-text">{c.body}</span>
+										</span>
+									</button>
+								</li>
+							{/each}
+						</ol>
+					</div>
+				{/if}
 				{#if visible && resolvedCount}
 					<button type="button" class="mc-menu-link" onclick={() => (showResolved = !showResolved)}>
 						{showResolved ? 'Hide' : 'Show'}
 						{resolvedCount} resolved
 					</button>
 				{/if}
-				<button type="button" class="mc-menu-link" onclick={toggle}>
-					{visible ? 'Hide all comments' : 'Show comments'}
-				</button>
 			</div>
 		{/if}
 	</div>
@@ -1336,14 +1569,68 @@
 	.mc-mark.mc-on path {
 		stroke-width: 1.5;
 	}
-	.mc-hover {
-		opacity: 0.28;
-	}
 	.mc-faded {
 		opacity: 0.35;
 	}
 	.mc-dot {
 		fill: var(--mc-soft);
+	}
+	.mc-leader {
+		color: var(--mc-line, var(--mc-soft));
+		opacity: 0.7;
+	}
+	.mc-leader path {
+		stroke-dasharray: 3 3;
+	}
+	/* A pushpin off the office corkboard. Its point is the place that was clicked. */
+	.mc-pin {
+		--mc-pin: oklch(0.6 0.22 27);
+		position: absolute;
+		width: 30px;
+		height: 35px;
+		padding: 0;
+		pointer-events: auto;
+		cursor: pointer;
+		transform-origin: 10px 30px;
+		transition: transform 120ms ease-out;
+		animation: mc-stick 240ms cubic-bezier(0.3, 1.7, 0.5, 1) both;
+	}
+	.mc-pin.mc-hue {
+		--mc-pin: oklch(0.62 0.19 var(--h));
+	}
+	.mc-pin-new {
+		pointer-events: none;
+	}
+	.mc-pin:hover,
+	.mc-pin.mc-on {
+		transform: rotate(-9deg) scale(1.12);
+	}
+	.mc-pin svg {
+		display: block;
+		overflow: visible;
+	}
+	.mc-pin-shadow {
+		fill: oklch(0 0 0 / 0.28);
+	}
+	.mc-pin-needle {
+		fill: none;
+		stroke: oklch(0.5 0.01 265);
+		stroke-width: 1.5;
+		stroke-linecap: round;
+	}
+	.mc-pin-head {
+		fill: var(--mc-pin);
+		stroke: color-mix(in oklch, var(--mc-pin) 65%, black);
+		stroke-width: 0.8;
+	}
+	.mc-pin-shine {
+		fill: oklch(1 0 0 / 0.75);
+	}
+	@keyframes mc-stick {
+		from {
+			opacity: 0;
+			transform: translate(5px, -16px) rotate(14deg);
+		}
 	}
 	@keyframes mc-draw {
 		to {
@@ -1354,6 +1641,9 @@
 		.mc-mark path {
 			animation: none;
 			stroke-dashoffset: 0;
+		}
+		.mc-pin {
+			animation: none;
 		}
 	}
 
@@ -1368,16 +1658,28 @@
 		position: absolute;
 		left: -0.5rem;
 		width: calc(100% + 1rem);
-		padding: 0.375rem 0.5rem;
 		border-radius: 0.6rem;
 		pointer-events: auto;
 		transition:
 			top 180ms ease,
 			opacity 150ms;
 	}
+	.mc-note-in {
+		padding: 0.375rem 0.5rem;
+	}
 	.mc-note:hover,
 	.mc-note.mc-on {
-		background: color-mix(in oklch, var(--color-base-content) 5%, transparent);
+		background: color-mix(in oklch, var(--color-base-content) 5%, var(--color-base-100));
+	}
+	/* No room for all of it before the next note: the rest fades out, and the
+	   whole note lifts over its neighbours under the pointer. */
+	.mc-note.mc-cut {
+		overflow: hidden;
+		mask-image: linear-gradient(to bottom, #000 calc(100% - 1.4rem), transparent);
+	}
+	.mc-note.mc-lifted {
+		z-index: 3;
+		box-shadow: 0 6px 22px color-mix(in oklch, var(--color-base-content) 14%, transparent);
 	}
 	.mc-resolved {
 		opacity: 0.45;
@@ -1596,17 +1898,9 @@
 		display: flex;
 		flex-direction: column;
 	}
+	/* Same order as a comment in the margin: the words, then who and when. */
 	.mc-turn .mc-meta {
-		order: -1;
-		margin: 0.15rem 0 0.15rem;
-	}
-	.mc-turn .mc-author {
-		color: var(--mc-ink);
-		font-weight: 600;
-	}
-	.mc-turn .mc-readmore,
-	.mc-turn .mc-earlier {
-		order: 1;
+		margin: 0.2rem 0 0;
 	}
 	.mc-turn .mc-hand {
 		font-family: inherit;
@@ -1649,6 +1943,70 @@
 	}
 	.mc-legend-count {
 		color: var(--mc-soft);
+	}
+	/* The latest comments, as a timeline: a dot per comment on one line down the side. */
+	.mc-latest {
+		padding-top: 0.5rem;
+		border-top: 1px solid color-mix(in oklch, var(--color-base-content) 8%, transparent);
+	}
+	.mc-latest ol {
+		position: relative;
+		max-height: 15rem;
+		margin: 0.25rem -0.4rem 0;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+	}
+	.mc-latest-item {
+		position: relative;
+		display: flex;
+		align-items: flex-start;
+		gap: 0.5rem;
+		width: 100%;
+		padding: 0.3rem 0.4rem;
+		border-radius: 0.4rem;
+		text-align: left;
+		cursor: pointer;
+	}
+	.mc-latest-item:hover,
+	.mc-latest-item:focus-visible {
+		background: color-mix(in oklch, var(--color-base-content) 6%, transparent);
+	}
+	.mc-latest-item .mc-bullet {
+		position: relative;
+		z-index: 1;
+		margin-top: 0.3rem;
+	}
+	.mc-latest li + li .mc-latest-item::before {
+		content: '';
+		position: absolute;
+		left: calc(0.4rem + 0.3rem - 0.5px);
+		top: -0.9rem;
+		height: 1.5rem;
+		width: 1px;
+		background: color-mix(in oklch, var(--color-base-content) 14%, transparent);
+	}
+	.mc-latest-main {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+	.mc-latest-who {
+		color: var(--mc-soft);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.mc-latest-who b {
+		font-weight: 600;
+		color: var(--mc-ink);
+	}
+	.mc-latest-text {
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		overflow: hidden;
+		overflow-wrap: anywhere;
 	}
 
 	.mc-drawer-foot {
@@ -1769,20 +2127,39 @@
 			bottom: max(0.75rem, env(safe-area-inset-bottom));
 		}
 	}
-	.mc-toggle-more {
-		display: none;
-		height: 2rem;
-		padding: 0 0.35rem;
-		color: var(--mc-soft);
+	.mc-switch {
+		position: relative;
+		width: 2.1rem;
+		height: 1.2rem;
+		border-radius: 999px;
+		background: color-mix(in oklch, var(--color-base-content) 22%, transparent);
+		cursor: pointer;
+		transition: background-color 150ms;
+	}
+	.mc-switch span {
+		position: absolute;
+		top: 2px;
+		left: 2px;
+		width: calc(1.2rem - 4px);
+		height: calc(1.2rem - 4px);
+		border-radius: 999px;
+		background: var(--color-base-100);
+		transition: transform 150ms;
+	}
+	.mc-switch[aria-checked='true'] {
+		background: var(--mc-ink);
+	}
+	.mc-switch[aria-checked='true'] span {
+		transform: translateX(0.9rem);
+	}
+	.mc-mark-hit {
+		position: absolute;
+		width: 1.5rem;
+		pointer-events: auto;
 		cursor: pointer;
 	}
-	@media (hover: none) {
-		.mc-toggle-more {
-			display: block;
-		}
-	}
-	.mc-toggle-more:focus-visible {
-		display: block;
+	.mc-note .mc-entry {
+		cursor: pointer;
 	}
 	.mc-menu {
 		position: absolute;

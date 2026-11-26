@@ -42,7 +42,16 @@ export type CommentAnchor = {
 	/** Text just before / after the quote. */
 	prefix?: string;
 	suffix?: string;
+	/**
+	 * A pin stuck at one point: where it is, as fractions of the block's box
+	 * (0,0 top left; 1,1 bottom right). May fall outside the box, for a point
+	 * in the space around the block.
+	 */
+	pin?: { x: number; y: number };
 };
+
+/** How far outside its block a pin may sit, in block widths or heights. */
+export const PIN_REACH = 4;
 
 export type AnchorBlock = { tag: string; text: string; src?: string; heading?: string };
 
@@ -463,6 +472,20 @@ export function cleanAnchor(input: unknown): CommentAnchor | null {
 	if (after) out.after = after;
 	if (src) out.src = src;
 	if (heading) out.heading = heading;
+	const pin = a.pin as { x?: unknown; y?: unknown } | undefined;
+	if (
+		a.kind === 'block' &&
+		pin &&
+		typeof pin === 'object' &&
+		typeof pin.x === 'number' &&
+		typeof pin.y === 'number' &&
+		Number.isFinite(pin.x) &&
+		Number.isFinite(pin.y)
+	) {
+		const fit = (n: number) =>
+			Math.round(Math.min(1 + PIN_REACH, Math.max(-PIN_REACH, n)) * 10000) / 10000;
+		out.pin = { x: fit(pin.x), y: fit(pin.y) };
+	}
 	if (a.kind === 'text') {
 		const quote = str(a.quote, QUOTE_MAX);
 		if (!quote) return null;

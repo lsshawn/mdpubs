@@ -96,3 +96,8 @@ export function marker(
 		`Q${f(bl[0] - 1 + j(1))} ${f(top + h / 2 + j(1.5))} ${f(tl[0])} ${f(tl[1])}Z`
 	);
 }
+
+/** One hand-drawn line from a to b: the thread from a pin to its note. */
+export function line(x1: number, y1: number, x2: number, y2: number, seed: string): string {
+	return stroke(x1, y1, x2, y2, mulberry32(hash(seed)));
+}

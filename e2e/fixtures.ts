@@ -73,6 +73,23 @@ Prices exclude tax and are quoted in US dollars.
 Work starts on the first Monday after the deposit clears. We expect the whole project to take about ten weeks from start to handover.
 `;
 
+/** A page with the author's own HTML in it: a row of figures, then a picture. */
+const report = `
+## Annual report
+
+Revenue grew in every quarter of the year. The fourth quarter was the strongest on record, and renewals held up through the summer.
+
+<div class="report" style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin:16px 0">
+<div class="stat" style="padding:16px;border:1px solid #999"><b>$4.2M</b> <span>Revenue</span></div>
+<div class="stat" style="padding:16px;border:1px solid #999"><b>1,280</b> <span>Customers</span></div>
+<div class="stat" style="padding:16px;border:1px solid #999"><b>97%</b> <span>Renewals</span></div>
+</div>
+
+![Revenue chart](/favicon.png)
+
+The board approved the plan for next year at its December meeting.
+`;
+
 const page = (frontmatter: string) => `---\ntitle: Proposal\n${frontmatter}---\n${body}`;
 
 /** publicId → the note. Each spec area gets its own note so tests don't share comments. */
@@ -88,5 +105,8 @@ export const NOTES: Record<string, { content: string; isPrivate?: boolean }> = {
 	'e2e-off': { content: page('') },
 	'e2e-history': { content: page('mdpubs-comments: public\nmdpubs-history: public\n') },
 	'e2e-history-only': { content: page('mdpubs-history: public\n') },
+	'e2e-report': {
+		content: `---\ntitle: Annual report\nmdpubs-comments: public\n---\n${report}`
+	},
 	'e2e-private': { content: page('mdpubs-comments: public\n'), isPrivate: true }
 };

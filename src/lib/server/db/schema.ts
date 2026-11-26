@@ -375,6 +375,7 @@ export type CommentAnchorRow = {
 	quote?: string;
 	prefix?: string;
 	suffix?: string;
+	pin?: { x: number; y: number };
 };
 
 export const noteComment = sqliteTable(

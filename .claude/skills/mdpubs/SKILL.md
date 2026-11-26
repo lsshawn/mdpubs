@@ -114,6 +114,9 @@ mdpubs-comments: public # public = anyone with the link, guests give a name. tru
 mdpubs-comments-email: optional # guests' email field: optional (default) | required | off
 ```
 
+- A click inside a picture, or inside a raw HTML block (a stats grid, an inline
+  SVG chart), sticks a pushpin at that exact point instead of bracketing a line.
+  Selecting a few words brackets only the lines those words are on.
 - Use `public` for a client: they have no mdpubs account. `true` is for a team
   that all log in.
 - A guest's email is shown to the document's owner only.

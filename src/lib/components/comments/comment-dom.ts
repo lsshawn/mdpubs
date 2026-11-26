@@ -5,7 +5,12 @@
  * The article's HTML is never changed: highlights and brackets are drawn in a
  * layer on top, from the rectangles this file hands out.
  */
-import { buildDoc, type AnchorBlock, type AnchorDoc } from '#lib/helpers/comment-anchor.js';
+import {
+	buildDoc,
+	PIN_REACH,
+	type AnchorBlock,
+	type AnchorDoc
+} from '#lib/helpers/comment-anchor.js';
 
 /** Elements that are one "line" to comment on. */
 const TEXT_BLOCKS = 'p,h1,h2,h3,h4,h5,h6,li,tr,pre,dt,dd,summary,figcaption,caption';
@@ -15,6 +20,8 @@ const MEDIA = 'img,video,audio,iframe,canvas,svg,hr,[data-component]';
 const IGNORE = '[data-mdpubs-sign-here],[data-comments-ignore],script,style,.katex-mathml';
 /** A child that ends a list item's own first lines. */
 const NESTED = 'ul,ol,p,pre,blockquote,table,div,dl,details';
+/** Layout boxes an author writes in raw HTML. */
+const BOXES = 'div,section,figure,article,aside,header,footer,main';
 const HEADINGS = /^h[1-6]$/;
 
 export type DomBlock = AnchorBlock & {
@@ -132,7 +139,20 @@ export function indexArticle(root: HTMLElement): DomIndex {
 		}
 		if (el.matches(MEDIA)) return add(el, null, false);
 		if (!el.querySelector(`${TEXT_BLOCKS},${MEDIA}`)) {
-			if (el.textContent?.trim()) add(el, null, true);
+			if (!el.textContent?.trim()) return;
+			// A box made only of smaller boxes (a grid of figures, a row of cards):
+			// each smaller box is its own block, so a comment stays with its card.
+			const kids = Array.from(el.children);
+			const boxes = kids.filter((c) => c.matches(BOXES));
+			const loose =
+				Array.from(el.childNodes).some(
+					(n) => n.nodeType === Node.TEXT_NODE && (n as Text).data.trim()
+				) || kids.some((c) => !c.matches(BOXES) && c.textContent?.trim());
+			if (boxes.length && !loose) {
+				for (const c of boxes) visit(c);
+				return;
+			}
+			add(el, null, true);
 			return;
 		}
 		for (const child of Array.from(el.children)) visit(child);
@@ -272,4 +292,74 @@ export function textBoxes(index: DomIndex, start: number, end: number): Box[] {
 		lines.push({ ...r });
 	}
 	return lines;
+}
+
+/** What an author's own HTML is built from, and pictures: places a pin can go. */
+const PIN_BOX = 'div,section,figure,article,aside,header,footer,main,svg,canvas,img';
+/** Boxes of ours, or with a job of their own: commented on as a whole line. */
+const NO_PIN =
+	'pre,.katex,.katex-display,.mdpubs-embed,.custom-component,[data-component],[data-mdpubs-sign-here],[data-comments-ignore]';
+
+/**
+ * The box a pin's position is measured against: the block's own, or for a
+ * paragraph that only holds a picture, the picture. So a pin stays on the same
+ * spot of an image however wide the page is.
+ */
+export function pinFrame(index: DomIndex, i: number): Box | null {
+	const box = blockBox(index, i);
+	const b = index.blocks[i];
+	if (!box || b.text || b.el.closest('details:not([open])')) return box;
+	const media = b.el.matches('img,svg,canvas') ? null : b.el.querySelector('img,svg,canvas');
+	const r = media?.getBoundingClientRect();
+	return r && r.width && r.height
+		? { left: r.left, top: r.top, right: r.right, bottom: r.bottom }
+		: box;
+}
+
+/**
+ * A click inside a picture or a piece of the author's own HTML (a report, a
+ * chart, a grid of figures) sticks a pin at that very point. Returns the block
+ * nearest the point and the point as fractions of that block's box, so the pin
+ * keeps its place when the page is laid out differently. Null anywhere else:
+ * ordinary text is commented on by the line.
+ */
+export function pinAt(
+	index: DomIndex,
+	target: Element,
+	clientX: number,
+	clientY: number
+): { block: number; x: number; y: number } | null {
+	const { root } = index;
+	if (target === root || !root.contains(target) || target.closest(NO_PIN)) return null;
+	// The outermost such box round the click: the whole "component".
+	let box: Element | null = null;
+	for (let n: Element | null = target; n && n !== root; n = n.parentElement) {
+		if (n.matches(PIN_BOX)) box = n;
+	}
+	if (!box) return null;
+
+	let best = -1;
+	let bestBox: Box | null = null;
+	let bestGap = Infinity;
+	index.blocks.forEach((b, i) => {
+		if (b.el !== box && !box!.contains(b.el) && !b.el.contains(box)) return;
+		const r = pinFrame(index, i);
+		if (!r) return;
+		const dx = Math.max(r.left - clientX, 0, clientX - r.right);
+		const dy = Math.max(r.top - clientY, 0, clientY - r.bottom);
+		const gap = Math.hypot(dx, dy);
+		if (gap < bestGap) {
+			bestGap = gap;
+			best = i;
+			bestBox = r;
+		}
+	});
+	if (best < 0 || !bestBox) return null;
+	const r = bestBox as Box;
+	const w = r.right - r.left;
+	const h = r.bottom - r.top;
+	if (w < 1 || h < 1) return null;
+	const fit = (n: number) =>
+		Math.round(Math.min(1 + PIN_REACH, Math.max(-PIN_REACH, n)) * 10000) / 10000;
+	return { block: best, x: fit((clientX - r.left) / w), y: fit((clientY - r.top) / h) };
 }
