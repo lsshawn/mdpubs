@@ -163,8 +163,14 @@
 			{#if !guest}
 				<span class="mc-name">as {viewerName}</span>
 			{:else if !editingWho}
-				<span class="mc-name">as {name}</span>
-				<button type="button" onclick={() => (editingWho = true)}>change</button>
+				<button
+					type="button"
+					class="mc-name"
+					title="Change your name{email !== 'off' ? ' or email' : ''}"
+					onclick={() => (editingWho = true)}
+				>
+					as <u>{name}</u>
+				</button>
 			{:else if email !== 'off'}
 				<span class="mc-name">Email stays private</span>
 			{/if}
@@ -240,9 +246,11 @@
 		white-space: nowrap;
 	}
 	.mc-who button {
-		flex: none;
-		text-decoration: underline;
+		text-align: left;
 		cursor: pointer;
+	}
+	.mc-who button:hover {
+		color: var(--color-base-content);
 	}
 	.mc-quiet {
 		color: color-mix(in oklch, var(--color-base-content) 55%, transparent);

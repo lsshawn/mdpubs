@@ -4,7 +4,7 @@ keyword: 'wedding photography contract template'
 profession: 'wedding photographer'
 signer: 'Photographer'
 title: 'Wedding Photography Contract Template: Free to Sign'
-description: 'A free wedding photography contract template covering the day''s timeline, second shooter, meals, venue rules and travel. Send it to sign online.'
+description: "A free wedding photography contract template covering the day's timeline, second shooter, meals, venue rules and travel. Send it to sign online."
 updated: 2026-10-12
 related:
   - 'photography-contract-template'

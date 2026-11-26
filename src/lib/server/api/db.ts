@@ -17,6 +17,7 @@ import {
 	signature,
 	signatureEvent,
 	noteComment,
+	noteCommentEdit,
 	type User,
 	type NewUser,
 	type Note,
@@ -269,6 +270,7 @@ class DatabaseConnection {
 			await db.delete(signature).where(eq(signature.noteId, id));
 			await db.delete(signatureRequest).where(eq(signatureRequest.noteId, id));
 			await db.delete(noteVersion).where(eq(noteVersion.noteId, id));
+			await db.delete(noteCommentEdit).where(eq(noteCommentEdit.noteId, id));
 			await db.delete(noteComment).where(eq(noteComment.noteId, id));
 
 			const result = await db.delete(note).where(eq(note.id, id)).returning();

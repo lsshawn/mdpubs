@@ -22,14 +22,14 @@ intro: >-
   day, and says what happens if the event cannot go ahead.
 covers:
   - 'Vendor contracts: venues, caterers and other vendors contract with and are paid by the client, so the planner is not liable for their performance.'
-  - 'Budget and markups: the client''s event budget is separate from the planning fee, and any markup or vendor commission is disclosed in writing.'
+  - "Budget and markups: the client's event budget is separate from the planning fee, and any markup or vendor commission is disclosed in writing."
   - 'Guest count changes: a change beyond a set margin reprices the planning fee and resets vendor deadlines.'
-  - 'Day-of coordination hours: fixes the planner''s on-site hours and staff, with an hourly overtime rate after the contracted end time.'
+  - "Day-of coordination hours: fixes the planner's on-site hours and staff, with an hourly overtime rate after the contracted end time."
   - 'Force majeure: what happens to fees and dates if weather, illness, venue closure or official restrictions stop the event.'
   - 'Cancellation scale: the share of the planning fee owed grows as the event date gets closer.'
 faqs:
-  - q: 'Should vendor contracts be in the event planner''s name or the client''s?'
-    a: 'The client''s, in most cases. When the venue and caterer contract with the client directly, the client holds the deposits and the refund rights, and you are not on the hook if a vendor fails or a payment bounces. You recommend, negotiate and coordinate. This template sets that up and says you are not liable for vendor performance.'
+  - q: "Should vendor contracts be in the event planner's name or the client's?"
+    a: "The client's, in most cases. When the venue and caterer contract with the client directly, the client holds the deposits and the refund rights, and you are not on the hook if a vendor fails or a payment bounces. You recommend, negotiate and coordinate. This template sets that up and says you are not liable for vendor performance."
   - q: 'Can an event planner take commissions from vendors?'
     a: 'Many do, but hide nothing. This template makes you disclose in writing any commission, referral fee or markup before the client signs with that vendor. Clients who later find an undisclosed commission tend to dispute the whole bill. Disclosure keeps the fee and the trust.'
   - q: 'What happens to the fee if the guest count changes?'
@@ -48,6 +48,7 @@ This agreement is between [Client Name] ("Client") and [Your Business Name] ("Pl
 - Estimated guests: [Number]
 
 The Planner will provide [Full Planning / Partial Planning / Day-of Coordination], including:
+
 - [Number] planning meetings, in person or by video.
 - Vendor recommendations, quotes and contract review.
 - A master timeline, floor plan and vendor contact sheet.
@@ -88,6 +89,7 @@ On the event day the Planner and [Number] assistant(s) will be on site for up to
 ## 9. Cancellation and Postponement
 
 If the Client cancels, the retainer is kept and the following share of the planning fee is due:
+
 - More than [Number] days before the event: [Percentage]%.
 - [Number] to [Number] days before: [Percentage]%.
 - Within [Number] days: 100%.

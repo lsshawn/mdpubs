@@ -25,15 +25,15 @@ covers:
   - 'Approval workflow: the client approves the monthly calendar within a set number of business days, or the content counts as approved.'
   - 'Account access: the client owns every account and gives you role-based access, which avoids lockouts and login fights when the contract ends.'
   - 'Ad spend: the client pays platforms directly, separate from your management fee, so a boosted post never eats into your income.'
-  - 'Community management: a fixed number of hours a week for replies and DMs, with business hours stated so the client doesn''t expect 24/7 cover.'
+  - "Community management: a fixed number of hours a week for replies and DMs, with business hours stated so the client doesn't expect 24/7 cover."
   - 'No guaranteed results: makes clear the fee pays for work done, not for followers, reach or sales.'
 faqs:
   - q: 'What should a social media management contract include?'
-    a: 'It should list the platforms, the number of posts per month, the approval deadline, who owns the accounts, how ad spend is paid, community management hours and the monthly fee. Add a notice period for ending the retainer and a line saying growth isn''t guaranteed. Those points cover most disputes between managers and clients.'
+    a: "It should list the platforms, the number of posts per month, the approval deadline, who owns the accounts, how ad spend is paid, community management hours and the monthly fee. Add a notice period for ending the retainer and a line saying growth isn't guaranteed. Those points cover most disputes between managers and clients."
   - q: 'Should ad spend be included in my monthly retainer?'
     a: 'No. Keep the ad budget separate from your fee. The client should pay Meta, TikTok or LinkedIn directly with their own card, or prepay you before you spend it. Mixing the two makes your income swing with their budget and leaves you exposed if a platform charge is disputed.'
   - q: 'Who owns the social media accounts after the contract ends?'
-    a: 'The client should. Set up the accounts, ad accounts and business manager under the client''s name and have them add you as an admin or editor. When the contract ends you hand back any logins you created and they remove your access. Content already published stays with them.'
+    a: "The client should. Set up the accounts, ad accounts and business manager under the client's name and have them add you as an admin or editor. When the contract ends you hand back any logins you created and they remove your access. Content already published stays with them."
   - q: 'Is this template legally binding?'
     a: 'Once both parties sign it, it is a contract like any other. Laws differ between places, so have a lawyer check it for your jurisdiction before you rely on it for a large retainer.'
 ---

@@ -778,7 +778,8 @@ class SignService {
 					ipAddress,
 					location,
 					userAgent,
-					detail: 'Stale request with no signatures dropped; the document is open for signing again.'
+					detail:
+						'Stale request with no signatures dropped; the document is open for signing again.'
 				});
 				return { voided: 0, state: await this.getState(note) };
 			}

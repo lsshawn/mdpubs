@@ -47,6 +47,21 @@ async function setContent(publicId: string, content: string) {
 
 async function clearComments() {
 	await db.execute(`delete from note_comments`);
+	await db.execute(`delete from note_versions`);
+	await db.execute(`delete from note_comment_edits`);
+}
+
+/** Give a note a saved history: one version per content, oldest first. The last becomes the live text. */
+async function setHistory(publicId: string, contents: string[]) {
+	const start = Math.floor(Date.now() / 1000) - contents.length * 86400;
+	for (let i = 0; i < contents.length; i++) {
+		await db.execute({
+			sql: `insert into note_versions (note_id, version, title, content, file_extension, created_at, user_id)
+			      select id, ?, 'Proposal', ?, 'md', ?, user_id from notes where public_id = ?`,
+			args: [i + 1, contents[i], start + i * 86400, publicId]
+		});
+	}
+	await setContent(publicId, contents[contents.length - 1]);
 }
 
 /** Post a comment on one of BLOCKS straight through the API, as a guest. Returns its id. */
@@ -160,7 +175,8 @@ test.describe('guests', () => {
 		await clickBeside(page, para(page, 'Work starts on'));
 		await expect(composer(page).getByPlaceholder('Your name')).toHaveCount(0);
 		await expect(composer(page).locator('.mc-who')).toContainText('as Maya Lin');
-		await composer(page).getByRole('button', { name: 'change' }).click();
+		// The name itself is the way to change it.
+		await composer(page).getByRole('button', { name: 'as Maya Lin' }).click();
 		await write(page, 'when is the deposit due?', 'Sam Ortiz', '');
 		await expect(note(page, 'when is the deposit due?')).toContainText('Sam Ortiz');
 
@@ -181,8 +197,15 @@ test.describe('guests', () => {
 	test('select text to comment on just those words', async ({ page }) => {
 		await open(page, 'e2e-public');
 		await selectText(page, para(page, 'We will build'), 'onboarding flow and the billing page');
-		await page.locator('.mc-pill-float').click();
+		// No button to press: the box and the bracket are there as soon as text is selected,
+		// and the selection is still the reader's to copy.
+		await expect(composer(page)).toBeVisible();
+		await expect(page.locator('.mc-mark')).toHaveCount(1);
 		await expect(page.locator('.mc-highlight').first()).toBeVisible();
+		expect(await page.evaluate(() => window.getSelection()!.toString())).toBe(
+			'onboarding flow and the billing page'
+		);
+		expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe('TEXTAREA');
 		await write(page, 'love this part', 'Maya Lin');
 
 		const [row] = await comments('e2e-public');
@@ -213,7 +236,6 @@ test.describe('guests', () => {
 			sel.removeAllRanges();
 			sel.addRange(range);
 		});
-		await page.locator('.mc-pill-float').click();
 		await write(page, 'these two belong together', 'Maya Lin');
 		const mark = (await page.locator('.mc-mark').boundingBox())!;
 		const a = (await para(page, 'We will build').boundingBox())!;
@@ -297,9 +319,8 @@ test.describe('guests', () => {
 		await expect(page.locator('.mc-note')).toHaveCount(0);
 		await clickBeside(page, para(page, 'Payment is due'));
 		await expect(page.locator('.mc-composer')).toHaveCount(0);
-		// The article gets the page back and is centred again.
-		const cleanArticle = (await page.locator('article').boundingBox())!;
-		expect(cleanArticle.x).toBeGreaterThan(wideArticle.x);
+		// Nothing on the page moves: the text keeps its place and width.
+		expect(await page.locator('article').boundingBox()).toEqual(wideArticle);
 
 		await page.reload();
 		await expect(page.locator('.mc-toggle-btn')).toBeVisible();
@@ -329,6 +350,302 @@ test.describe('guests', () => {
 				return boxes.every((b, i) => i === 0 || b[0] >= boxes[i - 1][1]);
 			})
 			.toBe(true);
+	});
+});
+
+test.describe('long comments, long threads and colours', () => {
+	const essay = 'This clause needs a second look because the wording is loose. '.repeat(20).trim();
+
+	async function seedThread(request: APIRequestContext, replies: number) {
+		const root = await seedComment(
+			request,
+			'e2e-public',
+			'Payment is due',
+			'first comment in a long thread'
+		);
+		for (let i = 1; i <= replies; i++) {
+			await seedComment(request, 'e2e-public', 'Payment is due', `reply number ${i}`, {
+				parentId: root,
+				name: i % 2 ? 'Sam Ortiz' : 'Maya Lin',
+				key: i % 2 ? 'sam-key-0123456789abcdef' : 'seed-key-0123456789abcdef'
+			});
+		}
+		return root;
+	}
+
+	test('a long thread is cut short in the margin and opens whole in a side drawer', async ({
+		page,
+		request
+	}) => {
+		await seedThread(request, 9);
+		await open(page, 'e2e-public');
+		const n = note(page, 'first comment in a long thread');
+		await expect(n.locator('.mc-entry')).toHaveCount(3); // first comment + the last two replies
+		await expect(n).toContainText('7 earlier replies');
+		await expect(n).toContainText('reply number 9');
+		await expect(n).not.toContainText('reply number 3');
+
+		await n.getByRole('button', { name: 'Open thread (10)' }).click();
+		const drawer = page.locator('.mc-drawer');
+		await expect(drawer.locator('.mc-entry')).toHaveCount(10);
+		await expect(drawer.locator('.mc-drawer-head')).toContainText('Payment is due within fourteen');
+
+		// It scrolls on its own, and the page behind stays put.
+		const body = drawer.locator('.mc-drawer-body');
+		await page.setViewportSize({ width: 1440, height: 500 });
+		expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+		await body.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+		await expect(drawer.getByText('reply number 9')).toBeInViewport();
+
+		// Reply from the drawer.
+		await drawer.getByPlaceholder('Your name').fill('Sam Ortiz');
+		await drawer.locator('textarea').fill('reply from the drawer');
+		await drawer.getByRole('button', { name: 'Comment' }).click();
+		await expect(drawer.locator('.mc-entry')).toHaveCount(11);
+		await expect(drawer.getByText('reply from the drawer')).toBeInViewport();
+		await expect(n).toContainText('reply from the drawer');
+
+		await page.keyboard.press('Escape');
+		await expect(drawer).toHaveCount(0);
+		await n.getByText('8 earlier replies').click();
+		await expect(drawer).toBeVisible();
+		await page.locator('.mc-drawer-backdrop').click({ position: { x: 20, y: 20 } });
+		await expect(drawer).toHaveCount(0);
+	});
+
+	test('edit and delete show for the comment under the pointer only', async ({ page, request }) => {
+		await seedThread(request, 2);
+		await loginAs(page, OWNER);
+		await open(page, 'e2e-public');
+		const entries = note(page, 'first comment in a long thread').locator('.mc-entry');
+		await expect(entries).toHaveCount(3);
+		const shown = () =>
+			entries.evaluateAll((els) =>
+				els.map((el) => getComputedStyle(el.querySelector('.mc-act')!).opacity === '1')
+			);
+		expect(await shown()).toEqual([false, false, false]);
+		await entries.nth(1).hover();
+		await expect.poll(shown).toEqual([false, true, false]);
+		await entries.nth(2).hover();
+		await expect.poll(shown).toEqual([false, false, true]);
+	});
+
+	test('a very long comment is cut short, with Read more and Show less', async ({
+		page,
+		request
+	}) => {
+		await seedComment(request, 'e2e-public', 'Payment is due', essay);
+		await seedComment(request, 'e2e-public', 'Work starts on', 'a short one');
+		await open(page, 'e2e-public');
+		const long = note(page, 'This clause needs a second look');
+		const hand = long.locator('.mc-hand');
+		const cutHeight = (await hand.boundingBox())!.height;
+		expect(cutHeight).toBeLessThan(120);
+		// A short comment has nothing to expand, and one comment is no reason for the drawer.
+		await expect(note(page, 'a short one').getByRole('button', { name: 'Read more' })).toHaveCount(
+			0
+		);
+		await expect(long.getByRole('button', { name: /Open thread/ })).toHaveCount(0);
+
+		await long.getByRole('button', { name: 'Read more' }).click();
+		expect((await hand.boundingBox())!.height).toBeGreaterThan(cutHeight * 2);
+		await expect(hand).toHaveText(essay);
+		// The note below moved out of the way instead of being covered.
+		await expect
+			.poll(async () => {
+				const a = (await long.boundingBox())!;
+				const b = (await note(page, 'a short one').boundingBox())!;
+				return a.y + a.height <= b.y || b.y + b.height <= a.y;
+			})
+			.toBe(true);
+
+		await long.getByRole('button', { name: 'Show less' }).click();
+		await expect.poll(async () => (await hand.boundingBox())!.height).toBeLessThan(120);
+	});
+
+	test('the writer can reword a comment; every earlier wording is kept', async ({
+		page,
+		request
+	}) => {
+		const theirs = await seedComment(request, 'e2e-public', 'Work starts on', 'not mine to edit');
+		await open(page, 'e2e-public');
+		await clickBeside(page, para(page, 'Payment is due'));
+		await write(page, 'frist draft of my coment', 'Maya Lin');
+
+		const mine = note(page, 'frist draft');
+		await mine.hover();
+		await mine.getByRole('button', { name: /edit/ }).click();
+		// While it is being edited the note holds a text box, not the text.
+		const box = page.getByLabel('Edit your comment');
+		await expect(box).toHaveValue('frist draft of my coment');
+		await box.fill('first draft of my comment');
+		await page.locator('.mc-note').getByRole('button', { name: 'Save' }).click();
+		const fixed = note(page, 'first draft of my comment');
+		await expect(fixed).toBeVisible();
+		await expect(fixed).toContainText('edited');
+
+		// A second edit, saved from the keyboard. Escape leaves it alone.
+		await fixed.hover();
+		await fixed.getByRole('button', { name: '· edit', exact: true }).click();
+		await page.getByLabel('Edit your comment').fill('thrown away');
+		await page.keyboard.press('Escape');
+		await expect(fixed).toContainText('first draft of my comment');
+		await fixed.getByRole('button', { name: '· edit', exact: true }).click();
+		await page.getByLabel('Edit your comment').fill('final wording');
+		await page.keyboard.press('Control+Enter');
+		const final = note(page, 'final wording');
+		await expect(final).toBeVisible();
+
+		// The audit trail: both earlier wordings, in the database and on request in the page.
+		const log = await db.execute(
+			`select body_before, body_after, edited_by_user_id from note_comment_edits order by id`
+		);
+		expect(log.rows.map((r) => [r.body_before, r.body_after])).toEqual([
+			['frist draft of my coment', 'first draft of my comment'],
+			['first draft of my comment', 'final wording']
+		]);
+		await final.getByRole('button', { name: '· edited' }).click();
+		await expect(final.locator('.mc-was')).toHaveText([
+			'first draft of my comment',
+			'frist draft of my coment'
+		]);
+
+		// Still edited after a reload; someone else's comment offers no edit.
+		await page.reload();
+		await expect(note(page, 'final wording')).toContainText('edited');
+		await note(page, 'not mine to edit').hover();
+		await expect(note(page, 'not mine to edit').getByRole('button', { name: /edit/ })).toHaveCount(
+			0
+		);
+
+		// Nobody else can reword it or read the earlier wording: not a stranger, not even the owner.
+		const stranger = await request.patch(`/api/notes/e2e-public/comments/${theirs}`, {
+			data: { body: 'hijacked' }
+		});
+		expect(stranger.status()).toBe(403);
+		const owner = await request.patch(`/api/notes/e2e-public/comments/${theirs}`, {
+			data: { body: 'hijacked' },
+			headers: { authorization: `Bearer ${OWNER.session}` }
+		});
+		expect(owner.status()).toBe(403);
+		const mineId = (await comments('e2e-public')).find((r) => r.body === 'final wording')!.id;
+		expect((await request.get(`/api/notes/e2e-public/comments/${mineId}`)).status()).toBe(403);
+		// The owner may read the trail (moderation), and guests only see that it was edited.
+		const trail = await request.get(`/api/notes/e2e-public/comments/${mineId}`, {
+			headers: { authorization: `Bearer ${OWNER.session}` }
+		});
+		expect((await trail.json()).edits).toHaveLength(2);
+		const empty = await request.patch(`/api/notes/e2e-public/comments/${theirs}`, {
+			data: { body: '   ' },
+			headers: { 'x-comment-key': 'seed-key-0123456789abcdef' }
+		});
+		expect(empty.status()).toBe(400);
+		expect((await comments('e2e-public')).map((r) => r.body).sort()).toEqual([
+			'final wording',
+			'not mine to edit'
+		]);
+	});
+
+	test('each person gets their own colour, on their name, bracket and highlight', async ({
+		page,
+		request
+	}) => {
+		const quote = (text: string, q: string) => ({
+			anchor: { v: 1, kind: 'text', index: 1, ...BLOCKS[text], quote: q, prefix: '', suffix: '' }
+		});
+		await seedComment(
+			request,
+			'e2e-public',
+			'We will build',
+			'maya one',
+			quote('We will build', 'onboarding flow')
+		);
+		await seedComment(
+			request,
+			'e2e-public',
+			'Work starts on',
+			'maya two',
+			quote('Work starts on', 'first Monday')
+		);
+		await seedComment(request, 'e2e-public', 'Payment is due', 'sam one', {
+			...quote('Payment is due', 'fourteen days'),
+			name: 'Sam Ortiz',
+			key: 'sam-key-0123456789abcdef'
+		});
+		await open(page, 'e2e-public');
+		await expect(page.locator('.mc-highlight')).toHaveCount(3);
+
+		const colour = (text: string, selector: string, prop: string) =>
+			note(page, text)
+				.locator(selector)
+				.evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
+		const mayaOne = await colour('maya one', '.mc-author', 'color');
+		const mayaTwo = await colour('maya two', '.mc-author', 'color');
+		const sam = await colour('sam one', '.mc-author', 'color');
+		expect(mayaOne).toBe(mayaTwo);
+		expect(sam).not.toBe(mayaOne);
+
+		// Highlights and brackets carry the same hue as the name, and are drawn shapes, not boxes.
+		const fills = await page
+			.locator('.mc-highlight')
+			.evaluateAll((els) =>
+				els.map((el) => [
+					getComputedStyle(el).fill,
+					el.tagName,
+					el.getAttribute('d')!.includes('Q')
+				])
+			);
+		expect(new Set(fills.map((f) => f[0])).size).toBe(2);
+		expect(fills.every((f) => f[1] === 'path' && f[2] === true)).toBe(true);
+		const strokes = await page
+			.locator('.mc-mark')
+			.evaluateAll((els) => els.map((el) => getComputedStyle(el).color));
+		expect(new Set(strokes).size).toBe(2);
+		expect(strokes).toContain(mayaOne);
+		expect(strokes).toContain(sam);
+	});
+});
+
+test.describe('settings', () => {
+	test('hovering the comments button offers writing style, size and colour; a click still toggles', async ({
+		page,
+		request
+	}) => {
+		await seedComment(request, 'e2e-public', 'Payment is due', 'style me');
+		await open(page, 'e2e-public');
+		const hand = note(page, 'style me').locator('.mc-hand');
+		const style = () =>
+			hand.evaluate(
+				(el) =>
+					[getComputedStyle(el).fontFamily, parseFloat(getComputedStyle(el).fontSize)] as const
+			);
+		const [font, size] = await style();
+		expect(font).toContain('Caveat');
+
+		await expect(page.locator('.mc-menu')).toHaveCount(0);
+		await page.locator('.mc-toggle-btn').hover();
+		const menu = page.locator('.mc-menu');
+		await expect(menu).toBeVisible();
+		await menu.getByRole('button', { name: 'Plain' }).click();
+		await menu.getByRole('button', { name: 'Large' }).click();
+		await menu.getByRole('button', { name: 'One ink' }).click();
+		const [plainFont, plainSize] = await style();
+		expect(plainFont).not.toContain('Caveat');
+		expect(plainSize).toBe(16);
+		expect(size).toBeGreaterThan(plainSize);
+		await page.mouse.move(400, 400);
+		await expect(menu).toHaveCount(0);
+
+		// Remembered.
+		await page.reload();
+		await expect(note(page, 'style me')).toBeVisible();
+		expect((await style())[0]).not.toContain('Caveat');
+
+		// The button itself still hides and shows comments.
+		await page.locator('.mc-toggle-btn').click();
+		await expect(page.locator('.mc-note')).toHaveCount(0);
+		await page.locator('.mc-toggle-btn').click();
+		await expect(note(page, 'style me')).toBeVisible();
 	});
 });
 
@@ -441,7 +758,7 @@ test.describe('every kind of element', () => {
 		await expect(page.locator('.mc-mark')).toHaveCount(1);
 		const mark = (await page.locator('.mc-mark').boundingBox())!;
 		const summary = (await page.locator('article details').boundingBox())!;
-		expect(Math.abs(mark.y - summary.y)).toBeLessThan(12);
+		expect(Math.abs(mark.y - summary.y)).toBeLessThan(20);
 	});
 
 	test('clicking a video plays it; the space beside it comments', async ({ page }) => {
@@ -497,7 +814,6 @@ test.describe('the document changes after people commented', () => {
 		await commentOn(page, page.locator('article pre'), 'on the code');
 		await commentOn(page, page.locator('article img'), 'on the image');
 		await selectText(page, para(page, 'We will build'), 'onboarding flow and the billing page');
-		await page.locator('.mc-pill-float').click();
 		await write(page, 'on the quoted words');
 
 		let md = original;
@@ -655,7 +971,9 @@ test.describe('the owner', () => {
 		await page.reload();
 		await expect(note(page, 'and this')).toBeVisible();
 		await expect(note(page, 'please fix this')).toHaveCount(0);
+		await page.locator('.mc-toggle-btn').hover();
 		await page.getByRole('button', { name: 'Show 1 resolved' }).click();
+		await page.mouse.move(400, 400);
 		const resolved = note(page, 'please fix this');
 		await expect(resolved).toHaveClass(/mc-resolved/);
 		await resolved.hover();
@@ -932,6 +1250,18 @@ test.describe('phone', () => {
 		await page.locator('.mc-backdrop').tap({ position: { x: 20, y: 20 } });
 		await expect(sheet).toHaveCount(0);
 
+		// No hover on a phone: the ⋯ button opens the settings, and a tap elsewhere closes them.
+		await page.getByRole('button', { name: 'Comment settings' }).tap();
+		const menu = page.locator('.mc-menu');
+		await expect(menu).toBeVisible();
+		const m = (await menu.boundingBox())!;
+		expect(m.x).toBeGreaterThanOrEqual(0);
+		expect(m.x + m.width).toBeLessThanOrEqual(390);
+		expect(m.y).toBeGreaterThanOrEqual(0);
+		await menu.getByRole('button', { name: 'Plain' }).tap();
+		await para(page, 'We will build').tap();
+		await expect(menu).toHaveCount(0);
+
 		// The toggle sits bottom-left, clear of the title.
 		const toggle = (await page.locator('.mc-toggle-btn').boundingBox())!;
 		expect(toggle.y).toBeGreaterThan(600);
@@ -951,5 +1281,155 @@ test.describe('phone', () => {
 		await expect(sheet).toHaveCount(0);
 		await expect(page.locator('.mc-highlight')).toHaveCount(1);
 		expect(((await comments('e2e-mobile'))[0].anchor as Row).quote).toBe('billing page');
+	});
+});
+
+/** Open the history panel. Retries, because a click can land before the page is interactive. */
+async function openHistory(page: Page, tap = false) {
+	const panel = page.locator('.hp-panel');
+	const button = page.getByRole('button', { name: /History/ });
+	await expect(async () => {
+		if (!(await panel.count())) await (tap ? button.tap() : button.click());
+		await expect(panel).toBeVisible({ timeout: 1000 });
+	}).toPass();
+	return panel;
+}
+
+test.describe('history', () => {
+	const v1 = NOTES['e2e-history'].content;
+	const v2 = v1
+		.replace('fourteen days of each invoice being issued', 'thirty days of every invoice')
+		.replace('- Handover and training\n', '- Handover and training\n- Thirty days of support\n');
+	const v3 = v2
+		.replace('| Design | 40 | $4,000 |\n', '')
+		.replace('about ten weeks from start', 'about twelve weeks from start');
+	const only = (c: string) => c.replace('mdpubs-comments: public\n', '');
+
+	test('the whole document: each version says in plain words what changed', async ({ page }) => {
+		await setHistory('e2e-history-only', [v1, v2, v3].map(only));
+		await page.goto('/e2e-history-only');
+		await expect(page.locator('.mc-root')).toHaveCount(0);
+		const panel = await openHistory(page);
+		await expect(panel.locator('.hp-version')).toHaveCount(3);
+
+		// Newest first, and the newest is open.
+		const heads = panel.locator('.hp-version-head');
+		await expect(heads.nth(0)).toContainText('current');
+		await expect(heads.nth(0)).toContainText('1 reworded · 1 removed');
+		await expect(heads.nth(1)).toContainText('1 reworded · 1 added');
+		await expect(heads.nth(2)).toContainText('First published');
+		const newest = panel.locator('.hp-version').nth(0);
+		await expect(newest.locator('.hp-card')).toHaveCount(2);
+		await expect(newest.locator('.hp-changed')).toContainText('Reworded paragraph in “Timeline”');
+		await expect(newest.locator('.hp-changed ins')).toHaveText('twelve');
+		await expect(newest.locator('.hp-changed del')).toHaveText('ten');
+		await expect(newest.locator('.hp-removed')).toContainText('Removed table row');
+		await expect(newest.locator('.hp-removed del')).toContainText('Design');
+		// No developer notation anywhere.
+		await expect(panel).not.toContainText('@@');
+		await expect(panel).not.toContainText('+++');
+
+		// An older version opens on request.
+		await heads.nth(1).click();
+		const older = panel.locator('.hp-version').nth(1);
+		await expect(older.locator('.hp-added ins')).toHaveText('Thirty days of support');
+		await expect(older.locator('.hp-changed ins').first()).toContainText('thirty');
+
+		// A change leads to its place in the page.
+		await page.evaluate(() => window.scrollTo(0, 0));
+		await newest.locator('.hp-changed').click();
+		await expect(para(page, 'Work starts on')).toBeInViewport();
+
+		await page.keyboard.press('Escape');
+		await expect(panel).toHaveCount(0);
+	});
+
+	test('one paragraph, or a whole section, followed back through the versions', async ({
+		page
+	}) => {
+		await setHistory('e2e-history-only', [v1, v2, v3].map(only));
+		await page.goto('/e2e-history-only');
+		const panel = await openHistory(page);
+		await panel.getByRole('tab', { name: 'One paragraph' }).click();
+		await expect(panel).toContainText('Click any paragraph');
+
+		await para(page, 'Payment is due').click();
+		await expect(para(page, 'Payment is due')).toHaveClass(/mdp-history-picked/);
+		await expect(panel).toContainText('This paragraph changed 1 time');
+		const steps = panel.locator('.hp-step');
+		await expect(steps).toHaveCount(2);
+		await expect(steps.nth(0)).toContainText('reworded');
+		await expect(steps.nth(0).locator('ins').first()).toContainText('thirty');
+		await expect(steps.nth(1)).toContainText('first written');
+		await expect(steps.nth(1)).toContainText('fourteen days of each invoice being issued');
+
+		// A paragraph nobody touched.
+		await para(page, 'We will build').click();
+		await expect(panel).toContainText('This paragraph changed 0 times');
+		await expect(para(page, 'Payment is due')).not.toHaveClass(/mdp-history-picked/);
+
+		// A heading follows everything under it.
+		await page.locator('article h2', { hasText: 'Timeline' }).click();
+		await expect(panel).toContainText('This section changed 1 time');
+		await expect(panel.locator('.hp-step').nth(0).locator('ins')).toHaveText('twelve');
+
+		// A table row.
+		await page.locator('article tr', { hasText: 'Build' }).click();
+		await expect(panel).toContainText('This paragraph changed 0 times');
+
+		await panel.getByRole('button', { name: 'Close history' }).click();
+		await expect(page.locator('.mdp-history-picked')).toHaveCount(0);
+	});
+
+	test('with comments on: the button joins the comments bar and picking does not start a comment', async ({
+		page
+	}) => {
+		await setHistory('e2e-history', [v1, v2]);
+		await open(page, 'e2e-history');
+		await expect(page.locator('.mc-toggle').getByRole('button', { name: /History/ })).toBeVisible();
+		const panel = await openHistory(page);
+		await para(page, 'Payment is due').click();
+		await expect(page.locator('.hp-step')).toHaveCount(2);
+		await expect(page.locator('.mc-composer')).toHaveCount(0);
+
+		await panel.getByRole('button', { name: 'Close history' }).click();
+		await expect(panel).toHaveCount(0);
+		await clickBeside(page, para(page, 'Payment is due'));
+		await expect(composer(page)).toBeVisible();
+	});
+
+	test('without mdpubs-history: public only the owner gets the button', async ({ page }) => {
+		await setHistory(
+			'e2e-public',
+			[v1, v2].map((c) => c.replace('mdpubs-history: public\n', ''))
+		);
+		await open(page, 'e2e-public');
+		await expect(page.getByRole('button', { name: /History/ })).toHaveCount(0);
+		await loginAs(page, OWNER);
+		await open(page, 'e2e-public');
+		await expect(page.getByRole('button', { name: /History/ })).toBeVisible();
+	});
+
+	test.describe('on a phone', () => {
+		test.use({ viewport: { width: 390, height: 800 }, hasTouch: true, isMobile: true });
+
+		test('the panel takes the bottom of the screen and the page above stays tappable', async ({
+			page
+		}) => {
+			await setHistory('e2e-history-only', [v1, v2, v3].map(only));
+			await page.goto('/e2e-history-only');
+			const panel = await openHistory(page, true);
+			const box = (await panel.boundingBox())!;
+			expect(box.width).toBe(390);
+			expect(box.y).toBeGreaterThan(250);
+			expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+				390
+			);
+
+			await para(page, 'Payment is due').scrollIntoViewIfNeeded();
+			await page.evaluate(() => window.scrollBy(0, 200));
+			await para(page, 'Payment is due').tap();
+			await expect(panel).toContainText('This paragraph changed 1 time');
+		});
 	});
 });

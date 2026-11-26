@@ -11,10 +11,11 @@
  * admin of its org, can resolve and delete any comment and see guest emails.
  */
 import matter from 'gray-matter';
-import { and, asc, eq, gt, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import {
 	noteComment,
+	noteCommentEdit,
 	user as userTable,
 	type Note,
 	type NoteComment,
@@ -37,6 +38,8 @@ export type CommentDto = {
 	anchor: CommentAnchor | null;
 	body: string;
 	authorName: string;
+	/** Same for every comment by one person on this note. Opaque; used to give each person a colour. */
+	authorId: string;
 	authorPicture: string | null;
 	/** Written by the note's author. */
 	byOwner: boolean;
@@ -45,6 +48,8 @@ export type CommentDto = {
 	/** The viewer wrote it, so may delete it. */
 	mine: boolean;
 	resolvedAt: number | null;
+	/** When its wording was last changed by its writer; null if never. */
+	editedAt: number | null;
 	createdAt: number;
 };
 
@@ -122,13 +127,26 @@ export async function getCommentsState(note: Note, viewer: Viewer): Promise<Comm
 		.from(noteComment)
 		.leftJoin(userTable, eq(noteComment.userId, userTable.id))
 		.where(and(eq(noteComment.noteId, note.id), isNull(noteComment.deletedAt)))
-		.orderBy(asc(noteComment.createdAt), asc(noteComment.id));
+		// created_at is in whole seconds; rowid keeps same-second comments in the order they were posted.
+		.orderBy(asc(noteComment.createdAt), sql`${noteComment}.rowid`);
+
+	const edits = await db
+		.select({
+			commentId: noteCommentEdit.commentId,
+			at: sql<number>`max(${noteCommentEdit.createdAt})`
+		})
+		.from(noteCommentEdit)
+		.where(eq(noteCommentEdit.noteId, note.id))
+		.groupBy(noteCommentEdit.commentId);
+	const editedAt = new Map(edits.map((e) => [e.commentId, new Date(e.at * 1000)]));
 
 	// A reply whose thread was deleted goes with it.
 	const roots = new Set(rows.filter((r) => !r.c.parentId).map((r) => r.c.id));
 	const comments = rows
 		.filter((r) => !r.c.parentId || roots.has(r.c.parentId))
-		.map((r) => toDto(r.c, r.picture, note, viewer.user, keyHash, canModerate));
+		.map((r) =>
+			toDto(r.c, r.picture, note, viewer.user, keyHash, canModerate, editedAt.get(r.c.id) ?? null)
+		);
 
 	return {
 		...config,
@@ -147,7 +165,8 @@ function toDto(
 	note: Note,
 	user: User | null,
 	keyHash: string | null,
-	canModerate: boolean
+	canModerate: boolean,
+	editedAt: Date | null = null
 ): CommentDto {
 	const dto: CommentDto = {
 		id: c.id,
@@ -155,11 +174,13 @@ function toDto(
 		anchor: c.anchor as CommentAnchor | null,
 		body: c.body,
 		authorName: c.authorName,
+		authorId: sha256Hex(`${note.id}:${c.userId ?? c.authorKeyHash ?? c.authorName}`).slice(0, 12),
 		authorPicture: picture,
 		byOwner: !!c.userId && c.userId === note.userId,
 		mine:
 			(!!user && c.userId === user.id) || (!c.userId && !!keyHash && c.authorKeyHash === keyHash),
 		resolvedAt: millis(c.resolvedAt),
+		editedAt: millis(editedAt),
 		createdAt: c.createdAt.getTime()
 	};
 	if (canModerate) dto.authorEmail = c.authorEmail;
@@ -342,4 +363,68 @@ export async function deleteComment(note: Note, viewer: Viewer, commentId: strin
 		throw new CommentError('You can only delete your own comments.', 403);
 	}
 	await db.update(noteComment).set({ deletedAt: new Date() }).where(eq(noteComment.id, row.id));
+}
+
+function isMine(row: NoteComment, viewer: Viewer): boolean {
+	const keyHash = viewer.key ? sha256Hex(viewer.key) : null;
+	return (
+		(!!viewer.user && row.userId === viewer.user.id) ||
+		(!row.userId && !!keyHash && row.authorKeyHash === keyHash)
+	);
+}
+
+/**
+ * Change a comment's wording. Only its writer may: the owner can resolve or
+ * delete someone's comment but never put words in their mouth. The wording
+ * before and after goes into note_comment_edits.
+ */
+export async function editComment(
+	note: Note,
+	viewer: Viewer,
+	commentId: string,
+	input: unknown,
+	ipAddress: string | null
+): Promise<{ body: string; editedAt: number | null }> {
+	const row = await getComment(note, commentId);
+	if (!isMine(row, viewer)) throw new CommentError('You can only edit your own comments.', 403);
+	const body = typeof input === 'string' ? input.trim() : '';
+	if (!body) throw new CommentError('Write a comment first.');
+	if (body.length > BODY_MAX) {
+		throw new CommentError(`Keep the comment under ${BODY_MAX} characters.`);
+	}
+	if (body === row.body) return { body, editedAt: null };
+
+	const at = new Date();
+	// The audit row first: an edit must never land without its record.
+	await db.insert(noteCommentEdit).values({
+		commentId: row.id,
+		noteId: note.id,
+		bodyBefore: row.body,
+		bodyAfter: body,
+		editedByUserId: viewer.user?.id ?? null,
+		ipAddress,
+		createdAt: at
+	});
+	await db.update(noteComment).set({ body }).where(eq(noteComment.id, row.id));
+	return { body, editedAt: Math.floor(at.getTime() / 1000) * 1000 };
+}
+
+export type CommentEditDto = { before: string; after: string; at: number };
+
+/** Every earlier wording of a comment, newest first. For its writer and for moderators. */
+export async function getCommentEdits(
+	note: Note,
+	viewer: Viewer,
+	commentId: string
+): Promise<CommentEditDto[]> {
+	const row = await getComment(note, commentId);
+	if (!isMine(row, viewer) && !(await moderates(note, viewer))) {
+		throw new CommentError('Only the writer and the document owner can see earlier wording.', 403);
+	}
+	const rows = await db
+		.select()
+		.from(noteCommentEdit)
+		.where(eq(noteCommentEdit.commentId, row.id))
+		.orderBy(desc(noteCommentEdit.createdAt), desc(noteCommentEdit.id));
+	return rows.map((r) => ({ before: r.bodyBefore, after: r.bodyAfter, at: r.createdAt.getTime() }));
 }

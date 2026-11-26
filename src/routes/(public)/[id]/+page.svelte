@@ -1,7 +1,16 @@
 <script lang="ts">
 	import 'katex/dist/katex.min.css';
 	import { onMount, tick, onDestroy, mount } from 'svelte';
-	import { Menu, X, List, Maximize2, Minimize2, ChevronDown, ChevronUp } from 'lucide-svelte';
+	import {
+		Menu,
+		X,
+		List,
+		Maximize2,
+		Minimize2,
+		ChevronDown,
+		ChevronUp,
+		History
+	} from 'lucide-svelte';
 	import { fade } from 'svelte/transition';
 	import type { PageData } from './$types';
 	import DiffView from '#lib/components/DiffView.svelte';
@@ -10,6 +19,7 @@
 	import InlineSignBox from '#lib/components/InlineSignBox.svelte';
 	import SignCertificate from '#lib/components/SignCertificate.svelte';
 	import MarginComments from '#lib/components/comments/MarginComments.svelte';
+	import HistoryPanel from '#lib/components/HistoryPanel.svelte';
 	import { config } from '#lib/config.js';
 	import { resolve } from '$app/paths';
 
@@ -30,8 +40,8 @@
 	let hashChangeCleanup: (() => void) | null = null;
 
 	let articleElement = $state<HTMLElement | null>(null);
-	// Margin comments shown, or the clean reading view (see MarginComments).
-	let commentsVisible = $state(true);
+	// The "what changed?" panel (HistoryPanel).
+	let historyOpen = $state(false);
 
 	// Track mounted custom components for cleanup
 	let mountedComponents: Array<{ unmount: () => void }> = [];
@@ -769,11 +779,11 @@
 							</div>
 						{/if}
 
-						<!-- With comments showing and room to spare, the column widens by the
-						     notes margin (18rem) and keeps it clear on the right; the text
-						     itself stays the same width. -->
+						<!-- A note with comments keeps the notes margin (18rem) clear on the
+						     right whenever there is room, whether comments are showing or
+						     hidden, so toggling them never moves the text. -->
 						<div
-							class="mx-auto max-w-4xl px-6 py-6 lg:py-12 {data.comments?.enabled && commentsVisible
+							class="mx-auto max-w-4xl px-6 py-6 lg:py-12 {data.comments?.enabled
 								? '@min-[60rem]:max-w-[74rem] @min-[60rem]:pr-[19.5rem]'
 								: ''} print:max-w-none print:pr-0"
 							data-comments-zone
@@ -821,6 +831,19 @@
 									<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 									{@html note.html}
 								</article>
+								{#snippet historyButton()}
+									<button
+										type="button"
+										class="inline-flex h-8 min-w-8 cursor-pointer items-center justify-center rounded-full bg-base-100/85 px-2 text-base-content/70 ring-1 ring-base-content/10 backdrop-blur ring-inset hover:text-base-content"
+										aria-label="History: see what changed"
+										title="See what changed"
+										aria-pressed={historyOpen}
+										data-history-button
+										onclick={() => (historyOpen = !historyOpen)}
+									>
+										<History size={16} />
+									</button>
+								{/snippet}
 								{#if data.comments?.enabled}
 									{#key data.noteId}
 										<MarginComments
@@ -829,7 +852,26 @@
 											noteId={data.noteId}
 											apiUrl={data.apiUrl}
 											initial={data.comments}
-											bind:visible={commentsVisible}
+											tools={data.history ? historyButton : undefined}
+										/>
+									{/key}
+								{:else if data.history}
+									<!-- No comments on this note: the button stands alone in the same
+									     corner (top right; bottom left on a phone). -->
+									<div
+										class="fixed top-2 right-14 z-50 max-md:top-auto max-md:right-auto max-md:bottom-3 max-md:left-3 print:hidden"
+										data-comments-ignore
+									>
+										{@render historyButton()}
+									</div>
+								{/if}
+								{#if data.history}
+									{#key data.noteId}
+										<HistoryPanel
+											article={articleElement}
+											noteId={data.noteId}
+											apiUrl={data.apiUrl}
+											bind:open={historyOpen}
 										/>
 									{/key}
 								{/if}

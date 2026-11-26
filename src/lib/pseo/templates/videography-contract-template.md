@@ -23,7 +23,7 @@ covers:
   - 'Shoot and crew: shoot days, hours, crew size and the equipment brought, so extra cameras or drones are priced up front.'
   - 'Deliverables: each cut by length and aspect ratio, such as a 3-minute film and three 30-second vertical clips.'
   - 'Revision rounds: a set number of rounds per cut, with a clear line between a revision and a new edit.'
-  - 'Music licensing: the videographer licenses tracks for the agreed channels; commercial songs the client picks are the client''s cost.'
+  - "Music licensing: the videographer licenses tracks for the agreed channels; commercial songs the client picks are the client's cost."
   - 'Raw footage: not included, sold separately, because unedited files show nothing of the finished work.'
   - 'Usage licence: where the client may publish the video, for how long, and whether paid ads are covered.'
   - 'Releases and locations: who gets on-camera releases and filming permits.'

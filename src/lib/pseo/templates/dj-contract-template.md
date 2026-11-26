@@ -26,14 +26,14 @@ covers:
   - 'Load-in: venue access, parking and elevator use, agreed ahead with the venue.'
   - 'Music requests: a must-play list, a do-not-play list and how guest requests are handled.'
   - 'Deposit: a non-refundable payment that holds the date, with the balance due before the event.'
-  - 'Venue limits: sound limits and curfews set by the venue are not the DJ''s breach.'
+  - "Venue limits: sound limits and curfews set by the venue are not the DJ's breach."
 faqs:
   - q: 'How much deposit should a DJ take?'
     a: 'Many DJs take between a quarter and half of the fee at booking. The deposit holds a date the DJ cannot sell twice, so it is usually non-refundable. This template leaves the percentage blank and sets the balance due a few days before the event, so you are not chasing cash at the end of the night.'
   - q: 'How should a DJ contract handle overtime?'
     a: 'State an hourly rate, name the person who can approve it on the day, and say when it is paid. This template bills overtime in 30-minute blocks, requires approval from the client or their named contact, and allows payment by card on file. It also lets the DJ decline if the venue curfew or their next booking does not allow it.'
   - q: 'What is a do-not-play list?'
-    a: 'It is a list of songs, artists or genres the client does not want to hear. It might be an ex''s favourite song or explicit tracks at a family event. This template asks for it in writing before the event and has the DJ follow it, even when guests request those songs.'
+    a: "It is a list of songs, artists or genres the client does not want to hear. It might be an ex's favourite song or explicit tracks at a family event. This template asks for it in writing before the event and has the DJ follow it, even when guests request those songs."
   - q: 'Is this template legally binding?'
     a: 'It becomes binding once both parties sign it, as long as it meets the basic rules of contract law where the event takes place. Laws differ by state and country, so have a local lawyer check it before you rely on it.'
 ---

@@ -26,14 +26,14 @@ covers:
   - 'Fee model: choose hourly, fixed project fee or monthly retainer, each with its own billing rule.'
   - 'Expenses: travel and third-party costs are reimbursed at cost with receipts, and anything above a set amount needs approval first.'
   - 'Advice, not outcomes: the client makes the final decisions and you are not paid on, or liable for, business results.'
-  - 'Confidentiality: protects the client''s data and your methods, both during the engagement and after it.'
-  - 'Independent contractor and non-solicitation: you are not an employee, and neither side poaches the other''s staff.'
+  - "Confidentiality: protects the client's data and your methods, both during the engagement and after it."
+  - "Independent contractor and non-solicitation: you are not an employee, and neither side poaches the other's staff."
 faqs:
   - q: 'Should I charge hourly or a fixed fee as a consultant?'
-    a: 'Charge a fixed fee when the scope and deliverables are clear, such as a market assessment or a process audit. Charge hourly when the client can''t yet define the problem. Use a retainer for ongoing advisory access. This template supports all three, so tick the one that fits each engagement.'
+    a: "Charge a fixed fee when the scope and deliverables are clear, such as a market assessment or a process audit. Charge hourly when the client can't yet define the problem. Use a retainer for ongoing advisory access. This template supports all three, so tick the one that fits each engagement."
   - q: 'Who owns the reports a consultant produces?'
     a: 'Under this template the client owns the final reports once paid. You keep your own methods, frameworks, checklists and know-how, and you can reuse them with other clients. That split lets the client use the work while you keep the tools that make you a consultant.'
-  - q: 'Can a consultant be liable if the client''s business loses money?'
+  - q: "Can a consultant be liable if the client's business loses money?"
     a: 'This template limits that risk. It states that the client makes all final decisions, that you give no guarantee of results, and that your liability is capped at the fees paid. Any contract can be challenged, but clear wording makes such a claim much harder.'
   - q: 'Is this template legally binding?'
     a: 'Yes, once both parties sign it. Contractor status and non-solicitation rules vary by location, so have a lawyer check it for your jurisdiction.'

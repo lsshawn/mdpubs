@@ -10,8 +10,9 @@
 	 * the right margin. Narrow screens: the bracket sits in the page gutter and the
 	 * comments open in a sheet.
 	 */
-	import '@fontsource/reenie-beanie/latin-400.css';
-	import { untrack } from 'svelte';
+	import '@fontsource/caveat/latin-500.css';
+	import { untrack, type Snippet } from 'svelte';
+	import { fade } from 'svelte/transition';
 	import { MessageSquare, MessageSquareOff } from 'lucide-svelte';
 	import {
 		blockAt as docBlockAt,
@@ -30,7 +31,7 @@
 		type Box,
 		type DomIndex
 	} from './comment-dom.js';
-	import { bracket, type BracketStroke } from './bracket.js';
+	import { bracket, marker, type BracketStroke } from './bracket.js';
 	import CommentComposer, { commenterKey } from './CommentComposer.svelte';
 
 	type Props = {
@@ -42,10 +43,36 @@
 		initial: CommentsState;
 		/** Comments shown (true) or the clean reading view (false). */
 		visible?: boolean;
+		/** More buttons for the corner bar, beside the comments toggle. */
+		tools?: Snippet;
 	};
-	let { article, html, noteId, apiUrl, initial, visible = $bindable(true) }: Props = $props();
+	let {
+		article,
+		html,
+		noteId,
+		apiUrl,
+		initial,
+		visible = $bindable(true),
+		tools
+	}: Props = $props();
 
 	const HIDDEN_KEY = 'mdpubs:comments-hidden';
+	const PREFS_KEY = 'mdpubs:comments-prefs';
+
+	/** How this reader likes comments to look. Kept in their browser. */
+	type Prefs = { font: 'hand' | 'plain'; size: 's' | 'm' | 'l'; colours: boolean };
+	let prefs = $state<Prefs>({ font: 'hand', size: 'm', colours: true });
+	let menuOpen = $state(false);
+	let toggleEl = $state<HTMLElement | null>(null);
+
+	function setPref(patch: Partial<Prefs>) {
+		prefs = { ...prefs, ...patch };
+		try {
+			localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+		} catch {
+			// The choice just won't be remembered.
+		}
+	}
 	/** Clicks on these belong to the thing clicked, not to commenting. */
 	const INTERACTIVE =
 		'a,button,input,textarea,select,label,summary,video,audio,iframe,[role="button"],[contenteditable="true"],[data-mdpubs-sign-here],[data-comments-ignore]';
@@ -62,6 +89,8 @@
 	let replyTo = $state<string | null>(null);
 	let hover = $state<number | null>(null);
 	let sheetOpen = $state(false);
+	/** The thread shown whole in the side drawer (its first comment's id). */
+	let openThread = $state<string | null>(null);
 	let heights = $state<Record<string, number>>({});
 	let rootEl = $state<HTMLElement | null>(null);
 
@@ -83,6 +112,23 @@
 		block: number;
 		endBlock: number;
 		detached: boolean;
+	};
+
+	/**
+	 * One hue per person, in the order they first commented. The hues are spread
+	 * round the wheel at one lightness and strength, so any set of them sits
+	 * well together.
+	 */
+	const HUES = [250, 25, 150, 320, 85, 200, 355, 115];
+	const hues = $derived.by(() => {
+		const out: Record<string, number> = {};
+		let n = 0;
+		for (const c of comments) if (!(c.authorId in out)) out[c.authorId] = HUES[n++ % HUES.length];
+		return out;
+	});
+	const hueOf = (id: string) => {
+		const c = comments.find((x) => x.id === id);
+		return c ? hues[c.authorId] : undefined;
 	};
 
 	const resolvedIds = $derived(new Set(comments.filter((c) => c.resolvedAt).map((c) => c.id)));
@@ -201,7 +247,7 @@
 		if (!frame || !index) return [];
 		const host = hostRect();
 		const width = frame.width;
-		const out: { id: string; boxes: Box[] }[] = [];
+		const out: { id: string; boxes: Box[]; paths: string[] }[] = [];
 		const add = (id: string, start: number, end: number) => {
 			const boxes = textBoxes(index!, start, end)
 				.map((b) => ({
@@ -211,7 +257,9 @@
 					bottom: b.bottom - host.top + 1
 				}))
 				.filter((b) => b.right > b.left);
-			if (boxes.length) out.push({ id, boxes });
+			if (!boxes.length) return;
+			const paths = boxes.map((b, i) => marker(b.left, b.top, b.right, b.bottom, `${id}:${i}`));
+			out.push({ id, boxes, paths });
 		};
 		for (const p of placed) {
 			if (!p.detached && p.r.start !== undefined) add(p.root.id, p.r.start, p.r.end!);
@@ -260,6 +308,59 @@
 		return out;
 	});
 
+	/** Too much for the margin: more than two replies, or a comment that runs long. */
+	function isLong(p: Placed): boolean {
+		return p.replies.length > 2;
+	}
+
+	/** A comment long enough to be cut short until the reader asks for the rest. */
+	function isWordy(c: CommentDto, roomy: boolean): boolean {
+		return c.body.length > (roomy ? 600 : 140) || c.body.split('\n').length > (roomy ? 10 : 4);
+	}
+	/** Comments the reader has opened in full. */
+	let expandedBody = $state<Record<string, boolean>>({});
+
+	/** The comment being reworded by its writer, and the text so far. */
+	let editing = $state<{ id: string; text: string; saving: boolean; error: string } | null>(null);
+	/** Earlier wording of edited comments, loaded on request. */
+	let earlier = $state<Record<string, { before: string; at: number }[] | undefined>>({});
+
+	async function saveEdit() {
+		if (!editing || editing.saving) return;
+		const { id, text } = editing;
+		if (!text.trim()) return;
+		editing.saving = true;
+		editing.error = '';
+		try {
+			const res: { body: string; editedAt: number | null } = await api(`/${id}`, 'PATCH', {
+				body: text
+			});
+			comments = comments.map((c) =>
+				c.id === id ? { ...c, body: res.body, editedAt: res.editedAt ?? c.editedAt } : c
+			);
+			delete earlier[id];
+			editing = null;
+		} catch (e) {
+			if (editing) {
+				editing.saving = false;
+				editing.error = e instanceof Error ? e.message : 'Could not save the change.';
+			}
+		}
+	}
+
+	async function toggleEarlier(id: string) {
+		if (earlier[id]) return void delete earlier[id];
+		try {
+			const res: { edits: { before: string; at: number }[] } = await api(`/${id}`, 'GET');
+			earlier[id] = res.edits;
+		} catch {
+			earlier[id] = [];
+		}
+	}
+	const drawer = $derived(
+		openThread ? (placed.find((p) => p.root.id === openThread) ?? null) : null
+	);
+
 	/** Threads on the block picked on a narrow screen. */
 	const sheetThreads = $derived(
 		draft ? placed.filter((p) => p.block <= draft!.block && draft!.block <= p.endBlock) : []
@@ -289,7 +390,11 @@
 		return best ?? direct;
 	}
 
-	function startDraft(block: number, range?: { start: number; end: number }) {
+	function startDraft(
+		block: number,
+		range?: { start: number; end: number },
+		keepSelection = false
+	) {
 		if (!index) return;
 		draft = {
 			anchor: makeAnchor(index.doc, block, range),
@@ -300,7 +405,7 @@
 		};
 		replyTo = null;
 		pending = null;
-		if (range) window.getSelection()?.removeAllRanges();
+		if (range && !keepSelection) window.getSelection()?.removeAllRanges();
 		// On a narrow screen a tapped line only shows its bracket and a button; a
 		// selection has already been through the button, so open the sheet.
 		sheetOpen = !frame?.wide && !!range;
@@ -358,6 +463,14 @@
 		const found = selectionOffsets(index, range);
 		const rect = range.getClientRects()[0];
 		if (!found || !rect) return (pending = null);
+		// With a margin to write in, selecting is enough: the comment box opens
+		// beside the selection straight away. The selection itself is left alone,
+		// so it can still be copied.
+		if (frame?.wide) {
+			if (draft?.start === found.start && draft?.end === found.end) return;
+			startDraft(docBlockAt(index.doc, found.start), found, true);
+			return;
+		}
 		const host = hostRect();
 		pending = { ...found, x: rect.left + rect.width / 2 - host.left, y: rect.top - host.top };
 	}
@@ -403,6 +516,13 @@
 	async function submitReply(rootId: string, input: object) {
 		const problem = await post({ ...input, parentId: rootId });
 		if (!problem) replyTo = null;
+		if (!problem && openThread === rootId) {
+			// Keep the newest reply in view.
+			requestAnimationFrame(() => {
+				const body = rootEl?.querySelector('.mc-drawer-body');
+				body?.scrollTo({ top: body.scrollHeight, behavior: 'smooth' });
+			});
+		}
 		return problem;
 	}
 
@@ -425,6 +545,7 @@
 		try {
 			await api(`/${c.id}`, 'DELETE');
 			comments = comments.filter((x) => x.id !== c.id && x.parentId !== c.id);
+			if (openThread === c.id) openThread = null;
 		} catch (e) {
 			alert(e instanceof Error ? e.message : 'Could not delete the comment.');
 		}
@@ -484,6 +605,14 @@
 			index = at;
 			try {
 				if (localStorage.getItem(HIDDEN_KEY)) visible = false;
+				const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || 'null');
+				if (saved) {
+					prefs = {
+						font: saved.font === 'plain' ? 'plain' : 'hand',
+						size: saved.size === 's' || saved.size === 'l' ? saved.size : 'm',
+						colours: saved.colours !== false
+					};
+				}
 			} catch {
 				// Storage blocked: comments stay on.
 			}
@@ -516,7 +645,11 @@
 				if (pointerDown) return;
 				selTimer = window.setTimeout(readSelection, 120);
 			};
-			const onDown = () => (pointerDown = true);
+			const onDown = (e: PointerEvent) => {
+				pointerDown = true;
+				// A tap anywhere else closes the settings menu.
+				if (menuOpen && !toggleEl?.contains(e.target as Node)) menuOpen = false;
+			};
 			const onUp = () => {
 				pointerDown = false;
 				onSelection();
@@ -532,6 +665,7 @@
 			const onLeave = () => (hover = null);
 			const onKey = (e: KeyboardEvent) => {
 				if (e.key !== 'Escape' || e.defaultPrevented) return;
+				if (openThread) return void (openThread = null);
 				if (draft || replyTo) {
 					closeDraft();
 					replyTo = null;
@@ -583,24 +717,103 @@
 	const viewerName = $derived(config.viewer ? config.viewer.name : null);
 </script>
 
-{#snippet entry(c: CommentDto)}
+{#snippet entry(c: CommentDto, roomy = false)}
+	{@const wordy = isWordy(c, roomy)}
 	<div class="mc-entry">
-		<p class="mc-hand">{c.body}</p>
+		{#if editing?.id === c.id}
+			<!-- svelte-ignore a11y_autofocus -->
+			<textarea
+				class="mc-edit"
+				rows="4"
+				maxlength="4000"
+				aria-label="Edit your comment"
+				autofocus
+				bind:value={editing.text}
+				onkeydown={(e) => {
+					if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+						e.preventDefault();
+						saveEdit();
+					} else if (e.key === 'Escape') {
+						e.preventDefault();
+						editing = null;
+					}
+				}}></textarea>
+			{#if editing.error}<p class="mc-meta mc-edit-error">{editing.error}</p>{/if}
+			<p class="mc-meta mc-edit-row">
+				<button type="button" onclick={() => (editing = null)}>Cancel</button>
+				<button
+					type="button"
+					class="mc-save"
+					disabled={editing.saving || !editing.text.trim()}
+					onclick={saveEdit}
+				>
+					{editing.saving ? 'Saving' : 'Save'}
+				</button>
+			</p>
+		{:else}
+			<p class="mc-hand" class:mc-clamp={wordy && !expandedBody[c.id]} class:mc-roomy={roomy}>
+				{c.body}
+			</p>
+			{#if wordy}
+				<button
+					type="button"
+					class="mc-meta mc-readmore"
+					aria-expanded={!!expandedBody[c.id]}
+					onclick={() => (expandedBody[c.id] = !expandedBody[c.id])}
+				>
+					{expandedBody[c.id] ? 'Show less' : 'Read more'}
+				</button>
+			{/if}
+		{/if}
 		<p class="mc-meta">
-			<span>{c.authorName}{c.byOwner ? ' (author)' : ''}</span>
+			<span class="mc-author" class:mc-hue={prefs.colours} style="--h:{hues[c.authorId]}"
+				>{c.authorName}{c.byOwner ? ' (author)' : ''}</span
+			>
 			<span>· {ago(c.createdAt)}</span>
+			{#if c.editedAt}
+				{#if c.mine || config.canModerate}
+					<button
+						type="button"
+						title="See the earlier wording"
+						aria-expanded={!!earlier[c.id]}
+						onclick={() => toggleEarlier(c.id)}>· edited</button
+					>
+				{:else}
+					<span title="Edited {ago(c.editedAt)} ago">· edited</span>
+				{/if}
+			{/if}
 			{#if c.authorEmail && !c.byOwner}
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 				<a href="mailto:{c.authorEmail}" title={c.authorEmail}>· email</a>
+			{/if}
+			{#if c.mine && editing?.id !== c.id}
+				<button
+					type="button"
+					class="mc-act"
+					onclick={() => (editing = { id: c.id, text: c.body, saving: false, error: '' })}
+					>· edit</button
+				>
 			{/if}
 			{#if c.mine || config.canModerate}
 				<button type="button" class="mc-act" onclick={() => remove(c)}>· delete</button>
 			{/if}
 		</p>
+		{#if earlier[c.id]}
+			<div class="mc-earlier">
+				{#each earlier[c.id] ?? [] as e, i (i)}
+					<p class="mc-meta">
+						Before the edit {ago(e.at) === 'now' ? 'just now' : `${ago(e.at)} ago`}:
+					</p>
+					<p class="mc-was">{e.before}</p>
+				{:else}
+					<p class="mc-meta">No earlier wording on record.</p>
+				{/each}
+			</div>
+		{/if}
 	</div>
 {/snippet}
 
-{#snippet thread(p: Placed, inSheet: boolean)}
+{#snippet flag(p: Placed)}
 	{#if p.detached}
 		{@const was = p.root.anchor?.quote || p.root.anchor?.text}
 		<p class="mc-meta mc-note-flag">
@@ -609,12 +822,39 @@
 	{:else if p.r.status === 'changed' && p.root.anchor?.kind === 'text' && p.r.start === undefined}
 		<p class="mc-meta mc-note-flag">Was on: “{p.root.anchor.quote?.slice(0, 120)}”</p>
 	{/if}
+{/snippet}
+
+{#snippet moderation(p: Placed)}
+	{#if config.canModerate}
+		<button type="button" onclick={() => setResolved(p.root.id, !p.root.resolvedAt)}>
+			{p.root.resolvedAt ? 'Reopen' : 'Resolve'}
+		</button>
+	{:else if p.root.resolvedAt}
+		<span>Resolved</span>
+	{/if}
+{/snippet}
+
+<!-- A thread in the margin (cut short when long) or in the phone sheet (whole). -->
+{#snippet thread(p: Placed, inSheet: boolean)}
+	{@const long = !inSheet && isLong(p)}
+	{@const shown = long ? p.replies.slice(-2) : p.replies}
+	{@render flag(p)}
 	{@render entry(p.root)}
-	{#each p.replies as reply (reply.id)}
+	{#if long && p.replies.length > shown.length}
+		<button type="button" class="mc-meta mc-more" onclick={() => (openThread = p.root.id)}>
+			{p.replies.length - shown.length} earlier
+			{p.replies.length - shown.length === 1 ? 'reply' : 'replies'}
+		</button>
+	{/if}
+	{#each shown as reply (reply.id)}
 		{@render entry(reply)}
 	{/each}
-	<p class="mc-meta mc-actions" class:mc-shown={inSheet}>
-		{#if config.canComment && !p.root.resolvedAt}
+	<p class="mc-meta mc-actions" class:mc-shown={inSheet || long}>
+		{#if long}
+			<button type="button" class="mc-open" onclick={() => (openThread = p.root.id)}>
+				Open thread ({p.replies.length + 1})
+			</button>
+		{:else if config.canComment && !p.root.resolvedAt}
 			<button
 				type="button"
 				onclick={() => {
@@ -623,15 +863,9 @@
 				}}>Reply</button
 			>
 		{/if}
-		{#if config.canModerate}
-			<button type="button" onclick={() => setResolved(p.root.id, !p.root.resolvedAt)}>
-				{p.root.resolvedAt ? 'Reopen' : 'Resolve'}
-			</button>
-		{:else if p.root.resolvedAt}
-			<span>Resolved</span>
-		{/if}
+		{@render moderation(p)}
 	</p>
-	{#if replyTo === p.root.id}
+	{#if replyTo === p.root.id && !long}
 		<div class="mc-reply">
 			<CommentComposer
 				{viewerName}
@@ -644,19 +878,31 @@
 	{/if}
 {/snippet}
 
-<div class="mc-root print:hidden" data-comments-ignore {@attach setup}>
+<div
+	class="mc-root print:hidden"
+	class:mc-font-plain={prefs.font === 'plain'}
+	class:mc-size-s={prefs.size === 's'}
+	class:mc-size-l={prefs.size === 'l'}
+	data-comments-ignore
+	{@attach setup}
+>
 	{#if visible && frame}
-		<div class="mc-layer" class:mc-wide={frame.wide}>
-			{#each highlights as h (h.id)}
-				{#each h.boxes as b, i (i)}
-					<span
-						class="mc-highlight"
-						class:mc-on={active === h.id || h.id === 'draft'}
-						style="left:{b.left}px;top:{b.top}px;width:{b.right - b.left}px;height:{b.bottom -
-							b.top}px"
-					></span>
+		<div class="mc-layer" class:mc-wide={frame.wide} transition:fade={{ duration: 140 }}>
+			<svg class="mc-svg" aria-hidden="true">
+				{#each highlights as h (h.id)}
+					<g
+						class="mc-hl"
+						class:mc-on={active === h.id || openThread === h.id}
+						class:mc-hue={h.id !== 'draft' && prefs.colours}
+						class:mc-plain={h.id === 'draft' || !prefs.colours}
+						style="--h:{hueOf(h.id)}"
+					>
+						{#each h.paths as d, i (i)}
+							<path class="mc-highlight" {d} />
+						{/each}
+					</g>
 				{/each}
-			{/each}
+			</svg>
 
 			<svg class="mc-svg" aria-hidden="true">
 				{#if hoverStrokes}
@@ -671,6 +917,9 @@
 						class="mc-mark"
 						class:mc-on={m.ids.includes(active ?? '') || m.ids.includes('draft')}
 						class:mc-faded={m.ids.every((id) => resolvedIds.has(id))}
+						class:mc-hue={m.ids[0] !== 'draft' && prefs.colours}
+						class:mc-plain={m.ids[0] === 'draft' || !prefs.colours}
+						style="--h:{hueOf(m.ids[0])}"
 					>
 						{#each m.strokes as s, i (i)}
 							<path d={s.d} pathLength="1" />
@@ -682,18 +931,6 @@
 				{/each}
 			</svg>
 
-			{#if pending && frame.wide}
-				<button
-					type="button"
-					class="mc-pill mc-pill-float"
-					style="left:{pending.x}px;top:{pending.y}px"
-					onpointerdown={(e) => e.preventDefault()}
-					onclick={commentOnSelection}
-				>
-					Comment
-				</button>
-			{/if}
-
 			{#if frame.wide}
 				<div class="mc-column" style="left:{frame.right + NOTE_GAP}px;width:{NOTE_WIDTH}px">
 					{#each placed as p (p.root.id)}
@@ -702,6 +939,7 @@
 							class="mc-note"
 							class:mc-resolved={!!p.root.resolvedAt}
 							class:mc-on={active === p.root.id || replyTo === p.root.id}
+							class:mc-long={isLong(p)}
 							style="top:{tops[p.root.id] ?? 0}px"
 							bind:offsetHeight={heights[p.root.id]}
 							onpointerenter={() => (active = p.root.id)}
@@ -714,9 +952,12 @@
 					{#if draft}
 						<div class="mc-note" style="top:{tops.draft ?? 0}px" bind:offsetHeight={heights.draft}>
 							{#if config.canComment}
+								<!-- After a click the box takes the keyboard. After a selection it
+								     does not, or the selection (and Ctrl+C) would be lost. -->
 								<CommentComposer
 									{viewerName}
 									email={config.email}
+									focus={draft.start === undefined}
 									onsubmit={submitDraft}
 									oncancel={closeDraft}
 								/>
@@ -767,22 +1008,67 @@
 		{/if}
 	{/if}
 
-	<div class="mc-toggle">
-		{#if visible && resolvedCount}
-			<button type="button" class="mc-toggle-text" onclick={() => (showResolved = !showResolved)}>
-				{showResolved ? 'Hide' : 'Show'}
-				{resolvedCount} resolved
-			</button>
-		{/if}
+	{#if visible && drawer}
+		<button
+			type="button"
+			class="mc-drawer-backdrop"
+			aria-label="Close thread"
+			onclick={() => (openThread = null)}
+		></button>
+		<aside class="mc-drawer" aria-label="Comment thread">
+			<header class="mc-drawer-head">
+				<p class="mc-meta">
+					{drawer.replies.length + 1} comments
+					{#if !drawer.detached}
+						{@const on = drawer.root.anchor?.quote || drawer.root.anchor?.text}
+						{#if on}on “{on.slice(0, 90)}{on.length > 90 ? '…' : ''}”{/if}
+					{/if}
+				</p>
+				<button
+					type="button"
+					class="mc-close"
+					aria-label="Close"
+					onclick={() => (openThread = null)}
+				>
+					✕
+				</button>
+			</header>
+			<div class="mc-drawer-body">
+				{@render flag(drawer)}
+				{@render entry(drawer.root, true)}
+				{#each drawer.replies as reply (reply.id)}
+					{@render entry(reply, true)}
+				{/each}
+			</div>
+			<footer class="mc-drawer-foot">
+				<p class="mc-meta mc-actions mc-shown">{@render moderation(drawer)}</p>
+				{#if config.canComment && !drawer.root.resolvedAt}
+					<CommentComposer
+						{viewerName}
+						email={config.email}
+						placeholder="Reply"
+						focus={false}
+						onsubmit={(input) => submitReply(drawer.root.id, input)}
+						oncancel={() => (openThread = null)}
+					/>
+				{/if}
+			</footer>
+		</aside>
+	{/if}
+
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="mc-toggle"
+		bind:this={toggleEl}
+		onpointerenter={(e) => e.pointerType === 'mouse' && (menuOpen = true)}
+		onpointerleave={(e) => e.pointerType === 'mouse' && (menuOpen = false)}
+	>
+		{@render tools?.()}
 		<button
 			type="button"
 			class="mc-toggle-btn"
 			aria-pressed={visible}
-			title={visible
-				? config.canComment
-					? 'Hide comments. Click a line or select text to comment.'
-					: 'Hide comments. Log in to MdPubs to add one.'
-				: 'Show comments'}
+			aria-label={visible ? 'Hide comments' : 'Show comments'}
 			onclick={toggle}
 		>
 			{#if visible}
@@ -792,6 +1078,64 @@
 			{/if}
 			{#if openCount}<span>{openCount}</span>{/if}
 		</button>
+		<!-- No hover on a touch screen: this opens the same menu. -->
+		<button
+			type="button"
+			class="mc-toggle-more"
+			aria-label="Comment settings"
+			aria-expanded={menuOpen}
+			onclick={() => (menuOpen = !menuOpen)}
+		>
+			⋯
+		</button>
+
+		{#if menuOpen}
+			<div class="mc-menu" transition:fade={{ duration: 100 }}>
+				<p class="mc-menu-hint">
+					{#if !visible}
+						Comments are hidden.
+					{:else if config.canComment}
+						Click a line or select text to comment.
+					{:else}
+						Log in to MdPubs to comment.
+					{/if}
+				</p>
+				{#snippet choice(label: string, on: boolean, pick: () => void)}
+					<button type="button" class="mc-choice" aria-pressed={on} onclick={pick}>{label}</button>
+				{/snippet}
+				<div class="mc-menu-row">
+					<span>Writing</span>
+					<div class="mc-seg">
+						{@render choice('Handwritten', prefs.font === 'hand', () => setPref({ font: 'hand' }))}
+						{@render choice('Plain', prefs.font === 'plain', () => setPref({ font: 'plain' }))}
+					</div>
+				</div>
+				<div class="mc-menu-row">
+					<span>Size</span>
+					<div class="mc-seg">
+						{@render choice('Small', prefs.size === 's', () => setPref({ size: 's' }))}
+						{@render choice('Medium', prefs.size === 'm', () => setPref({ size: 'm' }))}
+						{@render choice('Large', prefs.size === 'l', () => setPref({ size: 'l' }))}
+					</div>
+				</div>
+				<div class="mc-menu-row">
+					<span>Colour</span>
+					<div class="mc-seg">
+						{@render choice('Per person', prefs.colours, () => setPref({ colours: true }))}
+						{@render choice('One ink', !prefs.colours, () => setPref({ colours: false }))}
+					</div>
+				</div>
+				{#if visible && resolvedCount}
+					<button type="button" class="mc-menu-link" onclick={() => (showResolved = !showResolved)}>
+						{showResolved ? 'Hide' : 'Show'}
+						{resolvedCount} resolved
+					</button>
+				{/if}
+				<button type="button" class="mc-menu-link" onclick={toggle}>
+					{visible ? 'Hide all comments' : 'Show comments'}
+				</button>
+			</div>
+		{/if}
 	</div>
 </div>
 
@@ -806,14 +1150,35 @@
 		z-index: 10;
 		pointer-events: none;
 	}
-	.mc-highlight {
-		position: absolute;
-		border-radius: 2px;
-		background: color-mix(in oklch, var(--color-base-content) 9%, transparent);
-		transition: background-color 150ms;
+	/* Each person's colour: one lightness and strength, only the hue differs.
+	   Set on the element that carries --h (a var() is resolved where it is declared).
+	   The fill is see-through, so the words under it keep their own colour. */
+	.mc-hue {
+		--mc-fill: oklch(0.78 0.15 var(--h) / 0.34);
+		--mc-fill-on: oklch(0.74 0.17 var(--h) / 0.55);
+		--mc-line: oklch(0.56 0.15 var(--h));
 	}
-	.mc-highlight.mc-on {
-		background: color-mix(in oklch, var(--color-base-content) 17%, transparent);
+	:global([data-theme='night']) .mc-hue {
+		--mc-fill: oklch(0.7 0.14 var(--h) / 0.36);
+		--mc-fill-on: oklch(0.72 0.15 var(--h) / 0.55);
+		--mc-line: oklch(0.8 0.12 var(--h));
+	}
+	.mc-svg .mc-highlight {
+		stroke: none;
+		fill: var(--mc-fill);
+		transition: fill 150ms;
+	}
+	.mc-hl.mc-on .mc-highlight {
+		fill: var(--mc-fill-on);
+	}
+	.mc-hl.mc-plain .mc-highlight {
+		fill: color-mix(in oklch, var(--color-base-content) 14%, transparent);
+	}
+	.mc-mark:not(.mc-plain) {
+		color: var(--mc-line);
+	}
+	.mc-author.mc-hue {
+		color: var(--mc-line);
 	}
 	.mc-svg {
 		position: absolute;
@@ -837,14 +1202,14 @@
 		stroke-dashoffset: 1;
 		/* Top tick, upright, bottom tick, one after another. Fixed timings, so a
 		   re-measure never restarts a finished stroke. */
-		animation: mc-draw 120ms ease-out forwards;
+		animation: mc-draw 50ms ease-out forwards;
 	}
 	.mc-mark path:nth-child(2) {
-		animation-duration: 520ms;
-		animation-delay: 120ms;
+		animation-duration: 180ms;
+		animation-delay: 50ms;
 	}
 	.mc-mark path:nth-child(3) {
-		animation-delay: 640ms;
+		animation-delay: 230ms;
 	}
 	.mc-mark.mc-on path {
 		stroke-width: 1.5;
@@ -891,23 +1256,142 @@
 		margin-top: 0.625rem;
 	}
 	.mc-hand {
-		font-family: 'Reenie Beanie', 'Bradley Hand', 'Segoe Print', cursive;
-		font-size: 1.625rem;
-		line-height: 0.95;
-		color: color-mix(in oklch, var(--color-base-content) 78%, transparent);
+		font-family: 'Caveat', 'Bradley Hand', 'Segoe Print', cursive;
+		font-weight: 500;
+		font-size: var(--mc-hand-size);
+		line-height: 1.12;
+		color: color-mix(in oklch, var(--color-base-content) 82%, transparent);
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
-		text-wrap: balance;
+	}
+	/* A long comment shows its first lines until "Read more" is pressed. */
+	.mc-hand.mc-clamp {
 		display: -webkit-box;
 		-webkit-box-orient: vertical;
-		-webkit-line-clamp: 6;
-		line-clamp: 6;
+		-webkit-line-clamp: 4;
+		line-clamp: 4;
 		overflow: hidden;
 	}
-	.mc-note.mc-on .mc-hand,
-	.mc-sheet .mc-hand {
-		-webkit-line-clamp: unset;
-		line-clamp: unset;
+	.mc-hand.mc-clamp.mc-roomy {
+		-webkit-line-clamp: 9;
+		line-clamp: 9;
+	}
+	.mc-readmore {
+		margin: 0;
+		text-decoration: underline;
+		text-underline-offset: 2px;
+		cursor: pointer;
+	}
+	.mc-readmore:hover {
+		color: var(--mc-ink);
+	}
+	.mc-edit {
+		width: 100%;
+		padding: 0.375rem 0.5rem;
+		border: 1px solid #3c82f7;
+		border-radius: 0.5rem;
+		background: var(--color-base-100);
+		color: var(--color-base-content);
+		font-size: 0.875rem;
+		line-height: 1.4;
+		outline: none;
+		resize: vertical;
+	}
+	.mc-edit-row {
+		justify-content: flex-end;
+		gap: 0 0.75rem;
+	}
+	.mc-save {
+		color: var(--mc-ink);
+		font-weight: 600;
+	}
+	.mc-save:disabled {
+		opacity: 0.4;
+		cursor: default;
+	}
+	.mc-edit-error {
+		color: var(--color-error);
+	}
+	.mc-earlier {
+		margin-top: 0.25rem;
+		padding-left: 0.6rem;
+		border-left: 2px solid color-mix(in oklch, var(--color-base-content) 14%, transparent);
+	}
+	.mc-was {
+		font-size: 0.8125rem;
+		line-height: 1.4;
+		color: color-mix(in oklch, var(--color-base-content) 60%, transparent);
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+	}
+	.mc-more {
+		margin: 0.375rem 0 0;
+		cursor: pointer;
+	}
+	.mc-more:hover,
+	.mc-open:hover {
+		color: var(--mc-ink);
+	}
+	.mc-open {
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+
+	.mc-drawer-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 60;
+		background: color-mix(in oklch, var(--color-base-content) 8%, transparent);
+	}
+	.mc-drawer {
+		position: fixed;
+		inset: 0 0 0 auto;
+		z-index: 61;
+		display: flex;
+		flex-direction: column;
+		width: min(24rem, 100vw);
+		background: var(--color-base-100);
+		box-shadow: -8px 0 30px color-mix(in oklch, var(--color-base-content) 14%, transparent);
+		animation: mc-slide 180ms ease-out;
+	}
+	@keyframes mc-slide {
+		from {
+			transform: translateX(100%);
+		}
+	}
+	.mc-drawer-head {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.75rem;
+		padding: 1rem 1.25rem 0.75rem;
+		border-bottom: 1px solid color-mix(in oklch, var(--color-base-content) 8%, transparent);
+	}
+	.mc-drawer-head .mc-meta {
+		flex: 1;
+		margin: 0;
+	}
+	.mc-close {
+		color: var(--mc-soft);
+		cursor: pointer;
+	}
+	.mc-close:hover {
+		color: var(--mc-ink);
+	}
+	.mc-drawer-body {
+		flex: 1;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		padding: 1rem 1.25rem;
+	}
+	.mc-drawer .mc-entry + .mc-entry {
+		margin-top: 1rem;
+	}
+	.mc-drawer-foot {
+		padding: 0.5rem 1.25rem max(1rem, env(safe-area-inset-bottom));
+		border-top: 1px solid color-mix(in oklch, var(--color-base-content) 8%, transparent);
+	}
+	.mc-drawer-foot .mc-actions {
+		margin-bottom: 0.5rem;
 	}
 	.mc-meta {
 		display: flex;
@@ -938,9 +1422,11 @@
 	.mc-actions {
 		gap: 0 0.75rem;
 	}
-	.mc-note.mc-on .mc-act,
+	/* Edit and delete belong to one comment: they show for the comment under
+	   the pointer only, not for every comment in the thread. */
+	.mc-entry:hover .mc-act,
+	.mc-entry:focus-within .mc-act,
 	.mc-note.mc-on .mc-actions,
-	.mc-note:focus-within .mc-act,
 	.mc-note:focus-within .mc-actions,
 	.mc-sheet .mc-act,
 	.mc-actions.mc-shown {
@@ -968,10 +1454,6 @@
 		cursor: pointer;
 		pointer-events: auto;
 		box-shadow: 0 4px 16px color-mix(in oklch, var(--color-base-content) 22%, transparent);
-	}
-	.mc-pill-float {
-		position: absolute;
-		transform: translate(-50%, calc(-100% - 8px));
 	}
 	.mc-pill-fixed {
 		position: fixed;
@@ -1021,15 +1503,103 @@
 			right: auto;
 			left: 0.75rem;
 			bottom: max(0.75rem, env(safe-area-inset-bottom));
-			flex-direction: row-reverse;
 		}
 	}
-	.mc-toggle-text {
+	.mc-toggle-more {
+		display: none;
+		height: 2rem;
+		padding: 0 0.35rem;
 		color: var(--mc-soft);
 		cursor: pointer;
 	}
-	.mc-toggle-text:hover {
+	@media (hover: none) {
+		.mc-toggle-more {
+			display: block;
+		}
+	}
+	.mc-toggle-more:focus-visible {
+		display: block;
+	}
+	.mc-menu {
+		position: absolute;
+		top: 100%;
+		right: 0;
+		width: 17rem;
+		max-width: calc(100vw - 1.5rem);
+		/* Padding, not margin, above the card: the pointer can cross to it without leaving. */
+		margin-top: 0;
+		padding: 0.75rem;
+		border-radius: 0.75rem;
+		background: var(--color-base-100);
+		box-shadow:
+			0 4px 20px color-mix(in oklch, var(--color-base-content) 12%, transparent),
+			inset 0 0 0 1px color-mix(in oklch, var(--color-base-content) 8%, transparent);
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
 		color: var(--mc-ink);
+	}
+	@media (max-width: 767px) {
+		.mc-menu {
+			top: auto;
+			right: auto;
+			left: 0;
+			bottom: calc(100% + 0.4rem);
+		}
+	}
+	.mc-menu-hint {
+		color: var(--mc-soft);
+	}
+	.mc-menu-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+	}
+	.mc-seg {
+		display: flex;
+		padding: 2px;
+		border-radius: 0.5rem;
+		background: color-mix(in oklch, var(--color-base-content) 7%, transparent);
+	}
+	.mc-choice {
+		padding: 0.2rem 0.5rem;
+		border-radius: 0.4rem;
+		color: var(--mc-soft);
+		cursor: pointer;
+	}
+	.mc-choice[aria-pressed='true'] {
+		background: var(--color-base-100);
+		color: var(--mc-ink);
+		box-shadow: 0 1px 2px color-mix(in oklch, var(--color-base-content) 18%, transparent);
+	}
+	.mc-menu-link {
+		text-align: left;
+		color: var(--mc-soft);
+		cursor: pointer;
+	}
+	.mc-menu-link:hover {
+		color: var(--mc-ink);
+	}
+
+	/* Reader's choices for the comment text. */
+	.mc-root {
+		--mc-hand-size: 1.3rem;
+		--mc-plain-size: 0.875rem;
+	}
+	.mc-size-s {
+		--mc-hand-size: 1.12rem;
+		--mc-plain-size: 0.8125rem;
+	}
+	.mc-size-l {
+		--mc-hand-size: 1.55rem;
+		--mc-plain-size: 1rem;
+	}
+	.mc-font-plain .mc-hand {
+		font-family: inherit;
+		font-weight: 400;
+		font-size: var(--mc-plain-size);
+		line-height: 1.4;
 	}
 	.mc-toggle-btn {
 		display: inline-flex;

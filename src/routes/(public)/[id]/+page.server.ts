@@ -4,6 +4,7 @@ import { config } from '#lib/config.js';
 import { db } from '#lib/server/db/index.js';
 import { note as noteTable } from '#lib/server/db/schema.js';
 import { isCustomDomainHost } from '#lib/server/host.js';
+import { canManageNote } from '#lib/server/org.js';
 import { plainTitle, warmOgImage } from '#lib/server/og.js';
 import { parseCustomComponentsInHtml } from '#lib/helpers/custom-components-parser.js';
 import type { PageServerLoad } from './$types';
@@ -142,10 +143,26 @@ export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
 			}
 		}
 
+		// The history button ("what changed?"). The note's owner always gets it;
+		// everyone else only when the note says `mdpubs-history: public`, so old
+		// wording (an earlier price, say) is not one click away by default.
+		let historyOpen = false;
+		if (!isHtml) {
+			const setting = note?.frontmatter?.['mdpubs-history'];
+			historyOpen = setting === 'public' || setting === true;
+			if (!historyOpen && locals.user && note?.userId) {
+				historyOpen = await canManageNote(
+					{ userId: note.userId, orgId: note.orgId ?? null },
+					locals.user.id
+				);
+			}
+		}
+
 		return {
 			note,
 			isHtml,
 			comments,
+			history: historyOpen,
 			rawUrl: isHtml ? `${config.apiUrl}/notes/${params.id}/raw` : null,
 			apiUrl: config.apiUrl,
 			noteId: params.id,

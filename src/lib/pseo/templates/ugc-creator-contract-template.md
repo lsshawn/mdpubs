@@ -23,13 +23,13 @@ covers:
   - 'Brief and deliverables: the number of videos, hook variations, length and format, all fixed against a written brand brief.'
   - 'Revisions: one round per video for changes within the brief; a new concept is a new video.'
   - 'Usage term and channels: organic and paid usage are listed separately, each with a start date and end date.'
-  - 'Whitelisting and Spark Ads: running ads from the creator''s own handle needs a separate fee and access that can be revoked.'
+  - "Whitelisting and Spark Ads: running ads from the creator's own handle needs a separate fee and access that can be revoked."
   - 'Raw footage: unedited clips are an add-on, licensed on the same usage terms as the finished videos.'
   - 'Exclusivity: limited to named competitors for a fixed period, and paid for.'
   - 'Product and FTC disclosure: who pays shipping, whether you keep the product, and how the paid partnership is disclosed.'
 faqs:
   - q: 'How long should UGC usage rights last?'
-    a: 'Set a fixed term with a start date, such as 3, 6 or 12 months of paid usage starting from the first ad''s launch. Organic posting on the brand''s own pages can run longer at a lower price. Avoid perpetual paid-ad rights inside the base fee. If the brand wants to keep running a video after the term, it pays an extension fee.'
+    a: "Set a fixed term with a start date, such as 3, 6 or 12 months of paid usage starting from the first ad's launch. Organic posting on the brand's own pages can run longer at a lower price. Avoid perpetual paid-ad rights inside the base fee. If the brand wants to keep running a video after the term, it pays an extension fee."
   - q: 'What is the difference between usage rights and whitelisting?'
     a: 'Usage rights let the brand post your video from its own accounts and ads. Whitelisting, including TikTok Spark Ads and Meta partnership ads, lets the brand run ads that appear under your name or handle. That uses your identity and audience trust, so it is priced and time-limited separately.'
   - q: 'Should I send raw footage to the brand?'

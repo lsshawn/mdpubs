@@ -413,6 +413,34 @@ export const noteComment = sqliteTable(
 );
 
 /**
+ * Audit trail for edited comments: one row per edit, holding the wording before
+ * and after. Never updated or deleted while the note exists, so what a comment
+ * said at any time can be shown. A comment counts as "edited" when it has a row here.
+ */
+export const noteCommentEdit = sqliteTable(
+	'note_comment_edits',
+	{
+		id: Id,
+		commentId: text('comment_id').notNull(),
+		noteId: integer('note_id')
+			.notNull()
+			.references(() => note.id, { onDelete: 'cascade' }),
+		bodyBefore: text('body_before').notNull(),
+		bodyAfter: text('body_after').notNull(),
+		// Null when a guest edited their own comment.
+		editedByUserId: text('edited_by_user_id'),
+		ipAddress: text('ip_address'),
+		createdAt: integer('created_at', { mode: 'timestamp' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(t) => ({
+		commentIdx: index('idx_note_comment_edits_comment_id').on(t.commentId),
+		noteIdx: index('idx_note_comment_edits_note_id').on(t.noteId)
+	})
+);
+
+/**
  * Access tokens issued to AI tools: the `mdpubs` CLI (installed by /install and
  * logged in with the device flow) and MCP connectors (Claude, ChatGPT) that went
  * through /oauth/authorize. One row per tool, so each can be revoked on its own

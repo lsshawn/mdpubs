@@ -128,6 +128,22 @@ mdpubs-comments-email: optional # guests' email field: optional (default) | requ
   feedback, edit and republish, then send it for signing. Signing locks the
   text; comments stay open unless you remove the key before the first signature.
 
+## History ("what changed?")
+
+Every publish saves a version. A clock button on the page opens a panel that
+lists the versions with a plain summary ("2 reworded, 1 added") and shows each
+changed paragraph with new words in green and removed words struck through.
+Clicking a paragraph in the page follows that one paragraph through every
+version; clicking a heading follows its whole section.
+
+```yaml
+mdpubs-history: public # let every reader see the history. Omit = only the owner sees the button.
+```
+
+Leave it out when earlier wording should stay out of sight (an old price, a
+dropped clause). Add it when a client needs to see what you changed after their
+comments.
+
 ## Steps
 
 1. Read the target document and confirm the two parties and which side is named vs open (your side is usually named; the client/counterparty is usually an open slot).

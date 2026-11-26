@@ -24,7 +24,7 @@ covers:
   - 'Concepts and rounds: sets how many initial concepts you present and how many revision rounds follow, so a new direction is billed as new work.'
   - 'Source files: states whether layered .ai, .psd, .indd or .fig files are handed over, and at what price if they are not.'
   - 'Font and stock licences: the client buys the commercial licences for any typefaces and stock images in the final artwork.'
-  - 'Print vs digital: lists the exact file formats for each, and says the client approves the printer''s proof and pays for reprints.'
+  - "Print vs digital: lists the exact file formats for each, and says the client approves the printer's proof and pays for reprints."
   - 'Copyright transfer: rights in the final design pass to the client on final payment; rejected concepts stay with the designer.'
   - 'Kill fee: a cancellation charge that grows with each stage of the project, from concepts to final files.'
 faqs:
@@ -45,6 +45,7 @@ This agreement is between [Client Name] ("Client") and [Your Business Name] ("De
 The Designer will create [Project Description, e.g. a logo and brand identity for Client's bakery].
 
 Deliverables:
+
 - [Number] initial design concepts, presented as a PDF.
 - Development of one chosen concept into the final design.
 - Final files in these formats: [e.g. SVG, PNG, PDF, EPS].
@@ -89,6 +90,7 @@ The Client confirms it has the right to use any logos, photos or text it supplie
 ## 10. Cancellation and Kill Fee
 
 Either party may cancel in writing. If the Client cancels:
+
 - Before concepts are presented: the deposit is kept.
 - After concepts are presented: [Percentage]% of the total fee is due.
 - After final files are delivered: the full fee is due.

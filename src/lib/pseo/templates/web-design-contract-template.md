@@ -29,7 +29,7 @@ covers:
   - 'Accessibility scope: states which accessibility checks are included, without promising legal compliance the designer cannot guarantee.'
 faqs:
   - q: 'Who should own the domain and hosting for a client website?'
-    a: 'The client. Register the domain and open the hosting account in the client''s name and on their card, then get access as a user. If you register them yourself, the client depends on you to renew, and a lapsed payment can take the site down. This template puts both accounts and their fees on the client.'
+    a: "The client. Register the domain and open the hosting account in the client's name and on their card, then get access as a user. If you register them yourself, the client depends on you to renew, and a lapsed payment can take the site down. This template puts both accounts and their fees on the client."
   - q: 'What happens if the client never sends the website content?'
     a: 'This template sets content due dates. If content is late, the launch date moves by the same amount. After a set number of days of silence the project is paused, the milestone payment for work done is due, and restarting is scheduled around your other work. This stops one slow client from blocking your calendar indefinitely.'
   - q: 'How long should post-launch support last?'
@@ -45,6 +45,7 @@ This agreement is between [Client Name] ("Client") and [Your Business Name] ("De
 The Designer will design and build a website for [Client's Business] at [Domain Name].
 
 The scope is:
+
 - Up to [Number] unique page templates, including [e.g. Home, About, Services, Contact].
 - Responsive layouts for mobile, tablet and desktop.
 - Built on [CMS, e.g. WordPress / Webflow / Shopify].
@@ -56,18 +57,19 @@ Copywriting, photography, logo design, blog content, e-commerce products beyond 
 
 ## 2. Timeline
 
-| Milestone | Target date |
-|---|---|
-| Content and logins delivered by Client | [Date] |
-| Homepage design for approval | [Date] |
-| Inner pages built on staging | [Date] |
-| Launch | [Date] |
+| Milestone                              | Target date |
+| -------------------------------------- | ----------- |
+| Content and logins delivered by Client | [Date]      |
+| Homepage design for approval           | [Date]      |
+| Inner pages built on staging           | [Date]      |
+| Launch                                 | [Date]      |
 
 These dates assume the Client meets its content dates and gives feedback within [Number] business days.
 
 ## 3. Fees and Deposit
 
 The total fee is [$Amount]. Payments are due as follows:
+
 - [Percentage]% deposit on signing. Work is booked when it is received.
 - [Percentage]% on approval of the homepage design.
 - [Percentage]% before launch.

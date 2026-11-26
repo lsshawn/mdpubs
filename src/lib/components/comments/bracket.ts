@@ -65,3 +65,34 @@ export function bracket(
 		{ d: stroke(r, bottom, x, bottom, rnd) }
 	];
 }
+
+/**
+ * One swipe of a highlighter over a line of text: a box whose corners and
+ * edges are a little off, so it reads as drawn by hand. Seeded like the bracket.
+ */
+export function marker(
+	left: number,
+	top: number,
+	right: number,
+	bottom: number,
+	seed: string
+): string {
+	const rnd = mulberry32(hash(seed));
+	const j = (n: number) => (rnd() * 2 - 1) * n;
+	const f = (n: number) => n.toFixed(2);
+	const h = bottom - top;
+	// Corners: pushed out a touch at the ends, as a pen overshoots.
+	const tl = [left - 1 + j(1.5), top + j(1.2)];
+	const tr = [right + 1 + j(1.5), top + j(1.2)];
+	const br = [right + 1 + j(1.5), bottom + j(1.2)];
+	const bl = [left - 1 + j(1.5), bottom + j(1.2)];
+	const mid = (a: number[], b: number[], bow: number) =>
+		`${f((a[0] + b[0]) / 2 + j(2))} ${f((a[1] + b[1]) / 2 + bow)}`;
+	return (
+		`M${f(tl[0])} ${f(tl[1])} ` +
+		`Q${mid(tl, tr, j(1.4))} ${f(tr[0])} ${f(tr[1])} ` +
+		`Q${f(tr[0] + 1 + j(1))} ${f(top + h / 2 + j(1.5))} ${f(br[0])} ${f(br[1])} ` +
+		`Q${mid(br, bl, j(1.4))} ${f(bl[0])} ${f(bl[1])} ` +
+		`Q${f(bl[0] - 1 + j(1))} ${f(top + h / 2 + j(1.5))} ${f(tl[0])} ${f(tl[1])}Z`
+	);
+}

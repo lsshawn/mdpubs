@@ -21,6 +21,11 @@ export const MEMBER = {
 };
 
 const body = `
+<!-- toc -->
+- [Scope of work](#scope-of-work)
+- [Timeline](#timeline)
+<!-- toc -->
+
 ## Scope of work
 
 We will build the onboarding flow and the billing page in the first month. The team ships weekly and you see every build on a preview link before it goes live.
@@ -81,5 +86,7 @@ export const NOTES: Record<string, { content: string; isPrivate?: boolean }> = {
 	'e2e-email': { content: page('mdpubs-comments: public\nmdpubs-comments-email: required\n') },
 	'e2e-noemail': { content: page('mdpubs-comments: public\nmdpubs-comments-email: off\n') },
 	'e2e-off': { content: page('') },
+	'e2e-history': { content: page('mdpubs-comments: public\nmdpubs-history: public\n') },
+	'e2e-history-only': { content: page('mdpubs-history: public\n') },
 	'e2e-private': { content: page('mdpubs-comments: public\n'), isPrivate: true }
 };
