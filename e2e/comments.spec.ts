@@ -380,22 +380,46 @@ test.describe('long comments, long threads and colours', () => {
 		await seedThread(request, 9);
 		await open(page, 'e2e-public');
 		const n = note(page, 'first comment in a long thread');
-		await expect(n.locator('.mc-entry')).toHaveCount(3); // first comment + the last two replies
-		await expect(n).toContainText('7 earlier replies');
+		await expect(n.locator('.mc-entry')).toHaveCount(2); // the first comment and the last reply
+		await expect(n).toContainText('8 earlier replies');
 		await expect(n).toContainText('reply number 9');
-		await expect(n).not.toContainText('reply number 3');
+		await expect(n).not.toContainText('reply number 8');
 
 		await n.getByRole('button', { name: 'Open thread (10)' }).click();
 		const drawer = page.locator('.mc-drawer');
 		await expect(drawer.locator('.mc-entry')).toHaveCount(10);
-		await expect(drawer.locator('.mc-drawer-head')).toContainText('Payment is due within fourteen');
+		// The pane does not repeat the paragraph. The page is tinted and the paragraph left bright.
+		await expect(drawer).not.toContainText('Payment is due within fourteen');
+		const spot = (await page.locator('.mc-spot').boundingBox())!;
+		const lit = (await para(page, 'Payment is due').boundingBox())!;
+		expect(spot.y).toBeLessThanOrEqual(lit.y);
+		expect(spot.y + spot.height).toBeGreaterThanOrEqual(lit.y + lit.height);
+		expect(spot.height).toBeLessThan(lit.height + 40);
+		expect(
+			await page.locator('.mc-spot').evaluate((el) => getComputedStyle(el).boxShadow)
+		).not.toBe('none');
+		// Laid out as a conversation: a coloured initial beside each comment, and plain text to read.
+		await expect(drawer.locator('.mc-avatar')).toHaveCount(10);
+		await expect(drawer.locator('.mc-avatar').first()).toHaveText('M');
+		expect(
+			await drawer
+				.locator('.mc-hand')
+				.first()
+				.evaluate((el) => getComputedStyle(el).fontFamily)
+		).not.toContain('Caveat');
 
-		// It scrolls on its own, and the page behind stays put.
-		const body = drawer.locator('.mc-drawer-body');
+		// Oldest first, and it opens at the end, where the conversation is.
+		await expect(drawer.locator('.mc-hand')).toHaveText([
+			'first comment in a long thread',
+			...Array.from({ length: 9 }, (_, i) => `reply number ${i + 1}`)
+		]);
+		await page.keyboard.press('Escape');
 		await page.setViewportSize({ width: 1440, height: 500 });
+		await n.getByRole('button', { name: 'Open thread (10)' }).click();
+		const body = drawer.locator('.mc-drawer-body');
 		expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
-		await body.evaluate((el) => el.scrollTo(0, el.scrollHeight));
 		await expect(drawer.getByText('reply number 9')).toBeInViewport();
+		await expect(drawer.getByText('first comment in a long thread')).not.toBeInViewport();
 
 		// Reply from the drawer.
 		await drawer.getByPlaceholder('Your name').fill('Sam Ortiz');
@@ -407,7 +431,7 @@ test.describe('long comments, long threads and colours', () => {
 
 		await page.keyboard.press('Escape');
 		await expect(drawer).toHaveCount(0);
-		await n.getByText('8 earlier replies').click();
+		await n.getByText('9 earlier replies').click();
 		await expect(drawer).toBeVisible();
 		await page.locator('.mc-drawer-backdrop').click({ position: { x: 20, y: 20 } });
 		await expect(drawer).toHaveCount(0);
@@ -418,49 +442,126 @@ test.describe('long comments, long threads and colours', () => {
 		await loginAs(page, OWNER);
 		await open(page, 'e2e-public');
 		const entries = note(page, 'first comment in a long thread').locator('.mc-entry');
-		await expect(entries).toHaveCount(3);
+		await expect(entries).toHaveCount(2);
 		const shown = () =>
 			entries.evaluateAll((els) =>
 				els.map((el) => getComputedStyle(el.querySelector('.mc-act')!).opacity === '1')
 			);
-		expect(await shown()).toEqual([false, false, false]);
+		await page.mouse.move(300, 500);
+		await expect.poll(shown).toEqual([false, false]);
+		await entries.nth(0).hover();
+		await expect.poll(shown).toEqual([true, false]);
 		await entries.nth(1).hover();
-		await expect.poll(shown).toEqual([false, true, false]);
-		await entries.nth(2).hover();
-		await expect.poll(shown).toEqual([false, false, true]);
+		await expect.poll(shown).toEqual([false, true]);
 	});
 
-	test('a very long comment is cut short, with Read more and Show less', async ({
+	test('an unsent comment or reply comes back after closing, clicking away or reloading', async ({
 		page,
 		request
 	}) => {
-		await seedComment(request, 'e2e-public', 'Payment is due', essay);
+		await seedComment(request, 'e2e-public', 'Work starts on', 'reply to me');
+		await open(page, 'e2e-public');
+
+		// A new comment, abandoned with Escape.
+		await clickBeside(page, para(page, 'Payment is due'));
+		await composer(page).locator('textarea').fill('half a thought about payment');
+		await page.keyboard.press('Escape');
+		await expect(composer(page)).toHaveCount(0);
+		await clickBeside(page, para(page, 'We will build'));
+		await expect(composer(page).locator('textarea')).toHaveValue('half a thought about payment');
+		await composer(page).getByRole('button', { name: 'Cancel' }).click();
+
+		// A reply, closed by its own toggle.
+		const n = note(page, 'reply to me');
+		await n.hover();
+		await n.getByRole('button', { name: 'Reply' }).click();
+		await n.locator('textarea').fill('a reply I did not send');
+		await n.getByRole('button', { name: 'Reply' }).click();
+		await expect(n.locator('textarea')).toHaveCount(0);
+
+		// Both survive a reload, each in its own place.
+		await page.reload();
+		const again = note(page, 'reply to me');
+		await again.hover();
+		await again.getByRole('button', { name: 'Reply' }).click();
+		await expect(again.locator('textarea')).toHaveValue('a reply I did not send');
+		await again.getByPlaceholder('Your name').fill('Sam Ortiz');
+		await again.getByRole('button', { name: 'Comment' }).click();
+		await expect(again).toContainText('a reply I did not send');
+
+		// Once posted the draft is gone; the other one is still waiting.
+		await again.hover();
+		await again.getByRole('button', { name: 'Reply' }).click();
+		await expect(again.locator('textarea')).toHaveValue('');
+		await clickBeside(page, para(page, 'Payment is due'));
+		await expect(composer(page).locator('textarea')).toHaveValue('half a thought about payment');
+	});
+
+	test('the settings menu lists who commented, each beside their colour', async ({
+		page,
+		request
+	}) => {
+		await seedThread(request, 3);
+		await open(page, 'e2e-public');
+		await page.locator('.mc-toggle-btn').hover();
+		const rows = page.locator('.mc-legend li');
+		await expect(rows).toHaveCount(2);
+		await expect(rows.nth(0)).toContainText('Maya Lin');
+		await expect(rows.nth(0)).toContainText('2');
+		await expect(rows.nth(1)).toContainText('Sam Ortiz');
+		const bullets = await page
+			.locator('.mc-bullet')
+			.evaluateAll((els) => els.map((el) => getComputedStyle(el).backgroundColor));
+		expect(bullets[0]).not.toBe(bullets[1]);
+		// The bullet is the same colour as the person's name on their comments.
+		const name = await page
+			.locator('.mc-note .mc-author', { hasText: 'Maya Lin' })
+			.first()
+			.evaluate((el) => getComputedStyle(el).color);
+		expect(bullets[0]).toBe(name);
+	});
+
+	test('Read more opens the thread on that comment, in full', async ({ page, request }) => {
+		const root = await seedComment(request, 'e2e-public', 'Payment is due', 'short opener');
+		for (let i = 1; i <= 6; i++) {
+			await seedComment(request, 'e2e-public', 'Payment is due', i === 2 ? essay : `filler ${i}`, {
+				parentId: root
+			});
+		}
+		const lastWords = essay.replace('This', 'Last, this');
+		await seedComment(request, 'e2e-public', 'Payment is due', lastWords, { parentId: root });
 		await seedComment(request, 'e2e-public', 'Work starts on', 'a short one');
 		await open(page, 'e2e-public');
-		const long = note(page, 'This clause needs a second look');
-		const hand = long.locator('.mc-hand');
-		const cutHeight = (await hand.boundingBox())!.height;
-		expect(cutHeight).toBeLessThan(120);
-		// A short comment has nothing to expand, and one comment is no reason for the drawer.
+		await page.setViewportSize({ width: 1440, height: 600 });
+		const n = note(page, 'short opener');
+		// In the margin the long last reply is cut to a few lines.
+		expect((await n.locator('.mc-hand').nth(1).boundingBox())!.height).toBeLessThan(90);
 		await expect(note(page, 'a short one').getByRole('button', { name: 'Read more' })).toHaveCount(
 			0
 		);
-		await expect(long.getByRole('button', { name: /Open thread/ })).toHaveCount(0);
 
-		await long.getByRole('button', { name: 'Read more' }).click();
-		expect((await hand.boundingBox())!.height).toBeGreaterThan(cutHeight * 2);
-		await expect(hand).toHaveText(essay);
-		// The note below moved out of the way instead of being covered.
+		await n.getByRole('button', { name: 'Read more' }).click();
+		const drawer = page.locator('.mc-drawer');
+		const last = drawer.locator('.mc-turn').last();
+		await expect(last.locator('.mc-hand')).toHaveText(lastWords);
+		await expect(last.locator('.mc-hand')).not.toHaveClass(/mc-clamp/);
+		await expect(last.getByRole('button', { name: 'Show less' })).toBeVisible();
+		// Scrolled to that comment, not left at the top.
 		await expect
 			.poll(async () => {
-				const a = (await long.boundingBox())!;
-				const b = (await note(page, 'a short one').boundingBox())!;
-				return a.y + a.height <= b.y || b.y + b.height <= a.y;
+				const b = (await drawer.locator('.mc-drawer-body').boundingBox())!;
+				const r = (await last.boundingBox())!;
+				return Math.abs(r.y - b.y);
 			})
-			.toBe(true);
+			.toBeLessThan(40);
 
-		await long.getByRole('button', { name: 'Show less' }).click();
-		await expect.poll(async () => (await hand.boundingBox())!.height).toBeLessThan(120);
+		// The other long comment in the thread stays cut short until asked for.
+		const other = drawer.locator('.mc-turn').nth(2);
+		await expect(other.locator('.mc-hand')).toHaveClass(/mc-clamp/);
+		await other.getByRole('button', { name: 'Read more' }).click();
+		await expect(other.locator('.mc-hand')).not.toHaveClass(/mc-clamp/);
+		await other.getByRole('button', { name: 'Show less' }).click();
+		await expect(other.locator('.mc-hand')).toHaveClass(/mc-clamp/);
 	});
 
 	test('the writer can reword a comment; every earlier wording is kept', async ({
@@ -910,6 +1011,95 @@ test.describe('the document changes after people commented', () => {
 		await expect(page.locator('.mc-note-flag')).toHaveCount(0);
 	});
 
+	test('a whole section deleted: its comments are kept and flagged, none moves to another section', async ({
+		page
+	}) => {
+		await open(page, 'e2e-edit');
+		await commentOn(
+			page,
+			page.locator('article h2', { hasText: 'Timeline' }),
+			'on the timeline heading'
+		);
+		await commentOn(page, para(page, 'Work starts on'), 'on the timeline paragraph');
+		await selectText(page, para(page, 'Work starts on'), 'about ten weeks');
+		await write(page, 'on three words of it');
+		await commentOn(page, para(page, 'Payment is due'), 'in another section');
+
+		const cut = original.indexOf('## Timeline');
+		expect(cut).toBeGreaterThan(0);
+		await setContent('e2e-edit', original.slice(0, cut).replace('- [Timeline](#timeline)\n', ''));
+		await page.reload();
+
+		await expect(page.locator('article')).not.toContainText('Work starts on');
+		await expect(page.locator('.mc-note')).toHaveCount(4);
+		await expect(page.locator('.mc-note-flag')).toHaveCount(3);
+		await expect(page.locator('.mc-highlight')).toHaveCount(0);
+		for (const text of [
+			'on the timeline heading',
+			'on the timeline paragraph',
+			'on three words of it'
+		]) {
+			await expect(note(page, text)).toContainText('The text this was on was removed');
+		}
+		await expect(note(page, 'on three words of it')).toContainText('about ten weeks');
+		// The comment in the surviving section is untouched, and it is the only bracket left.
+		await expect(page.locator('.mc-mark')).toHaveCount(1);
+		await expectBeside(page, 'in another section', para(page, 'Payment is due'));
+		await expect(note(page, 'in another section').locator('.mc-note-flag')).toHaveCount(0);
+		// A detached thread still opens, replies and all; with nothing to light up the page is just tinted.
+		await expect(page.locator('.mc-toggle-btn')).toContainText('4');
+	});
+
+	test('a paragraph rewritten from scratch keeps its comments where it stands', async ({
+		page
+	}) => {
+		await open(page, 'e2e-edit');
+		await commentOn(page, para(page, 'Payment is due'), 'on the whole paragraph');
+		await selectText(page, para(page, 'Payment is due'), 'fourteen days');
+		await write(page, 'on two words');
+
+		// Not one word in common with what was there; the paragraphs either side are unchanged.
+		const rewritten = 'Send money by bank transfer before month end, otherwise delivery stops.';
+		await setContent(
+			'e2e-edit',
+			edit(
+				'Payment is due within fourteen days of each invoice being issued. Late invoices pause the work until they are settled.',
+				rewritten
+			)
+		);
+		await page.reload();
+		await expect(page.locator('.mc-note')).toHaveCount(2);
+		await expectBeside(page, 'on the whole paragraph', para(page, 'Send money by bank transfer'));
+		await expect(note(page, 'on the whole paragraph').locator('.mc-note-flag')).toHaveCount(0);
+		// The quoted words are gone: the comment stays on the paragraph and says what it was on.
+		await expect(note(page, 'on two words')).toContainText('Was on: “fourteen days”');
+		await expect(page.locator('.mc-highlight')).toHaveCount(0);
+		await expect(page.locator('.mc-dot')).toHaveCount(0);
+	});
+
+	test('a section rewritten wholesale, neighbours and all, detaches rather than guesses', async ({
+		page
+	}) => {
+		await open(page, 'e2e-edit');
+		await commentOn(page, para(page, 'Payment is due'), 'lost in the rewrite');
+		await commentOn(page, para(page, 'Work starts on'), 'far away and untouched');
+
+		const start = original.indexOf('## Scope of work');
+		const end = original.indexOf('## Timeline');
+		const rewritten =
+			original.slice(0, start) +
+			'## Scope of work\n\nEverything here was thrown out and written again.\n\nNone of the old sentences survive in any form.\n\n' +
+			original.slice(end);
+		await setContent('e2e-edit', rewritten);
+		await page.reload();
+		await expect(note(page, 'lost in the rewrite')).toContainText(
+			'The text this was on was removed'
+		);
+		await expect(note(page, 'lost in the rewrite')).toContainText('Payment is due within fourteen');
+		await expectBeside(page, 'far away and untouched', para(page, 'Work starts on'));
+		await expect(page.locator('.mc-mark')).toHaveCount(1);
+	});
+
 	test("the owner's visit saves where an edited comment is now, so a second edit still finds it", async ({
 		page,
 		browser
@@ -1235,6 +1425,18 @@ test.describe('phone', () => {
 		await pill.tap();
 		const sheet = page.locator('.mc-sheet');
 		await expect(sheet).toContainText('already here');
+		// Same as the desktop pane: a conversation with initials, the page tinted, the paragraph bright
+		// and moved up clear of the sheet.
+		await expect(sheet.locator('.mc-turn .mc-avatar')).toHaveText('M');
+		await expect(sheet).not.toContainText('Payment is due within fourteen');
+		await expect(page.locator('.mc-spot')).toBeVisible();
+		await expect
+			.poll(async () => {
+				const lit = (await para(page, 'Payment is due').boundingBox())!;
+				const top = (await sheet.boundingBox())!.y;
+				return lit.y >= 0 && lit.y + lit.height <= top;
+			})
+			.toBe(true);
 		await sheet.getByPlaceholder('Your name').fill('Sam Ortiz');
 		await sheet.locator('textarea').fill('from my phone');
 		await sheet.getByRole('button', { name: 'Comment' }).tap();

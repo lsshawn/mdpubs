@@ -91,6 +91,34 @@
 	let sheetOpen = $state(false);
 	/** The thread shown whole in the side drawer (its first comment's id). */
 	let openThread = $state<string | null>(null);
+	/** The comment the drawer should open on. Null: open on the newest, at the bottom. */
+	let focusComment = $state<string | null>(null);
+
+	function showThread(rootId: string, commentId: string | null = null) {
+		focusComment = commentId;
+		if (commentId) expandedBody[commentId] = true;
+		openThread = rootId;
+		const p = placed.find((x) => x.root.id === rootId);
+		if (p && !p.detached) reveal(p.block);
+	}
+
+	/**
+	 * A thread reads oldest to newest, so the drawer opens scrolled to the end,
+	 * where the conversation is. Opened from "Read more", it opens on that comment.
+	 */
+	function placeDrawer(body: HTMLElement) {
+		const target = focusComment;
+		void openThread;
+		requestAnimationFrame(() => {
+			const el = target ? body.querySelector(`[data-comment="${target}"]`) : null;
+			if (el) {
+				el.scrollIntoView({ block: 'start' });
+				el.classList.add('mc-flash');
+			} else {
+				body.scrollTop = body.scrollHeight;
+			}
+		});
+	}
 	let heights = $state<Record<string, number>>({});
 	let rootEl = $state<HTMLElement | null>(null);
 
@@ -124,6 +152,16 @@
 		const out: Record<string, number> = {};
 		let n = 0;
 		for (const c of comments) if (!(c.authorId in out)) out[c.authorId] = HUES[n++ % HUES.length];
+		return out;
+	});
+	/** Everyone who has commented, for the legend: name, colour, how many. */
+	const people = $derived.by(() => {
+		const out: { id: string; name: string; hue: number; count: number }[] = [];
+		for (const c of comments) {
+			const p = out.find((x) => x.id === c.authorId);
+			if (p) p.count++;
+			else out.push({ id: c.authorId, name: c.authorName, hue: hues[c.authorId], count: 1 });
+		}
 		return out;
 	});
 	const hueOf = (id: string) => {
@@ -310,7 +348,7 @@
 
 	/** Too much for the margin: more than two replies, or a comment that runs long. */
 	function isLong(p: Placed): boolean {
-		return p.replies.length > 2;
+		return p.replies.length > 1;
 	}
 
 	/** A comment long enough to be cut short until the reader asks for the rest. */
@@ -361,6 +399,35 @@
 		openThread ? (placed.find((p) => p.root.id === openThread) ?? null) : null
 	);
 
+	/**
+	 * While a thread is open the page behind is tinted and the part being
+	 * discussed is left bright, so nobody has to be told which paragraph it is.
+	 */
+	const spot = $derived.by(() => {
+		if (drawer) return drawer.detached ? null : span(drawer.block, drawer.endBlock);
+		if (sheetOpen && draft) return span(draft.block, draft.endBlock);
+		return null;
+	});
+
+	/** Bring a block into the part of the screen the thread pane leaves free. */
+	function reveal(block: number) {
+		const el = index?.blocks[block]?.el;
+		if (!el) return;
+		requestAnimationFrame(() => {
+			if (frame?.wide) return el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+			// On a phone the sheet takes the lower part of the screen: park the block near the top.
+			window.scrollTo({
+				top: el.getBoundingClientRect().top + window.scrollY - 90,
+				behavior: 'smooth'
+			});
+		});
+	}
+
+	function openSheet() {
+		sheetOpen = true;
+		if (draft) reveal(draft.block);
+	}
+
 	/** Threads on the block picked on a narrow screen. */
 	const sheetThreads = $derived(
 		draft ? placed.filter((p) => p.block <= draft!.block && draft!.block <= p.endBlock) : []
@@ -408,7 +475,8 @@
 		if (range && !keepSelection) window.getSelection()?.removeAllRanges();
 		// On a narrow screen a tapped line only shows its bracket and a button; a
 		// selection has already been through the button, so open the sheet.
-		sheetOpen = !frame?.wide && !!range;
+		sheetOpen = false;
+		if (!frame?.wide && range) openSheet();
 	}
 
 	function closeDraft() {
@@ -435,7 +503,7 @@
 				active = h.id;
 				if (!frame.wide) {
 					startDraft(p.block);
-					sheetOpen = true;
+					openSheet();
 				}
 				return;
 			}
@@ -719,97 +787,116 @@
 
 {#snippet entry(c: CommentDto, roomy = false)}
 	{@const wordy = isWordy(c, roomy)}
-	<div class="mc-entry">
-		{#if editing?.id === c.id}
-			<!-- svelte-ignore a11y_autofocus -->
-			<textarea
-				class="mc-edit"
-				rows="4"
-				maxlength="4000"
-				aria-label="Edit your comment"
-				autofocus
-				bind:value={editing.text}
-				onkeydown={(e) => {
-					if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-						e.preventDefault();
-						saveEdit();
-					} else if (e.key === 'Escape') {
-						e.preventDefault();
-						editing = null;
-					}
-				}}></textarea>
-			{#if editing.error}<p class="mc-meta mc-edit-error">{editing.error}</p>{/if}
-			<p class="mc-meta mc-edit-row">
-				<button type="button" onclick={() => (editing = null)}>Cancel</button>
-				<button
-					type="button"
-					class="mc-save"
-					disabled={editing.saving || !editing.text.trim()}
-					onclick={saveEdit}
-				>
-					{editing.saving ? 'Saving' : 'Save'}
-				</button>
-			</p>
-		{:else}
-			<p class="mc-hand" class:mc-clamp={wordy && !expandedBody[c.id]} class:mc-roomy={roomy}>
-				{c.body}
-			</p>
-			{#if wordy}
-				<button
-					type="button"
-					class="mc-meta mc-readmore"
-					aria-expanded={!!expandedBody[c.id]}
-					onclick={() => (expandedBody[c.id] = !expandedBody[c.id])}
-				>
-					{expandedBody[c.id] ? 'Show less' : 'Read more'}
-				</button>
-			{/if}
-		{/if}
-		<p class="mc-meta">
-			<span class="mc-author" class:mc-hue={prefs.colours} style="--h:{hues[c.authorId]}"
-				>{c.authorName}{c.byOwner ? ' (author)' : ''}</span
+	<div class="mc-entry" class:mc-turn={roomy} data-comment={c.id}>
+		{#if roomy}
+			<span
+				class="mc-avatar"
+				class:mc-hue={prefs.colours}
+				style="--h:{hues[c.authorId]}"
+				aria-hidden="true">{c.authorName.trim().charAt(0).toUpperCase()}</span
 			>
-			<span>· {ago(c.createdAt)}</span>
-			{#if c.editedAt}
-				{#if c.mine || config.canModerate}
+		{/if}
+		<div class="mc-entry-main">
+			{#if editing?.id === c.id}
+				<!-- svelte-ignore a11y_autofocus -->
+				<textarea
+					class="mc-edit"
+					rows="4"
+					maxlength="4000"
+					aria-label="Edit your comment"
+					autofocus
+					bind:value={editing.text}
+					onkeydown={(e) => {
+						if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+							e.preventDefault();
+							saveEdit();
+						} else if (e.key === 'Escape') {
+							e.preventDefault();
+							editing = null;
+						}
+					}}></textarea>
+				{#if editing.error}<p class="mc-meta mc-edit-error">{editing.error}</p>{/if}
+				<p class="mc-meta mc-edit-row">
+					<button type="button" onclick={() => (editing = null)}>Cancel</button>
 					<button
 						type="button"
-						title="See the earlier wording"
-						aria-expanded={!!earlier[c.id]}
-						onclick={() => toggleEarlier(c.id)}>· edited</button
+						class="mc-save"
+						disabled={editing.saving || !editing.text.trim()}
+						onclick={saveEdit}
 					>
-				{:else}
-					<span title="Edited {ago(c.editedAt)} ago">· edited</span>
+						{editing.saving ? 'Saving' : 'Save'}
+					</button>
+				</p>
+			{:else}
+				<p
+					class="mc-hand"
+					class:mc-clamp={wordy && !(roomy && expandedBody[c.id])}
+					class:mc-roomy={roomy}
+				>
+					{c.body}
+				</p>
+				{#if wordy}
+					<!-- In the margin "Read more" opens the thread on this comment, in full.
+					     In the drawer it opens and closes the comment in place. -->
+					<button
+						type="button"
+						class="mc-meta mc-readmore"
+						aria-expanded={roomy ? !!expandedBody[c.id] : undefined}
+						onclick={() =>
+							roomy
+								? (expandedBody[c.id] = !expandedBody[c.id])
+								: showThread(c.parentId ?? c.id, c.id)}
+					>
+						{roomy && expandedBody[c.id] ? 'Show less' : 'Read more'}
+					</button>
 				{/if}
 			{/if}
-			{#if c.authorEmail && !c.byOwner}
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-				<a href="mailto:{c.authorEmail}" title={c.authorEmail}>· email</a>
-			{/if}
-			{#if c.mine && editing?.id !== c.id}
-				<button
-					type="button"
-					class="mc-act"
-					onclick={() => (editing = { id: c.id, text: c.body, saving: false, error: '' })}
-					>· edit</button
+			<p class="mc-meta">
+				<span class="mc-author" class:mc-hue={prefs.colours} style="--h:{hues[c.authorId]}"
+					>{c.authorName}{c.byOwner ? ' (author)' : ''}</span
 				>
+				<span>· {ago(c.createdAt)}</span>
+				{#if c.editedAt}
+					{#if c.mine || config.canModerate}
+						<button
+							type="button"
+							title="See the earlier wording"
+							aria-expanded={!!earlier[c.id]}
+							onclick={() => toggleEarlier(c.id)}>· edited</button
+						>
+					{:else}
+						<span title="Edited {ago(c.editedAt)} ago">· edited</span>
+					{/if}
+				{/if}
+				{#if c.authorEmail && !c.byOwner}
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+					<a href="mailto:{c.authorEmail}" title={c.authorEmail}>· email</a>
+				{/if}
+				{#if c.mine && editing?.id !== c.id}
+					<button
+						type="button"
+						class="mc-act"
+						onclick={() => (editing = { id: c.id, text: c.body, saving: false, error: '' })}
+						>· edit</button
+					>
+				{/if}
+				{#if c.mine || config.canModerate}
+					<button type="button" class="mc-act" onclick={() => remove(c)}>· delete</button>
+				{/if}
+			</p>
+			{#if earlier[c.id]}
+				<div class="mc-earlier">
+					{#each earlier[c.id] ?? [] as e, i (i)}
+						<p class="mc-meta">
+							Before the edit {ago(e.at) === 'now' ? 'just now' : `${ago(e.at)} ago`}:
+						</p>
+						<p class="mc-was">{e.before}</p>
+					{:else}
+						<p class="mc-meta">No earlier wording on record.</p>
+					{/each}
+				</div>
 			{/if}
-			{#if c.mine || config.canModerate}
-				<button type="button" class="mc-act" onclick={() => remove(c)}>· delete</button>
-			{/if}
-		</p>
-		{#if earlier[c.id]}
-			<div class="mc-earlier">
-				{#each earlier[c.id] ?? [] as e, i (i)}
-					<p class="mc-meta">
-						Before the edit {ago(e.at) === 'now' ? 'just now' : `${ago(e.at)} ago`}:
-					</p>
-					<p class="mc-was">{e.before}</p>
-				{:else}
-					<p class="mc-meta">No earlier wording on record.</p>
-				{/each}
-			</div>
-		{/if}
+		</div>
 	</div>
 {/snippet}
 
@@ -837,21 +924,21 @@
 <!-- A thread in the margin (cut short when long) or in the phone sheet (whole). -->
 {#snippet thread(p: Placed, inSheet: boolean)}
 	{@const long = !inSheet && isLong(p)}
-	{@const shown = long ? p.replies.slice(-2) : p.replies}
+	{@const shown = inSheet ? p.replies : p.replies.slice(-1)}
 	{@render flag(p)}
-	{@render entry(p.root)}
-	{#if long && p.replies.length > shown.length}
-		<button type="button" class="mc-meta mc-more" onclick={() => (openThread = p.root.id)}>
+	{@render entry(p.root, inSheet)}
+	{#if p.replies.length > shown.length}
+		<button type="button" class="mc-meta mc-more" onclick={() => showThread(p.root.id)}>
 			{p.replies.length - shown.length} earlier
 			{p.replies.length - shown.length === 1 ? 'reply' : 'replies'}
 		</button>
 	{/if}
 	{#each shown as reply (reply.id)}
-		{@render entry(reply)}
+		{@render entry(reply, inSheet)}
 	{/each}
 	<p class="mc-meta mc-actions" class:mc-shown={inSheet || long}>
 		{#if long}
-			<button type="button" class="mc-open" onclick={() => (openThread = p.root.id)}>
+			<button type="button" class="mc-open" onclick={() => showThread(p.root.id)}>
 				Open thread ({p.replies.length + 1})
 			</button>
 		{:else if config.canComment && !p.root.resolvedAt}
@@ -871,6 +958,7 @@
 				{viewerName}
 				email={config.email}
 				placeholder="Reply"
+				draftKey="{noteId}:{p.root.id}"
 				onsubmit={(input) => submitReply(p.root.id, input)}
 				oncancel={() => (replyTo = null)}
 			/>
@@ -958,6 +1046,7 @@
 									{viewerName}
 									email={config.email}
 									focus={draft.start === undefined}
+									draftKey="{noteId}:new"
 									onsubmit={submitDraft}
 									oncancel={closeDraft}
 								/>
@@ -979,14 +1068,19 @@
 					Comment on selection
 				</button>
 			{:else if draft && !sheetOpen}
-				<button type="button" class="mc-pill mc-pill-fixed" onclick={() => (sheetOpen = true)}>
+				<button type="button" class="mc-pill mc-pill-fixed" onclick={openSheet}>
 					{sheetThreads.length
 						? `${sheetThreads.length} comment${sheetThreads.length === 1 ? '' : 's'}`
 						: 'Comment on this line'}
 				</button>
 			{/if}
 			{#if draft && sheetOpen}
-				<button type="button" class="mc-backdrop" aria-label="Close comments" onclick={closeDraft}
+				<button
+					type="button"
+					class="mc-backdrop"
+					class:mc-dim={!spot}
+					aria-label="Close comments"
+					onclick={closeDraft}
 				></button>
 				<div class="mc-sheet" role="dialog" aria-label="Comments">
 					{#each sheetThreads as p (p.root.id)}
@@ -999,6 +1093,7 @@
 							{viewerName}
 							email={config.email}
 							focus={!sheetThreads.length}
+							draftKey="{noteId}:new"
 							onsubmit={submitDraft}
 							oncancel={closeDraft}
 						/>
@@ -1008,21 +1103,27 @@
 		{/if}
 	{/if}
 
+	{#if visible && spot}
+		<div
+			class="mc-spot"
+			style="top:{spot.top - 6}px;height:{spot.bottom - spot.top + 12}px"
+			transition:fade={{ duration: 140 }}
+		></div>
+	{/if}
+
 	{#if visible && drawer}
 		<button
 			type="button"
 			class="mc-drawer-backdrop"
+			class:mc-dim={!spot}
 			aria-label="Close thread"
 			onclick={() => (openThread = null)}
 		></button>
 		<aside class="mc-drawer" aria-label="Comment thread">
 			<header class="mc-drawer-head">
-				<p class="mc-meta">
-					{drawer.replies.length + 1} comments
-					{#if !drawer.detached}
-						{@const on = drawer.root.anchor?.quote || drawer.root.anchor?.text}
-						{#if on}on “{on.slice(0, 90)}{on.length > 90 ? '…' : ''}”{/if}
-					{/if}
+				<p class="mc-drawer-title">
+					Thread · {drawer.replies.length + 1}
+					{drawer.replies.length ? 'comments' : 'comment'}
 				</p>
 				<button
 					type="button"
@@ -1033,7 +1134,7 @@
 					✕
 				</button>
 			</header>
-			<div class="mc-drawer-body">
+			<div class="mc-drawer-body" {@attach placeDrawer}>
 				{@render flag(drawer)}
 				{@render entry(drawer.root, true)}
 				{#each drawer.replies as reply (reply.id)}
@@ -1048,6 +1149,7 @@
 						email={config.email}
 						placeholder="Reply"
 						focus={false}
+						draftKey="{noteId}:{drawer.root.id}"
 						onsubmit={(input) => submitReply(drawer.root.id, input)}
 						oncancel={() => (openThread = null)}
 					/>
@@ -1125,6 +1227,22 @@
 						{@render choice('One ink', !prefs.colours, () => setPref({ colours: false }))}
 					</div>
 				</div>
+				{#if people.length}
+					<ul class="mc-legend" aria-label="Who commented">
+						{#each people as person (person.id)}
+							<li>
+								<span
+									class="mc-bullet"
+									class:mc-hue={prefs.colours}
+									style="--h:{person.hue}"
+									aria-hidden="true"
+								></span>
+								<span class="mc-legend-name">{person.name}</span>
+								<span class="mc-legend-count">{person.count}</span>
+							</li>
+						{/each}
+					</ul>
+				{/if}
 				{#if visible && resolvedCount}
 					<button type="button" class="mc-menu-link" onclick={() => (showResolved = !showResolved)}>
 						{showResolved ? 'Hide' : 'Show'}
@@ -1141,6 +1259,7 @@
 
 <style>
 	.mc-root {
+		--mc-tint: oklch(0.2 0.02 265 / 0.16);
 		--mc-ink: var(--color-base-content);
 		--mc-soft: color-mix(in oklch, var(--color-base-content) 45%, transparent);
 	}
@@ -1157,6 +1276,9 @@
 		--mc-fill: oklch(0.78 0.15 var(--h) / 0.34);
 		--mc-fill-on: oklch(0.74 0.17 var(--h) / 0.55);
 		--mc-line: oklch(0.56 0.15 var(--h));
+	}
+	:global([data-theme='night']) .mc-root {
+		--mc-tint: oklch(0 0 0 / 0.5);
 	}
 	:global([data-theme='night']) .mc-hue {
 		--mc-fill: oklch(0.7 0.14 var(--h) / 0.36);
@@ -1240,14 +1362,22 @@
 		top: 0;
 		bottom: 0;
 	}
+	/* Each thread is a card: invisible at rest, a shade darker under the pointer,
+	   so it is clear which comments belong together. */
 	.mc-note {
 		position: absolute;
-		left: 0;
-		width: 100%;
+		left: -0.5rem;
+		width: calc(100% + 1rem);
+		padding: 0.375rem 0.5rem;
+		border-radius: 0.6rem;
 		pointer-events: auto;
 		transition:
 			top 180ms ease,
 			opacity 150ms;
+	}
+	.mc-note:hover,
+	.mc-note.mc-on {
+		background: color-mix(in oklch, var(--color-base-content) 5%, transparent);
 	}
 	.mc-resolved {
 		opacity: 0.45;
@@ -1270,6 +1400,15 @@
 		-webkit-box-orient: vertical;
 		-webkit-line-clamp: 4;
 		line-clamp: 4;
+		overflow: hidden;
+	}
+	/* The last reply shown under the first comment is kept short. */
+	.mc-note .mc-entry + .mc-more + .mc-entry .mc-hand,
+	.mc-note .mc-entry + .mc-entry .mc-hand {
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 3;
+		line-clamp: 3;
 		overflow: hidden;
 	}
 	.mc-hand.mc-clamp.mc-roomy {
@@ -1337,11 +1476,25 @@
 		text-underline-offset: 2px;
 	}
 
+	/* Catches the click that closes the pane. The tint itself is the spotlight's shadow. */
 	.mc-drawer-backdrop {
 		position: fixed;
 		inset: 0;
 		z-index: 60;
-		background: color-mix(in oklch, var(--color-base-content) 8%, transparent);
+	}
+	/* No place on the page to light up (the text was removed): tint it all. */
+	.mc-dim {
+		background: var(--mc-tint);
+	}
+	/* The part being discussed stays bright; its huge shadow tints everything else. */
+	.mc-spot {
+		position: absolute;
+		left: -0.75rem;
+		right: -0.75rem;
+		z-index: 59;
+		border-radius: 0.5rem;
+		box-shadow: 0 0 0 200vmax var(--mc-tint);
+		pointer-events: none;
 	}
 	.mc-drawer {
 		position: fixed;
@@ -1366,10 +1519,6 @@
 		padding: 1rem 1.25rem 0.75rem;
 		border-bottom: 1px solid color-mix(in oklch, var(--color-base-content) 8%, transparent);
 	}
-	.mc-drawer-head .mc-meta {
-		flex: 1;
-		margin: 0;
-	}
 	.mc-close {
 		color: var(--mc-soft);
 		cursor: pointer;
@@ -1383,9 +1532,125 @@
 		overscroll-behavior: contain;
 		padding: 1rem 1.25rem;
 	}
-	.mc-drawer .mc-entry + .mc-entry {
-		margin-top: 1rem;
+	.mc-drawer-title {
+		flex: 1;
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--mc-ink);
 	}
+	/* In the drawer a thread reads like a conversation: a face, a name, the words. */
+	.mc-turn {
+		position: relative;
+		display: flex;
+		gap: 0.6rem;
+		margin: 0 -0.5rem;
+		padding: 0.5rem;
+		border-radius: 0.6rem;
+	}
+	.mc-drawer .mc-entry + .mc-entry {
+		margin-top: 0.25rem;
+	}
+	.mc-turn:global(.mc-flash) {
+		animation: mc-flash 1.4s ease-out;
+	}
+	@keyframes mc-flash {
+		from {
+			background: color-mix(in oklch, var(--color-base-content) 12%, transparent);
+		}
+	}
+	.mc-sheet .mc-turn {
+		margin: 0;
+		padding: 0.4rem 0;
+	}
+	.mc-turn:hover {
+		background: color-mix(in oklch, var(--color-base-content) 5%, transparent);
+	}
+	/* The line that ties one comment to the next. */
+	.mc-turn:not(:last-child)::before {
+		content: '';
+		position: absolute;
+		left: calc(0.5rem + 0.8125rem);
+		top: 2.4rem;
+		bottom: -0.5rem;
+		width: 1px;
+		background: color-mix(in oklch, var(--color-base-content) 12%, transparent);
+	}
+	.mc-avatar {
+		flex: none;
+		display: grid;
+		place-items: center;
+		width: 1.625rem;
+		height: 1.625rem;
+		border-radius: 999px;
+		background: color-mix(in oklch, var(--color-base-content) 55%, transparent);
+		color: var(--color-base-100);
+		font-size: 0.75rem;
+		font-weight: 600;
+	}
+	.mc-avatar.mc-hue {
+		background: var(--mc-line);
+	}
+	.mc-turn .mc-entry-main {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+	}
+	.mc-turn .mc-meta {
+		order: -1;
+		margin: 0.15rem 0 0.15rem;
+	}
+	.mc-turn .mc-author {
+		color: var(--mc-ink);
+		font-weight: 600;
+	}
+	.mc-turn .mc-readmore,
+	.mc-turn .mc-earlier {
+		order: 1;
+	}
+	.mc-turn .mc-hand {
+		font-family: inherit;
+		font-weight: 400;
+		font-size: 0.875rem;
+		line-height: 1.5;
+		color: var(--mc-ink);
+	}
+
+	.mc-legend {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		max-height: 9rem;
+		overflow-y: auto;
+		padding-top: 0.5rem;
+		border-top: 1px solid color-mix(in oklch, var(--color-base-content) 8%, transparent);
+	}
+	.mc-legend li {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+	}
+	.mc-bullet {
+		flex: none;
+		width: 0.6rem;
+		height: 0.6rem;
+		border-radius: 999px;
+		background: color-mix(in oklch, var(--color-base-content) 55%, transparent);
+	}
+	.mc-bullet.mc-hue {
+		background: var(--mc-line);
+	}
+	.mc-legend-name {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.mc-legend-count {
+		color: var(--mc-soft);
+	}
+
 	.mc-drawer-foot {
 		padding: 0.5rem 1.25rem max(1rem, env(safe-area-inset-bottom));
 		border-top: 1px solid color-mix(in oklch, var(--color-base-content) 8%, transparent);
@@ -1467,7 +1732,6 @@
 		position: fixed;
 		inset: 0;
 		z-index: 60;
-		background: color-mix(in oklch, var(--color-base-content) 25%, transparent);
 	}
 	.mc-sheet {
 		position: fixed;
@@ -1476,7 +1740,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
-		max-height: 75vh;
+		max-height: 60vh;
 		overflow-y: auto;
 		padding: 1.25rem 1.25rem max(1.25rem, env(safe-area-inset-bottom));
 		border-radius: 1rem 1rem 0 0;

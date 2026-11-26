@@ -46,6 +46,11 @@
 		viewerName: string | null;
 		email: 'optional' | 'required' | 'off';
 		placeholder?: string;
+		/**
+		 * Where to keep what has been typed but not posted, so closing the box or
+		 * clicking away by accident loses nothing. Cleared when the comment is posted.
+		 */
+		draftKey?: string;
 		focus?: boolean;
 		onsubmit: (input: {
 			body: string;
@@ -61,6 +66,7 @@
 		email,
 		placeholder = 'Add a comment',
 		focus = true,
+		draftKey,
 		onsubmit,
 		oncancel
 	}: Props = $props();
@@ -70,7 +76,25 @@
 	let mail = $state(who.email);
 	// Ask for a name until one is saved; after that, only when they choose to change it.
 	let editingWho = $state(!who.name);
-	let body = $state('');
+	const DRAFTS = 'mdpubs:draft:';
+	function savedDraft(): string {
+		if (!draftKey) return '';
+		try {
+			return localStorage.getItem(DRAFTS + draftKey) ?? '';
+		} catch {
+			return '';
+		}
+	}
+	function keepDraft(text: string) {
+		if (!draftKey) return;
+		try {
+			if (text.trim()) localStorage.setItem(DRAFTS + draftKey, text);
+			else localStorage.removeItem(DRAFTS + draftKey);
+		} catch {
+			// Storage blocked: the draft lives only while the box is open.
+		}
+	}
+	let body = $state(savedDraft());
 	let website = $state('');
 	let sending = $state(false);
 	let error = $state('');
@@ -95,6 +119,7 @@
 		}
 		if (guest) saveCommenter({ name: name.trim(), email: mail.trim(), key: who.key });
 		body = '';
+		keepDraft('');
 	}
 
 	function onkeydown(e: KeyboardEvent) {
@@ -152,6 +177,7 @@
 		maxlength="4000"
 		{placeholder}
 		bind:value={body}
+		oninput={() => keepDraft(body)}
 		{@attach (node) => {
 			if (!guest || name) autofocus(node);
 		}}></textarea>
