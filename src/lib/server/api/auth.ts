@@ -14,10 +14,16 @@ import { eq } from 'drizzle-orm';
 import { type RequestEvent } from '@sveltejs/kit';
 import { ADMIN_API_KEY } from '$app/env/private';
 import { db } from '#lib/server/db/index.js';
-import { session, user as userSchema, type User } from '#lib/server/db/schema.js';
+import {
+	note as noteSchema,
+	session,
+	user as userSchema,
+	type User
+} from '#lib/server/db/schema.js';
 import { UserService } from './services/user';
 import { InvalidAPIKeyError } from './db';
-import { TOKEN_PREFIX, isPaid, userForToken } from '#lib/server/tokens.js';
+import { TOKEN_PREFIX, isPaid, resolveToken } from '#lib/server/tokens.js';
+import { canManageOrg } from '#lib/server/org.js';
 
 const userService = new UserService();
 
@@ -32,6 +38,13 @@ export type ApiAuth = {
 	 * such as version-skipping autosave — off the programmatic sync path.
 	 */
 	usedApiKey: boolean;
+	/**
+	 * Set for a key limited to one company (an 'org' token): the organization id.
+	 * Such a key acts as its user, but only on notes filed under that company.
+	 * `requireApiAuth`/`optionalApiAuth` enforce it for every `/api/notes/[id]`
+	 * route; the list and create routes narrow themselves (see `orgScope` there).
+	 */
+	orgScope?: string;
 };
 
 export function getToken(request: Request): string | undefined {
@@ -46,7 +59,11 @@ export function getToken(request: Request): string | undefined {
  * Resolve a token to auth. Returns `ApiAuth` or a `Response` (error) to return.
  * `method` is used to reject non-GET requests made with a read-only key.
  */
-export async function authenticate(token: string, method: string): Promise<ApiAuth | Response> {
+export async function authenticate(
+	token: string,
+	method: string,
+	opts: { allowOrgScope?: boolean } = {}
+): Promise<ApiAuth | Response> {
 	const adminAPIKey = ADMIN_API_KEY;
 	if (adminAPIKey && token === adminAPIKey) {
 		return { user: null, isAdmin: true, isReadOnly: false, usedApiKey: true };
@@ -57,7 +74,15 @@ export async function authenticate(token: string, method: string): Promise<ApiAu
 	// silently falling back to the free note limit.
 	if (token.startsWith(TOKEN_PREFIX)) {
 		try {
-			const user = await userForToken(token);
+			const found = await resolveToken(token);
+			const user = found?.user;
+			// A company-limited key is only good where the limit is enforced.
+			if (found?.orgScope && !opts.allowOrgScope) {
+				return Response.json(
+					{ error: 'This key is limited to one company and cannot be used here.' },
+					{ status: 403 }
+				);
+			}
 			if (!user) {
 				return Response.json(
 					{ error: 'This token was revoked or is invalid. Run `mdpubs login` or reconnect.' },
@@ -72,7 +97,13 @@ export async function authenticate(token: string, method: string): Promise<ApiAu
 					{ status: 402 }
 				);
 			}
-			return { user, isAdmin: false, isReadOnly: false, usedApiKey: true };
+			return {
+				user,
+				isAdmin: false,
+				isReadOnly: false,
+				usedApiKey: true,
+				...(found?.orgScope ? { orgScope: found.orgScope } : {})
+			};
 		} catch (error) {
 			console.error('Token authentication error:', error);
 			return Response.json({ error: 'Authentication failed' }, { status: 500 });
@@ -146,13 +177,56 @@ async function fullUserFromLocals(locals: RequestEvent['locals']): Promise<User 
 }
 
 /**
+ * Hold a company-limited key to its company, in one place for every route.
+ * It may only call the notes API, and a route that names a note
+ * (`/api/notes/[id]/...`) answers 404 unless that note is filed under the
+ * key's company: the same answer a note that does not exist gets.
+ */
+async function withinScope(
+	event: RequestEvent,
+	auth: ApiAuth | Response
+): Promise<ApiAuth | Response> {
+	if (auth instanceof Response || !auth.orgScope) return auth;
+	// The key is only as good as its maker's standing in the company today.
+	if (!auth.user || !(await canManageOrg(auth.orgScope, auth.user.id))) {
+		return Response.json(
+			{ error: 'This key no longer has access to its company.' },
+			{ status: 403 }
+		);
+	}
+	if (!event.route.id?.startsWith('/api/notes')) {
+		return Response.json(
+			{ error: 'This key is limited to one company and cannot be used here.' },
+			{ status: 403 }
+		);
+	}
+	const ref = event.params.id;
+	if (ref) {
+		const [row] = await db
+			.select({ orgId: noteSchema.orgId })
+			.from(noteSchema)
+			.where(eq(noteSchema.publicId, ref))
+			.limit(1);
+		if (!row || row.orgId !== auth.orgScope) {
+			return Response.json({ error: 'Note not found' }, { status: 404 });
+		}
+	}
+	return auth;
+}
+
+/**
  * Required auth. Accepts (in precedence): X-API-Key / Bearer token, then the
  * session cookie already validated by hooks.server.ts (event.locals.user).
  * 401 if neither is present/valid. Returns ApiAuth or a Response to return.
  */
 export async function requireApiAuth(event: RequestEvent): Promise<ApiAuth | Response> {
 	const token = getToken(event.request);
-	if (token) return authenticate(token, event.request.method);
+	if (token) {
+		return withinScope(
+			event,
+			await authenticate(token, event.request.method, { allowOrgScope: true })
+		);
+	}
 
 	// Cookie-session fallback (same-origin browser requests, e.g. the dashboard).
 	const user = await fullUserFromLocals(event.locals);
@@ -174,7 +248,12 @@ export async function requireApiAuth(event: RequestEvent): Promise<ApiAuth | Res
  */
 export async function optionalApiAuth(event: RequestEvent): Promise<ApiAuth | Response> {
 	const token = getToken(event.request);
-	if (token) return authenticate(token, event.request.method);
+	if (token) {
+		return withinScope(
+			event,
+			await authenticate(token, event.request.method, { allowOrgScope: true })
+		);
+	}
 
 	const user = await fullUserFromLocals(event.locals);
 	if (user) return { user, isAdmin: false, isReadOnly: false, usedApiKey: false };

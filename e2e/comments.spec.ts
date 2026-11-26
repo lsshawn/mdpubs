@@ -1776,6 +1776,130 @@ test.describe('embedded in another app', () => {
 	});
 });
 
+test.describe('a key limited to one company', () => {
+	const asOwner = { Authorization: `Bearer ${OWNER.session}` };
+	let key = '';
+
+	test.beforeAll(async ({ request }) => {
+		const now = Math.floor(Date.now() / 1000);
+		await db.execute(`delete from org_members where org_id = 'e2e-org'`);
+		await db.execute(`delete from organizations where id = 'e2e-org'`);
+		await db.execute({
+			sql: `insert into organizations (id, slug, name, created_at, updated_at) values ('e2e-org', 'e2e-co', 'E2E Co', ?, ?)`,
+			args: [now, now]
+		});
+		await db.execute({
+			sql: `insert into org_members (id, org_id, user_id, role, created_at) values ('e2e-m1', 'e2e-org', ?, 'owner', ?)`,
+			args: [OWNER.id, now]
+		});
+		await db.execute({
+			sql: `insert into org_members (id, org_id, user_id, role, created_at) values ('e2e-m2', 'e2e-org', ?, 'member', ?)`,
+			args: [MEMBER.id, now]
+		});
+		await db.execute(
+			`update users set api_key = 'e2e-owner-api-key-hash' where id = '${OWNER.id}'`
+		);
+		// One private note is the company's; the owner's other notes are personal.
+		await db.execute(`update notes set org_id = 'e2e-org' where public_id = 'e2e-embed'`);
+
+		// A plain member cannot make one; an owner can.
+		expect(
+			(
+				await request.post('/api/orgs/e2e-co/keys', {
+					data: {},
+					headers: { Authorization: `Bearer ${MEMBER.session}` }
+				})
+			).status()
+		).toBe(404);
+		const res = await request.post('/api/orgs/e2e-co/keys', {
+			data: { name: 'reports app' },
+			headers: asOwner
+		});
+		expect(res.status(), await res.text()).toBe(201);
+		key = (await res.json()).key;
+		expect(key).toMatch(/^mdp_/);
+	});
+
+	test.afterAll(async () => {
+		await db.execute(`update notes set org_id = null where public_id = 'e2e-embed'`);
+	});
+
+	test("it lists and reads the company's notes and nothing else of its owner's", async ({
+		request
+	}) => {
+		const headers = { 'X-API-Key': key };
+		const list = await (await request.get('/api/notes', { headers })).json();
+		expect(list.notes.map((n: Row) => n.publicId)).toEqual(['e2e-embed']);
+		// A colleague's private note in the same company is listed and readable too.
+		await db.execute({
+			sql: `insert into notes (public_id, user_id, org_id, title, content, file_extension, version, created_at, updated_at, tags, is_private)
+			      values ('e2e-colleague', ?, 'e2e-org', 'Theirs', 'Body', 'md', 1, 1, 1, '[]', 1)`,
+			args: [MEMBER.id]
+		});
+		const both = await (await request.get('/api/notes', { headers })).json();
+		expect(both.notes.map((n: Row) => n.publicId).sort()).toEqual(['e2e-colleague', 'e2e-embed']);
+		expect((await request.get('/api/notes/e2e-colleague', { headers })).status()).toBe(200);
+		await db.execute(`delete from notes where public_id = 'e2e-colleague'`);
+		// The owner's own session still sees everything.
+		const all = await (await request.get('/api/notes', { headers: asOwner })).json();
+		expect(all.count).toBeGreaterThan(5);
+
+		expect((await request.get('/api/notes/e2e-embed', { headers })).status()).toBe(200);
+		// Private and personal: the owner could read it, this key cannot. Nor a public one.
+		expect((await request.get('/api/notes/e2e-private', { headers })).status()).toBe(404);
+		expect((await request.get('/api/notes/e2e-public', { headers })).status()).toBe(404);
+		expect((await request.get('/api/notes/e2e-private/versions', { headers })).status()).toBe(404);
+		expect(
+			(
+				await request.put('/api/notes/e2e-private', { data: { title: 'taken over' }, headers })
+			).status()
+		).toBe(404);
+		expect((await request.delete('/api/notes/e2e-private', { headers })).status()).toBe(404);
+		expect((await request.get('/api/notes/deleted', { headers })).status()).toBe(200);
+	});
+
+	test('it makes embed links for its company only, and cannot make more keys', async ({
+		request
+	}) => {
+		const headers = { 'X-API-Key': key };
+		const viewer = { viewer: { id: 'u1', name: 'Priya Shah' } };
+		expect(
+			(await request.post('/api/notes/e2e-embed/embed', { data: viewer, headers })).status()
+		).toBe(200);
+		expect(
+			(await request.post('/api/notes/e2e-private/embed', { data: viewer, headers })).status()
+		).toBe(404);
+		expect((await request.post('/api/orgs/e2e-co/keys', { data: {}, headers })).status()).toBe(403);
+	});
+
+	test('a note it creates is filed under its company; naming another is refused', async ({
+		request
+	}) => {
+		const headers = { 'X-API-Key': key };
+		const made = await request.post('/api/notes', {
+			data: {
+				title: 'From the reports app',
+				content: '# Q4 report\n\nBody.',
+				file_extension: 'md'
+			},
+			headers
+		});
+		expect(made.status(), await made.text()).toBe(201);
+		const note = await made.json();
+		expect(note.orgId).toBe('e2e-org');
+		const refused = await request.post('/api/notes', {
+			data: {
+				title: 'Elsewhere',
+				content: '---\nmdpubs-company: personal\n---\n\nBody.',
+				file_extension: 'md'
+			},
+			headers
+		});
+		expect(refused.status()).toBe(403);
+		await db.execute({ sql: `delete from notes where public_id = ?`, args: [note.publicId] });
+	});
+});
+
 test.describe('bad input', () => {
 	const anchor = { v: 1, kind: 'block', tag: 'p', index: 1, text: 'x' };
 	const post = (request: APIRequestContext, data: Row) =>

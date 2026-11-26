@@ -15,6 +15,9 @@ import {
 } from '#lib/server/api/services/note.js';
 import { NoteLimitReachedError } from '#lib/server/api/db.js';
 import { env } from 'cloudflare:workers';
+import { and, desc, eq, isNull } from 'drizzle-orm';
+import { db } from '#lib/server/db/index.js';
+import { note as noteTable } from '#lib/server/db/schema.js';
 
 const noteService = new NoteService();
 
@@ -35,6 +38,15 @@ export async function GET(event: RequestEvent): Promise<Response> {
 		if (auth.isAdmin) {
 			const notes = await noteService.getAllNotes();
 			return Response.json({ notes, count: notes.length, admin: true });
+		}
+		// A company-limited key lists that company's notes, whoever in it wrote them.
+		if (auth.orgScope) {
+			const notes = await db
+				.select()
+				.from(noteTable)
+				.where(and(eq(noteTable.orgId, auth.orgScope), isNull(noteTable.deletedAt)))
+				.orderBy(desc(noteTable.updatedAt));
+			return Response.json({ notes, count: notes.length });
 		}
 		const notes = await noteService.getNotesByUserId(auth.user!.id);
 		return Response.json({ notes, count: notes.length });
@@ -62,12 +74,24 @@ export async function POST(event: RequestEvent): Promise<Response> {
 			);
 		}
 
+		// A company-limited key files everything under its company, and may not
+		// name another one in the frontmatter.
+		if (auth.orgScope) {
+			const org = await noteService.orgForContent(validation.data.content, user.id, auth.orgScope);
+			if (org !== auth.orgScope) {
+				return Response.json(
+					{ error: 'This key is limited to one company; the note names another.' },
+					{ status: 403 }
+				);
+			}
+		}
+
 		const note = await noteService.createNote(
 			bucket,
 			user.id,
 			user.plan || 'free',
 			{ ...validation.data, files },
-			user.defaultOrgId
+			auth.orgScope ?? user.defaultOrgId
 		);
 		// `url` is where the client opens it (branded domain if the org has one live).
 		return Response.json({ ...note, url: await noteUrl(note, event.url.origin) }, { status: 201 });

@@ -88,9 +88,12 @@ export async function GET(event: RequestEvent): Promise<Response> {
 		// An embed token reads as the owner who signed it: the same gate then
 		// passes for that owner's notes and for no one else's.
 		const grant = await readEmbedGrant(embedTokenOf(event.request, url), event.params.id);
-		const note = isAdmin
-			? await noteService.getNoteByIdAdmin(noteId)
-			: await signService.getNoteForSigning(noteId, grant?.o ?? user?.id);
+		// A company-limited key has already been held to its company's notes (see
+		// withinScope) and reads any of them, a colleague's private one included.
+		const note =
+			isAdmin || auth.orgScope
+				? await noteService.getNoteByIdAdmin(noteId)
+				: await signService.getNoteForSigning(noteId, grant?.o ?? user?.id);
 
 		if (
 			(parseMarkdown || only === 'frontmatter') &&
@@ -130,6 +133,17 @@ export async function PUT(event: RequestEvent): Promise<Response> {
 				{ error: 'Invalid input', issues: validation.error.issues },
 				{ status: 400 }
 			);
+		}
+
+		// A company-limited key may not move a note to another company.
+		if (auth.orgScope && typeof validation.data.content === 'string') {
+			const org = await noteService.orgForContent(validation.data.content, user.id, auth.orgScope);
+			if (org !== auth.orgScope) {
+				return Response.json(
+					{ error: 'This key is limited to one company; the note names another.' },
+					{ status: 403 }
+				);
+			}
 		}
 
 		// ?silent=true — autosave from the web editor: write the note but don't mint a

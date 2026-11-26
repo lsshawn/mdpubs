@@ -256,6 +256,11 @@ export class NoteService {
 	 * the user's default org) to an org id. Returns null for personal notes.
 	 * Throws InvalidAccountError on an explicit but unauthorized/unknown account.
 	 */
+	/** The org a note with this content would be filed under (null: personal). */
+	orgForContent(content: string, userId: string, defaultOrgId?: string | null) {
+		return this.resolveOrgForContent(content, userId, defaultOrgId);
+	}
+
 	private async resolveOrgForContent(
 		content: string,
 		userId: string,

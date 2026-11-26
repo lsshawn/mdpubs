@@ -13,7 +13,8 @@ export async function GET(event: RequestEvent): Promise<Response> {
 	const auth = await requireApiAuth(event);
 	if (isAuthError(auth)) return auth;
 	try {
-		const notes = await noteService.getDeletedNotesByUserId(auth.user!.id);
+		let notes = await noteService.getDeletedNotesByUserId(auth.user!.id);
+		if (auth.orgScope) notes = notes.filter((n) => n.orgId === auth.orgScope);
 		return Response.json({ notes, count: notes.length });
 	} catch (error) {
 		console.error('Error getting deleted notes:', error);

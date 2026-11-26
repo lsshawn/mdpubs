@@ -460,7 +460,8 @@ export const apiToken = sqliteTable(
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
 		tokenHash: text('token_hash').notNull(),
-		// 'cli' | 'mcp'
+		// 'cli' | 'mcp' | 'org'. An 'org' token is a key limited to one company's
+		// notes: for those, `clientId` holds the organization id it is limited to.
 		kind: text('kind').notNull(),
 		// Shown on the account page, e.g. "Claude" or "mdpubs CLI".
 		name: text('name').notNull(),

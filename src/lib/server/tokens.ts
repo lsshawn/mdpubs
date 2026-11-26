@@ -33,8 +33,9 @@ export function isPaid(u: Pick<User, 'plan'>): boolean {
 
 export async function issueToken(opts: {
 	userId: string;
-	kind: 'cli' | 'mcp';
+	kind: 'cli' | 'mcp' | 'org';
 	name: string;
+	/** For 'mcp' the OAuth client; for 'org' the organization the key is limited to. */
 	clientId?: string;
 }): Promise<string> {
 	const raw = TOKEN_PREFIX + randomSecret();
@@ -48,17 +49,30 @@ export async function issueToken(opts: {
 	return raw;
 }
 
-/** The user behind a live token, or null if it is unknown or revoked. */
-export async function userForToken(raw: string): Promise<User | null> {
+/**
+ * The user behind a live token, and the one organization it is limited to
+ * (null: everything of the user's). Null if the token is unknown or revoked.
+ */
+export async function resolveToken(
+	raw: string
+): Promise<{ user: User; orgScope: string | null } | null> {
 	const [row] = await db
-		.select({ tokenId: apiToken.id, user })
+		.select({ tokenId: apiToken.id, kind: apiToken.kind, clientId: apiToken.clientId, user })
 		.from(apiToken)
 		.innerJoin(user, eq(apiToken.userId, user.id))
 		.where(and(eq(apiToken.tokenHash, sha256Hex(raw)), isNull(apiToken.revokedAt)))
 		.limit(1);
 	if (!row) return null;
+	// An org key with no org on record is broken, not unlimited.
+	if (row.kind === 'org' && !row.clientId) return null;
 	await db.update(apiToken).set({ lastUsedAt: new Date() }).where(eq(apiToken.id, row.tokenId));
-	return row.user;
+	return { user: row.user, orgScope: row.kind === 'org' ? row.clientId : null };
+}
+
+/** The user behind a live, unlimited token. An org-limited key is not one: it gets null here. */
+export async function userForToken(raw: string): Promise<User | null> {
+	const found = await resolveToken(raw);
+	return found && !found.orgScope ? found.user : null;
 }
 
 export async function listTokens(userId: string) {
