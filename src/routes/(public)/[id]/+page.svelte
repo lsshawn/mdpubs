@@ -836,7 +836,7 @@
 										type="button"
 										class="inline-flex h-8 min-w-8 cursor-pointer items-center justify-center rounded-full bg-base-100/85 px-2 text-base-content/70 ring-1 ring-base-content/10 backdrop-blur ring-inset hover:text-base-content"
 										aria-label="History: see what changed"
-										title="See what changed"
+										data-tip="History: see what changed"
 										aria-pressed={historyOpen}
 										data-history-button
 										onclick={() => (historyOpen = !historyOpen)}
@@ -1099,6 +1099,37 @@
 		}
 		:global(.prose thead) {
 			display: table-header-group;
+		}
+	}
+
+	/* A label the moment the pointer is on an icon button: no wait, unlike title="". */
+	:global([data-tip]) {
+		position: relative;
+	}
+	@media (hover: hover) {
+		:global([data-tip]:hover::after) {
+			content: attr(data-tip);
+			position: absolute;
+			top: calc(100% + 6px);
+			right: 0;
+			z-index: 60;
+			padding: 0.15rem 0.5rem;
+			border-radius: 0.4rem;
+			background: var(--color-base-content);
+			color: var(--color-base-100);
+			font-size: 0.75rem;
+			font-weight: 500;
+			line-height: 1.4;
+			white-space: nowrap;
+			pointer-events: none;
+		}
+	}
+	@media (hover: hover) and (max-width: 767px) {
+		:global([data-tip]:hover::after) {
+			top: auto;
+			right: auto;
+			left: 0;
+			bottom: calc(100% + 6px);
 		}
 	}
 </style>

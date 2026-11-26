@@ -393,6 +393,32 @@ test.describe('guests', () => {
 		expect((await note(page, 'short, on the next paragraph').boundingBox())!.y).toBe(before);
 	});
 
+	test('a click off the text puts the comment box and its bracket away, keeping what was typed', async ({
+		page
+	}) => {
+		await open(page, 'e2e-public');
+		await clickBeside(page, para(page, 'Payment is due'));
+		await composer(page).locator('textarea').fill('half a thought');
+		await expect(page.locator('.mc-mark')).toHaveCount(1);
+		// Inside the box itself: nothing closes.
+		await composer(page).locator('textarea').click();
+		await expect(composer(page)).toBeVisible();
+
+		// The table of contents is outside the text and its margin.
+		await page.mouse.click(8, 500);
+		await expect(composer(page)).toHaveCount(0);
+		await expect(page.locator('.mc-mark')).toHaveCount(0);
+
+		// Back on a line, the words are still there.
+		await clickBeside(page, para(page, 'Payment is due'));
+		await expect(composer(page).locator('textarea')).toHaveValue('half a thought');
+
+		// The page's own title area, well away from any line, closes it too.
+		const title = (await page.locator('h1').first().boundingBox())!;
+		await page.mouse.click(title.x + title.width / 2, title.y + 4);
+		await expect(composer(page)).toHaveCount(0);
+	});
+
 	test('a click on highlighted words puts away a half-started comment and opens their thread', async ({
 		page
 	}) => {
@@ -2165,6 +2191,23 @@ test.describe('history', () => {
 
 		await panel.getByRole('button', { name: 'Close history' }).click();
 		await expect(page.locator('[data-history-lit]')).toHaveCount(0);
+	});
+
+	test('hovering the history button names it at once and leaves the comments menu shut', async ({
+		page
+	}) => {
+		await page.goto('/e2e-history');
+		await expect(page.locator('.mc-layer')).toBeAttached();
+		const button = page.getByRole('button', { name: /History/ });
+		await button.hover();
+		expect(
+			await button.evaluate((el) => getComputedStyle(el, '::after').content.replace(/"/g, ''))
+		).toBe('History: see what changed');
+		await page.waitForTimeout(300);
+		await expect(page.locator('.mc-menu')).toHaveCount(0);
+		// The comments button still opens its own menu, which says what it is.
+		await page.locator('.mc-toggle-btn').hover();
+		await expect(page.locator('.mc-menu')).toContainText('Comments');
 	});
 
 	test('with comments on: the button joins the comments bar and picking does not start a comment', async ({

@@ -662,7 +662,8 @@
 		if (pin) return startDraft(pin.block, undefined, false, { x: pin.x, y: pin.y });
 
 		const i = blockAtPoint(target, e.clientY);
-		if (i === null) return;
+		// A click on nothing in particular puts a started comment away.
+		if (i === null) return closeDraft();
 		// Someone who can't comment can still open a line's comments on a narrow screen.
 		if (
 			!config.canComment &&
@@ -876,6 +877,19 @@
 				pointerDown = false;
 				onSelection();
 			};
+			// A click anywhere off the page's text and its margin puts a started
+			// comment away, bracket and box. What was typed is kept for next time.
+			const onOutside = (e: MouseEvent) => {
+				if (!draft && !replyTo) return;
+				// The path as it was at the click: a button that removes itself when
+				// pressed is no longer in the page by now, but it was inside.
+				const path = e.composedPath();
+				if (path.includes(zone) || path.includes(node)) return;
+				const sel = window.getSelection();
+				if (sel && !sel.isCollapsed) return;
+				closeDraft();
+				replyTo = null;
+			};
 			const onKey = (e: KeyboardEvent) => {
 				if (e.key !== 'Escape' || e.defaultPrevented) return;
 				if (openThread) return void (openThread = null);
@@ -901,6 +915,7 @@
 			document.addEventListener('pointerdown', onDown, opts);
 			document.addEventListener('pointerup', onUp, opts);
 			document.addEventListener('keydown', onKey, opts);
+			document.addEventListener('click', onOutside, opts);
 
 			return () => {
 				ac.abort();
@@ -1364,133 +1379,144 @@
 	{/if}
 
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div
-		class="mc-toggle"
-		bind:this={toggleEl}
-		onpointerenter={(e) => e.pointerType === 'mouse' && (menuOpen = true)}
-		onpointerleave={(e) => e.pointerType === 'mouse' && (menuOpen = false)}
-	>
+	<div class="mc-toggle" bind:this={toggleEl}>
 		{@render tools?.()}
-		<!-- A mouse hovers for the menu and clicks to toggle. A finger cannot hover,
-		     so a tap opens the menu, where the same toggle sits as a switch. -->
-		<button
-			type="button"
-			class="mc-toggle-btn"
-			aria-pressed={visible}
-			aria-expanded={menuOpen}
-			aria-label={visible ? 'Comments: showing' : 'Comments: hidden'}
-			onpointerdown={(e) => (touched = e.pointerType !== 'mouse')}
-			onclick={() => {
-				if (touched) menuOpen = !menuOpen;
-				else toggle();
-				touched = false;
-			}}
+		<!-- Only the comments button and its own menu open the menu: the other
+		     buttons in this bar (history) have nothing to do with it. -->
+		<div
+			class="mc-toggle-main"
+			onpointerenter={(e) => e.pointerType === 'mouse' && (menuOpen = true)}
+			onpointerleave={(e) => e.pointerType === 'mouse' && (menuOpen = false)}
 		>
-			{#if visible}
-				<MessageSquare size={16} />
-			{:else}
-				<MessageSquareOff size={16} />
-			{/if}
-			{#if openCount}<span>{openCount}</span>{/if}
-		</button>
-
-		{#if menuOpen}
-			<div class="mc-menu" transition:fade={{ duration: 100 }}>
-				<p class="mc-menu-hint">
-					{#if !visible}
-						Comments are hidden.
-					{:else if config.canComment}
-						Click a line or select text to comment. Click a picture or chart to pin one.
-					{:else}
-						Log in to MdPubs to comment.
-					{/if}
-				</p>
-				<div class="mc-menu-row">
-					<span>Show comments</span>
-					<button
-						type="button"
-						role="switch"
-						class="mc-switch"
-						aria-checked={visible}
-						aria-label="Show comments"
-						onclick={toggle}><span></span></button
-					>
-				</div>
-				{#snippet choice(label: string, on: boolean, pick: () => void)}
-					<button type="button" class="mc-choice" aria-pressed={on} onclick={pick}>{label}</button>
-				{/snippet}
-				<div class="mc-menu-row">
-					<span>Writing</span>
-					<div class="mc-seg">
-						{@render choice('Handwritten', prefs.font === 'hand', () => setPref({ font: 'hand' }))}
-						{@render choice('Plain', prefs.font === 'plain', () => setPref({ font: 'plain' }))}
-					</div>
-				</div>
-				<div class="mc-menu-row">
-					<span>Size</span>
-					<div class="mc-seg">
-						{@render choice('Small', prefs.size === 's', () => setPref({ size: 's' }))}
-						{@render choice('Medium', prefs.size === 'm', () => setPref({ size: 'm' }))}
-						{@render choice('Large', prefs.size === 'l', () => setPref({ size: 'l' }))}
-					</div>
-				</div>
-				<div class="mc-menu-row">
-					<span>Colour</span>
-					<div class="mc-seg">
-						{@render choice('Per person', prefs.colours, () => setPref({ colours: true }))}
-						{@render choice('One ink', !prefs.colours, () => setPref({ colours: false }))}
-					</div>
-				</div>
-				{#if people.length}
-					<ul class="mc-legend" aria-label="Who commented">
-						{#each people as person (person.id)}
-							<li>
-								<span
-									class="mc-bullet"
-									class:mc-hue={prefs.colours}
-									style="--h:{person.hue}"
-									aria-hidden="true"
-								></span>
-								<span class="mc-legend-name">{person.name}</span>
-								<span class="mc-legend-count">{person.count}</span>
-							</li>
-						{/each}
-					</ul>
+			<!-- A mouse hovers for the menu and clicks to toggle. A finger cannot hover,
+		     so a tap opens the menu, where the same toggle sits as a switch. -->
+			<button
+				type="button"
+				class="mc-toggle-btn"
+				aria-pressed={visible}
+				aria-expanded={menuOpen}
+				aria-label={visible ? 'Comments: showing' : 'Comments: hidden'}
+				onpointerdown={(e) => (touched = e.pointerType !== 'mouse')}
+				onclick={() => {
+					if (touched) menuOpen = !menuOpen;
+					else toggle();
+					touched = false;
+				}}
+			>
+				{#if visible}
+					<MessageSquare size={16} />
+				{:else}
+					<MessageSquareOff size={16} />
 				{/if}
-				{#if visible && latest.length}
-					<div class="mc-latest">
-						<p class="mc-menu-hint">Latest</p>
-						<ol aria-label="Latest comments">
-							{#each latest as c (c.id)}
+				{#if openCount}<span>{openCount}</span>{/if}
+			</button>
+
+			{#if menuOpen}
+				<div class="mc-menu" transition:fade={{ duration: 100 }}>
+					<p class="mc-menu-title">Comments</p>
+					<p class="mc-menu-hint">
+						{#if !visible}
+							Comments are hidden.
+						{:else if config.canComment}
+							Click a line or select text to comment. Click a picture or chart to pin one.
+						{:else}
+							Log in to MdPubs to comment.
+						{/if}
+					</p>
+					<div class="mc-menu-row">
+						<span>Show comments</span>
+						<button
+							type="button"
+							role="switch"
+							class="mc-switch"
+							aria-checked={visible}
+							aria-label="Show comments"
+							onclick={toggle}><span></span></button
+						>
+					</div>
+					{#snippet choice(label: string, on: boolean, pick: () => void)}
+						<button type="button" class="mc-choice" aria-pressed={on} onclick={pick}>{label}</button
+						>
+					{/snippet}
+					<div class="mc-menu-row">
+						<span>Writing</span>
+						<div class="mc-seg">
+							{@render choice('Handwritten', prefs.font === 'hand', () =>
+								setPref({ font: 'hand' })
+							)}
+							{@render choice('Plain', prefs.font === 'plain', () => setPref({ font: 'plain' }))}
+						</div>
+					</div>
+					<div class="mc-menu-row">
+						<span>Size</span>
+						<div class="mc-seg">
+							{@render choice('Small', prefs.size === 's', () => setPref({ size: 's' }))}
+							{@render choice('Medium', prefs.size === 'm', () => setPref({ size: 'm' }))}
+							{@render choice('Large', prefs.size === 'l', () => setPref({ size: 'l' }))}
+						</div>
+					</div>
+					<div class="mc-menu-row">
+						<span>Colour</span>
+						<div class="mc-seg">
+							{@render choice('Per person', prefs.colours, () => setPref({ colours: true }))}
+							{@render choice('One ink', !prefs.colours, () => setPref({ colours: false }))}
+						</div>
+					</div>
+					{#if people.length}
+						<ul class="mc-legend" aria-label="Who commented">
+							{#each people as person (person.id)}
 								<li>
-									<button type="button" class="mc-latest-item" onclick={() => jumpTo(c)}>
-										<span
-											class="mc-bullet"
-											class:mc-hue={prefs.colours}
-											style="--h:{hues[c.authorId]}"
-											aria-hidden="true"
-										></span>
-										<span class="mc-latest-main">
-											<span class="mc-latest-who">
-												<b>{c.authorName}</b>
-												{c.parentId ? 'replied' : 'commented'} · {ago(c.createdAt)}
-											</span>
-											<span class="mc-latest-text">{c.body}</span>
-										</span>
-									</button>
+									<span
+										class="mc-bullet"
+										class:mc-hue={prefs.colours}
+										style="--h:{person.hue}"
+										aria-hidden="true"
+									></span>
+									<span class="mc-legend-name">{person.name}</span>
+									<span class="mc-legend-count">{person.count}</span>
 								</li>
 							{/each}
-						</ol>
-					</div>
-				{/if}
-				{#if visible && resolvedCount}
-					<button type="button" class="mc-menu-link" onclick={() => (showResolved = !showResolved)}>
-						{showResolved ? 'Hide' : 'Show'}
-						{resolvedCount} resolved
-					</button>
-				{/if}
-			</div>
-		{/if}
+						</ul>
+					{/if}
+					{#if visible && latest.length}
+						<div class="mc-latest">
+							<p class="mc-menu-hint">Latest</p>
+							<ol aria-label="Latest comments">
+								{#each latest as c (c.id)}
+									<li>
+										<button type="button" class="mc-latest-item" onclick={() => jumpTo(c)}>
+											<span
+												class="mc-bullet"
+												class:mc-hue={prefs.colours}
+												style="--h:{hues[c.authorId]}"
+												aria-hidden="true"
+											></span>
+											<span class="mc-latest-main">
+												<span class="mc-latest-who">
+													<b>{c.authorName}</b>
+													{c.parentId ? 'replied' : 'commented'} · {ago(c.createdAt)}
+												</span>
+												<span class="mc-latest-text">{c.body}</span>
+											</span>
+										</button>
+									</li>
+								{/each}
+							</ol>
+						</div>
+					{/if}
+					{#if visible && resolvedCount}
+						<button
+							type="button"
+							class="mc-menu-link"
+							onclick={() => (showResolved = !showResolved)}
+						>
+							{showResolved ? 'Hide' : 'Show'}
+							{resolvedCount} resolved
+						</button>
+					{/if}
+				</div>
+			{/if}
+		</div>
 	</div>
 </div>
 
@@ -2191,6 +2217,15 @@
 			left: 0;
 			bottom: calc(100% + 0.4rem);
 		}
+	}
+	.mc-toggle-main {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+	.mc-menu-title {
+		font-weight: 600;
+		color: var(--mc-ink);
 	}
 	.mc-menu-hint {
 		color: var(--mc-soft);
