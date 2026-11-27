@@ -20,6 +20,11 @@
 	import SignCertificate from '#lib/components/SignCertificate.svelte';
 	import MarginComments from '#lib/components/comments/MarginComments.svelte';
 	import HistoryPanel from '#lib/components/HistoryPanel.svelte';
+	import PrintMenu, {
+		DEFAULT_PRINT_SETTINGS,
+		loadPrintSettings,
+		type PrintSettings
+	} from '#lib/components/PrintMenu.svelte';
 	import { config } from '#lib/config.js';
 	import { resolve } from '$app/paths';
 
@@ -42,6 +47,9 @@
 	let articleElement = $state<HTMLElement | null>(null);
 	// The "what changed?" panel (HistoryPanel).
 	let historyOpen = $state(false);
+	// What goes on paper. Saved per browser; applies to Ctrl+P too.
+	let printSettings = $state<PrintSettings>({ ...DEFAULT_PRINT_SETTINGS });
+	const onOff = (v: boolean) => (v ? 'on' : 'off');
 
 	// Track mounted custom components for cleanup
 	let mountedComponents: Array<{ unmount: () => void }> = [];
@@ -109,6 +117,7 @@
 	let note = $derived(data.note);
 	let versions = $derived(data.versions);
 	let showDiffs = $derived(!!versions);
+	let hasFootnotes = $derived(!!note?.html?.includes('data-footnotes'));
 
 	// Raw HTML pubs render in a sandboxed iframe instead of {@html}.
 	let isHtml = $derived(!!data.isHtml);
@@ -141,6 +150,13 @@
 		if (showDiffs) {
 			return; // Don't setup scroll spy etc for diff view
 		}
+		printSettings = loadPrintSettings();
+		// Capture phase on window, so this runs before SvelteKit's router (which
+		// listens on <html>) can treat the superscript as an in-page link and
+		// scroll to the note at the bottom. Attached right away, not after the
+		// 200ms setup delay below, so an early click can't slip through either.
+		window.addEventListener('click', onFootnoteClick, true);
+		window.addEventListener('mousedown', onFootnoteMouseDown, true);
 
 		// Wait for the DOM to update with the server-loaded content
 		await tick();
@@ -203,6 +219,10 @@
 			// Store component reference for cleanup
 			mountedComponents.push(component);
 		});
+
+		articleElement
+			.querySelectorAll('[data-footnotes]')
+			.forEach((section) => externalLinksInNewTab(section));
 
 		// Mount inline sign boxes at <!-- mdpubs-sign-here --> anchors (now divs).
 		inlineSignBoxes = [];
@@ -340,6 +360,10 @@
 		if (hashChangeCleanup) {
 			hashChangeCleanup();
 		}
+		if (typeof window !== 'undefined') {
+			window.removeEventListener('click', onFootnoteClick, true);
+			window.removeEventListener('mousedown', onFootnoteMouseDown, true);
+		}
 		if (ytLinkCleanup) {
 			ytLinkCleanup();
 		}
@@ -417,6 +441,9 @@
 		document.addEventListener('click', (e) => {
 			const target = e.target as HTMLElement;
 
+			// Footnote superscripts are handled by onFootnoteClick (capture phase).
+			if (footnote && !target.closest('[data-footnote-popover]')) footnote = null;
+
 			// Check if clicked element is an anchor link or contains one
 			const link = target.closest('a[href^="#"]') as HTMLAnchorElement;
 			if (link) {
@@ -426,6 +453,66 @@
 					scrollToSection(sectionId);
 				}
 			}
+		});
+	}
+
+	// Footnote popover. Positioned in page coordinates so it scrolls with the text.
+	const FOOTNOTE_WIDTH = 352; // 22rem
+	let footnote = $state<{ refId: string; html: string; top: number; left: number } | null>(null);
+
+	function footnoteRefFrom(e: Event): HTMLAnchorElement | null {
+		const ref = (e.target as HTMLElement | null)?.closest?.(
+			'a[data-footnote-ref]'
+		) as HTMLAnchorElement | null;
+		return ref && articleElement?.contains(ref) ? ref : null;
+	}
+
+	// A superscript never navigates. The first click opens its note; the extra
+	// clicks of a double or triple click do nothing, so the note stays open.
+	function onFootnoteClick(e: MouseEvent) {
+		const ref = footnoteRefFrom(e);
+		if (!ref) return;
+		e.preventDefault();
+		e.stopPropagation();
+		if (e.detail > 1) return;
+		toggleFootnote(ref);
+	}
+
+	// Stop a double click selecting the number (which would open the comment box).
+	function onFootnoteMouseDown(e: MouseEvent) {
+		if (e.detail > 1 && footnoteRefFrom(e)) e.preventDefault();
+	}
+
+	function toggleFootnote(ref: HTMLAnchorElement) {
+		if (footnote?.refId === ref.id) {
+			footnote = null;
+			return;
+		}
+		const item = safeQueryById(ref.getAttribute('href')?.slice(1) ?? '');
+		if (!item) return;
+		const copy = item.cloneNode(true) as HTMLElement;
+		copy.querySelectorAll('[data-footnote-backref]').forEach((a) => a.remove());
+		externalLinksInNewTab(copy);
+		const rect = ref.getBoundingClientRect();
+		const width = Math.min(FOOTNOTE_WIDTH, window.innerWidth - 32);
+		const left = Math.min(
+			Math.max(16, rect.left + rect.width / 2 - width / 2),
+			window.innerWidth - width - 16
+		);
+		footnote = {
+			refId: ref.id,
+			html: copy.innerHTML,
+			top: rect.bottom + window.scrollY + 6,
+			left: left + window.scrollX
+		};
+	}
+
+	// Links that leave the site open in a new tab.
+	function externalLinksInNewTab(root: ParentNode) {
+		root.querySelectorAll<HTMLAnchorElement>('a[href^="http"]').forEach((a) => {
+			if (a.host === window.location.host) return;
+			a.target = '_blank';
+			a.rel = 'noopener noreferrer';
 		});
 	}
 
@@ -498,6 +585,36 @@
 			{@render tocItems(item.children, level + 1, isMobile)}
 		{/if}
 	{/each}
+{/snippet}
+
+<svelte:window onkeydown={(e) => e.key === 'Escape' && (footnote = null)} />
+
+<!-- Footnote popover, opened by clicking a footnote number in the text. -->
+{#if footnote}
+	<div
+		class="footnote-popover absolute z-50 max-h-72 overflow-y-auto rounded-lg bg-base-100 px-4 py-3 text-sm leading-relaxed text-base-content shadow-lg ring-1 ring-base-content/10 print:hidden"
+		style="top: {footnote.top}px; left: {footnote.left}px; width: min({FOOTNOTE_WIDTH}px, calc(100vw - 32px))"
+		role="note"
+		data-footnote-popover
+		data-comments-ignore
+		transition:fade={{ duration: 100 }}
+	>
+		<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+		{@html footnote.html}
+	</div>
+{/if}
+
+{#snippet printTocList(items: TocItem[])}
+	<ol>
+		{#each items as item (item.link)}
+			<li>
+				{item.title}
+				{#if item.children?.length > 0}
+					{@render printTocList(item.children)}
+				{/if}
+			</li>
+		{/each}
+	</ol>
 {/snippet}
 
 <!-- YouTube Mini Player -->
@@ -628,7 +745,16 @@
 	<!-- overflow-x-clip (not -hidden) contains wide content horizontally WITHOUT
 	     establishing a scroll container, so `position: sticky` on the desktop TOC
 	     sidebar below keeps working. overflow-x-hidden would break it. -->
-	<div class="min-h-screen overflow-x-clip">
+	<div
+		class="min-h-screen overflow-x-clip"
+		data-print-root
+		data-print-header={onOff(printSettings.header)}
+		data-print-toc={onOff(printSettings.toc)}
+		data-print-footnotes={onOff(printSettings.footnotes)}
+		data-print-links={onOff(printSettings.links)}
+		data-print-smart={onOff(printSettings.smartBreaks)}
+		data-print-sections={onOff(printSettings.sectionBreaks)}
+	>
 		{#if showDiffs}
 			<div class="mx-auto max-w-4xl px-6 py-6 lg:py-12">
 				<header class="mb-8">
@@ -789,7 +915,7 @@
 							data-comments-zone
 						>
 							<!-- Header -->
-							<header class="mb-8">
+							<header class="mb-8" data-print-part="header">
 								{#if !(note?.frontmatter?.['mdpubs-hero-image'] && note?.frontmatter?.['mdpubs-hero-title']) && note?.frontmatter?.title}
 									<h1 class="text-2xl leading-tight font-bold text-base-content lg:text-4xl">
 										{note.frontmatter.title}
@@ -821,6 +947,14 @@
 								{/if}
 							</header>
 
+							<!-- Paper-only table of contents: on screen it lives in the sidebar. -->
+							{#if note?.toc?.length > 0}
+								<nav class="print-toc hidden print:block" data-print-part="toc">
+									<div class="print-toc-title">Contents</div>
+									{@render printTocList(note.toc as TocItem[])}
+								</nav>
+							{/if}
+
 							<!-- Content (markdown pubs; HTML pubs render fullscreen above). The
 							     relative box is what the comments layer is drawn over. -->
 							<div class="relative">
@@ -831,6 +965,16 @@
 									<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 									{@html note.html}
 								</article>
+								{#snippet pageTools()}
+									<PrintMenu
+										bind:settings={printSettings}
+										hasToc={note?.toc?.length > 0}
+										{hasFootnotes}
+									/>
+									{#if data.history}
+										{@render historyButton()}
+									{/if}
+								{/snippet}
 								{#snippet historyButton()}
 									<button
 										type="button"
@@ -853,17 +997,17 @@
 											apiUrl={data.apiUrl}
 											initial={data.comments}
 											embedToken={data.embed?.token}
-											tools={data.history ? historyButton : undefined}
+											tools={pageTools}
 										/>
 									{/key}
-								{:else if data.history}
-									<!-- No comments on this note: the button stands alone in the same
+								{:else}
+									<!-- No comments on this note: the buttons stand alone in the same
 									     corner (top right; bottom left on a phone). -->
 									<div
-										class="fixed top-2 right-14 z-50 max-md:top-auto max-md:right-auto max-md:bottom-3 max-md:left-3 print:hidden"
+										class="fixed top-2 right-14 z-50 flex gap-1.5 max-md:top-auto max-md:right-auto max-md:bottom-3 max-md:left-3 print:hidden"
 										data-comments-ignore
 									>
-										{@render historyButton()}
+										{@render pageTools()}
 									</div>
 								{/if}
 								{#if data.history}
@@ -992,45 +1136,125 @@
 			print-color-adjust: exact;
 		}
 
+		/* ---- Smart page breaks (print menu; on by default) ----------------- */
+
 		/* Don't strand one or two lines of a paragraph on their own page. */
-		:global(.prose p),
-		:global(.prose li),
-		:global(.prose blockquote) {
+		:global([data-print-smart='on'] .prose p),
+		:global([data-print-smart='on'] .prose li),
+		:global([data-print-smart='on'] .prose blockquote) {
 			orphans: 3;
 			widows: 3;
 		}
 
 		/* Never break in the middle of an atomic block. */
-		:global(.prose figure),
-		:global(.prose img),
-		:global(.prose pre),
-		:global(.prose table),
-		:global(.prose blockquote),
-		:global(.prose li),
-		:global(.prose tr) {
+		:global([data-print-smart='on'] .prose figure),
+		:global([data-print-smart='on'] .prose img),
+		:global([data-print-smart='on'] .prose video),
+		:global([data-print-smart='on'] .prose svg),
+		:global([data-print-smart='on'] .prose table),
+		:global([data-print-smart='on'] .prose li),
+		:global([data-print-smart='on'] .prose tr),
+		:global([data-print-smart='on'] .prose .katex-display) {
 			break-inside: avoid;
 			page-break-inside: avoid; /* legacy alias for older print engines */
 		}
 
-		/* ...except blocks that can legitimately be taller than a page. Keeping
-		   those atomic would push them past the page end and clip them. */
-		:global(.prose pre),
-		:global(.prose blockquote) {
+		/* ...except blocks that can be taller than a page: keeping them whole
+		   would push them past the page end and clip them. */
+		:global([data-print-smart='on'] .prose pre),
+		:global([data-print-smart='on'] .prose blockquote),
+		:global([data-print-smart='on'] .prose table) {
 			break-inside: auto;
 			page-break-inside: auto;
 		}
 
-		/* Keep a heading with the content that follows it — no orphaned headings
-		   at the bottom of a page, and no page break immediately after one. */
-		:global(.prose h1),
-		:global(.prose h2),
-		:global(.prose h3),
-		:global(.prose h4),
-		:global(.prose h5),
-		:global(.prose h6) {
+		/* A heading never sits alone at the foot of a page. break-after: avoid
+		   is the standard way, but browsers drop it when the next block is
+		   itself unbreakable. Belt and braces: an invisible box under each
+		   heading reserves ~4 lines and is part of the heading's unbreakable
+		   box, so if those lines don't fit, the heading moves to the next page.
+		   flow-root stops the negative margin collapsing into the next block. */
+		:global([data-print-smart='on'] .prose :is(h1, h2, h3, h4, h5, h6)) {
+			display: flow-root;
 			break-inside: avoid;
+			page-break-inside: avoid;
 			break-after: avoid;
 			page-break-after: avoid;
+		}
+		:global([data-print-smart='on'] .prose :is(h1, h2, h3, h4, h5, h6)::after) {
+			content: '';
+			display: block;
+			height: 6rem;
+			margin-bottom: -6rem;
+		}
+
+		/* ---- New page per section ------------------------------------------ */
+		:global([data-print-sections='on'] .prose h2:not(:first-child)),
+		:global([data-print-sections='on'] .prose h1:not(:first-child)) {
+			break-before: page;
+			page-break-before: always;
+		}
+		/* The footnotes' own (hidden) h2 must not trigger a page. */
+		:global([data-print-sections='on'] .prose section[data-footnotes] h2) {
+			break-before: auto;
+			page-break-before: auto;
+		}
+
+		/* ---- What to include ------------------------------------------------ */
+		:global([data-print-header='off'] [data-print-part='header']),
+		:global([data-print-toc='off'] [data-print-part='toc']),
+		:global([data-print-footnotes='off'] .prose section[data-footnotes]),
+		:global([data-print-footnotes='off'] .prose sup:has(> a[data-footnote-ref])) {
+			display: none !important;
+		}
+
+		/* Link addresses: paper can't be clicked, so print where a link goes.
+		   Only real web links; not in-page anchors or footnote numbers. */
+		:global([data-print-links='on'] .prose a[href^='http']:not([data-footnote-ref])::after) {
+			content: ' (' attr(href) ')';
+			font-size: 0.8em;
+			font-weight: 400;
+			overflow-wrap: anywhere;
+			color: #555;
+		}
+
+		/* Paper-only table of contents. */
+		:global(.print-toc) {
+			margin: 0 0 2rem;
+			padding-bottom: 1.25rem;
+			border-bottom: 1px solid #ddd;
+			break-inside: avoid;
+		}
+		:global(.print-toc-title) {
+			font-size: 0.75rem;
+			font-weight: 600;
+			letter-spacing: 0.05em;
+			text-transform: uppercase;
+			color: #666;
+			margin-bottom: 0.75rem;
+		}
+		:global(.print-toc ol) {
+			list-style: none;
+			margin: 0;
+			padding: 0;
+		}
+		:global(.print-toc ol ol) {
+			padding-left: 1.25rem;
+		}
+		:global(.print-toc li) {
+			margin: 0.2rem 0;
+			font-size: 0.95rem;
+		}
+		:global(.print-toc > ol > li) {
+			font-weight: 600;
+		}
+		:global(.print-toc ol ol li) {
+			font-weight: 400;
+		}
+
+		/* Footnote numbers print as plain superscripts; the hairline stays. */
+		:global(.prose section[data-footnotes]) {
+			break-inside: auto;
 		}
 
 		/* Images must never overflow the printable width. */
@@ -1100,6 +1324,111 @@
 		:global(.prose thead) {
 			display: table-header-group;
 		}
+	}
+
+	/* Footnotes: the list at the end of the note, and the popover. */
+	/* Quiet, like a book: a short hairline, small muted text, tiny numbers
+	   hanging in the margin, and the whole note is the link back up. */
+	:global(.prose section[data-footnotes]) {
+		margin-top: 4rem;
+		padding-top: 0;
+	}
+	:global(.prose section[data-footnotes]::before) {
+		content: '';
+		display: block;
+		width: 3.125rem;
+		height: 1px;
+		background: var(--color-base-300);
+	}
+	:global(.prose section[data-footnotes] ol) {
+		list-style: none;
+		counter-reset: fn;
+		margin: 0;
+		padding: 2rem 0 0 0.35rem;
+	}
+	:global(.prose section[data-footnotes] li) {
+		position: relative;
+		counter-increment: fn;
+		margin: 0;
+		padding: 0 0 0.75rem 0.3rem;
+		color: color-mix(in oklch, var(--color-base-content) 55%, transparent);
+		font-size: 0.8125rem;
+		line-height: 1.5;
+	}
+	:global(.prose section[data-footnotes] li::before) {
+		content: counter(fn);
+		position: absolute;
+		right: 100%;
+		top: 0.1rem;
+		font-size: 0.55rem;
+		line-height: 1;
+	}
+	:global(.prose section[data-footnotes] li::marker) {
+		content: none;
+	}
+	:global(.prose section[data-footnotes] li p) {
+		margin: 0;
+	}
+	:global(.prose section[data-footnotes] li a:not([data-footnote-backref])) {
+		position: relative;
+		z-index: 2;
+	}
+	:global(.prose section[data-footnotes] a[data-footnote-backref]) {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+		overflow: hidden;
+		text-indent: -9999px;
+	}
+	:global(.prose section[data-footnotes] a:not([data-footnote-backref])),
+	:global(.footnote-popover a) {
+		color: inherit;
+		font-weight: inherit;
+		text-decoration: underline;
+		text-decoration-color: var(--color-base-300);
+		text-underline-offset: 2px;
+	}
+	:global(.prose section[data-footnotes] a:not([data-footnote-backref]):hover),
+	:global(.footnote-popover a:hover) {
+		color: var(--color-base-content);
+		text-decoration-color: currentColor;
+	}
+	:global(.prose section[data-footnotes] code) {
+		font-size: inherit;
+		color: inherit;
+	}
+	:global(.prose sup:has(> a[data-footnote-ref])) {
+		display: inline-block;
+		padding-left: 0.2em;
+		font-size: 0.65em;
+		line-height: 1;
+		color: color-mix(in oklch, var(--color-base-content) 50%, transparent);
+	}
+	:global(.prose section[data-footnotes] .sr-only),
+	:global(.footnote-popover .sr-only) {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+	:global(.prose a[data-footnote-ref]) {
+		color: inherit;
+		text-decoration: none;
+		cursor: pointer;
+	}
+	:global(.prose a[data-footnote-ref]:hover) {
+		color: var(--color-base-content);
+	}
+	:global(.footnote-popover p) {
+		margin: 0;
+	}
+	:global(.footnote-popover p + p) {
+		margin-top: 0.5rem;
+	}
+	:global(.footnote-popover a) {
+		overflow-wrap: anywhere;
 	}
 
 	/* A label the moment the pointer is on an icon button: no wait, unlike title="". */
