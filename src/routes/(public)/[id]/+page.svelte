@@ -12,6 +12,7 @@
 		History
 	} from 'lucide-svelte';
 	import { fade } from 'svelte/transition';
+	import { SvelteSet } from 'svelte/reactivity';
 	import type { PageData } from './$types';
 	import DiffView from '#lib/components/DiffView.svelte';
 	import LinearProgress from '#lib/components/LinearProgress.svelte';
@@ -38,8 +39,10 @@
 
 	let tocOpen = $state(false);
 	let sidebarOpen = $state(true); // Desktop sidebar toggle
-	let tocContentVisible = $state(true); // Controls TOC content visibility with delay
 	let activeSection = $state('');
+	// Headings the bold is passing through on its way to the new section.
+	const tocPassing = new SvelteSet<string>();
+	let tocWaveTimers: ReturnType<typeof setTimeout>[] = [];
 	let scrollCleanup: (() => void) | null = null;
 	let clickOutsideCleanup: (() => void) | null = null;
 	let hashChangeCleanup: (() => void) | null = null;
@@ -171,7 +174,7 @@
 
 			// Set initial active section if none is set
 			if (!activeSection && note?.toc?.length > 0) {
-				activeSection = note.toc[0].link;
+				moveActive(note.toc[0].link);
 			}
 		}, 200);
 	});
@@ -295,11 +298,19 @@
 			});
 
 			// Update active section if changed
+			// While a TOC jump is scrolling, the spy would light every section the
+			// page passes; the jump has already set the destination.
+			if (Date.now() < suppressSpyHashUntil) return;
+			// A section you jumped to stays current while its heading is on screen,
+			// even if the page can't scroll it to the top (the last sections).
+			if (pinnedSection) {
+				const r = safeQueryById(pinnedSection.substring(1))?.getBoundingClientRect();
+				if (r && r.top >= -1 && r.top < window.innerHeight) return;
+				pinnedSection = '';
+			}
 			if (activeId && activeId !== activeSection) {
-				activeSection = activeId;
-				if (Date.now() >= suppressSpyHashUntil) {
-					syncHash((activeId as string).substring(1));
-				}
+				moveActive(activeId);
+				syncHash((activeId as string).substring(1));
 			}
 		};
 
@@ -386,7 +397,7 @@
 		const onHashChange = () => {
 			const id = window.location.hash.substring(1);
 			if (!id) return;
-			activeSection = `#${id}`;
+			moveActive(`#${id}`);
 			scrollToSection(id);
 		};
 		window.addEventListener('hashchange', onHashChange);
@@ -396,6 +407,7 @@
 	// While a programmatic smooth scroll is in flight the scroll spy sees
 	// intermediate sections, so it must not overwrite the target hash.
 	let suppressSpyHashUntil = 0;
+	let pinnedSection = '';
 
 	// Reflect the current section in the URL without adding history entries or
 	// triggering the browser's own jump-to-anchor behaviour.
@@ -411,6 +423,7 @@
 		const element = safeQueryById(sectionId);
 		if (element) {
 			suppressSpyHashUntil = Date.now() + 1000;
+			pinnedSection = `#${sectionId}`;
 			syncHash(sectionId);
 		}
 
@@ -461,9 +474,10 @@
 	let footnote = $state<{ refId: string; html: string; top: number; left: number } | null>(null);
 
 	function footnoteRefFrom(e: Event): HTMLAnchorElement | null {
-		const ref = (e.target as HTMLElement | null)?.closest?.(
-			'a[data-footnote-ref]'
-		) as HTMLAnchorElement | null;
+		// The whole <sup> counts, padding included, not just the number.
+		const t = e.target as HTMLElement | null;
+		const ref = (t?.closest?.('a[data-footnote-ref]') ??
+			t?.closest?.('sup')?.querySelector('a[data-footnote-ref]')) as HTMLAnchorElement | null;
 		return ref && articleElement?.contains(ref) ? ref : null;
 	}
 
@@ -518,26 +532,45 @@
 
 	function handleTocClick(link: string) {
 		const sectionId = link.substring(1);
-		// Update active section immediately
-		activeSection = link;
+		moveActive(link);
 		scrollToSection(sectionId);
 		tocOpen = false; // Close mobile TOC after clicking
 	}
 
 	function toggleSidebar() {
-		if (sidebarOpen) {
-			// Closing: hide content first, then collapse container
-			tocContentVisible = false;
-			setTimeout(() => {
-				sidebarOpen = false;
-			}, 150);
-		} else {
-			// Opening: expand container first, then show content
-			sidebarOpen = true;
-			setTimeout(() => {
-				tocContentVisible = true;
-			}, 150);
-		}
+		sidebarOpen = !sidebarOpen;
+	}
+
+	// Change the current section. The bold "flies" from the old heading to the
+	// new one: each heading in between lights up briefly in turn, like sequins
+	// flipping, while the letters sweep left to right (see .toc-label CSS).
+	function moveActive(next: string) {
+		const prev = activeSection;
+		if (next === prev) return;
+		activeSection = next;
+
+		tocWaveTimers.forEach(clearTimeout);
+		tocWaveTimers = [];
+		tocPassing.clear();
+		if (!prev || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+		const links = flattenToc(note?.toc as TocItem[] | undefined).map((i) => i.link);
+		const from = links.indexOf(prev);
+		const to = links.indexOf(next);
+		if (from < 0 || to < 0 || Math.abs(to - from) < 2) return;
+
+		const dir = to > from ? 1 : -1;
+		const between: string[] = [];
+		for (let i = from + dir; i !== to; i += dir) between.push(links[i]);
+		// The whole trip takes about 320ms however far it goes.
+		const gap = Math.min(55, 320 / between.length);
+		const hold = 130;
+		between.forEach((link, k) => {
+			tocWaveTimers.push(
+				setTimeout(() => tocPassing.add(link), k * gap),
+				setTimeout(() => tocPassing.delete(link), k * gap + hold)
+			);
+		});
 	}
 </script>
 
@@ -568,18 +601,24 @@
 
 {#snippet tocItems(items: TocItem[], level = 0, isMobile = false)}
 	{#each items as item (item.link)}
+		{@const lit = activeSection === item.link || tocPassing.has(item.link)}
 		<button
 			onclick={() => handleTocClick(item.link)}
-			class="block w-full px-3 py-2 text-left text-sm transition-colors duration-200 hover:bg-base-200 {isMobile
-				? 'rounded-md'
-				: 'rounded-none'} {activeSection === item.link
-				? 'bg-primary/10 text-primary'
-				: 'text-base-content/70 hover:text-base-content'} {activeSection === item.link && !isMobile
-				? 'border-r-2 border-primary'
-				: ''}"
+			class="toc-item block w-full rounded-md px-3 py-1.5 text-left text-sm"
+			class:toc-lit={lit}
+			class:toc-passing={lit && activeSection !== item.link}
+			aria-current={activeSection === item.link ? 'location' : undefined}
 			style="padding-left: {0.75 + level * 0.75}rem"
 		>
-			{item.title}
+			<!-- Each letter is its own span so the bold can sweep across it. -->
+			<span
+				class="toc-label"
+				aria-label={item.title}
+				style="--step: {Math.min(14, 220 / Math.max(1, item.title.length))}ms"
+				><span aria-hidden="true" class="toc-chars"
+					>{#each [...item.title] as ch, i (i)}<span style="--i: {i}">{ch}</span>{/each}</span
+				></span
+			>
 		</button>
 		{#if item.children?.length > 0}
 			{@render tocItems(item.children, level + 1, isMobile)}
@@ -808,39 +847,42 @@
 						<aside class="relative hidden w-64 flex-shrink-0 lg:block">
 							<!-- Expandable TOC Button/Container -->
 							<div class="sticky top-6 z-20 ml-2">
+								<!-- One eased motion: the width and the list's height animate
+								     together; the list fades in once there's room for it. The
+								     inner pieces keep a fixed width so text is clipped, never
+								     rewrapped, while the box resizes. -->
 								<div
-									class="overflow-hidden rounded-md bg-base-100 shadow-none ring-0 ring-base-300 transition-all duration-100 ease-in-out {sidebarOpen
-										? 'w-64 '
-										: 'h-12 w-12'}"
+									class="toc-panel overflow-hidden rounded-md bg-base-100"
+									class:toc-open={sidebarOpen}
 								>
-									<!-- Toggle Button Header -->
 									<button
 										onclick={toggleSidebar}
-										class="flex w-full items-center p-3 transition-colors duration-200 hover:bg-base-200 {sidebarOpen
-											? 'border-b border-base-300'
-											: ''}"
+										class="toc-head flex w-64 items-center p-3 hover:bg-base-200"
+										aria-expanded={sidebarOpen}
 										title="{sidebarOpen ? 'Hide' : 'Show'} table of contents"
 									>
-										{#if sidebarOpen}
-											<X class="mr-2 h-5 w-5 flex-shrink-0 text-base-content/70" />
-											<span class="text-sm font-semibold tracking-wide text-base-content uppercase">
-												Table of Contents
-											</span>
-										{:else}
-											<List class="h-5 w-5 text-base-content/70" />
-										{/if}
+										<span class="relative mr-2 h-5 w-5 flex-shrink-0 text-base-content/70">
+											<X class="toc-icon-x absolute inset-0 h-5 w-5" />
+											<List class="toc-icon-list absolute inset-0 h-5 w-5" />
+										</span>
+										<span
+											class="toc-title text-sm font-semibold tracking-wide whitespace-nowrap text-base-content uppercase"
+										>
+											Table of Contents
+										</span>
 									</button>
-
-									<!-- TOC Content (hidden when collapsed) -->
-									{#if sidebarOpen}
-										<div class="max-h-[calc(100vh-8rem)] overflow-y-auto p-4">
-											{#if tocContentVisible}
-												<nav class="space-y-1" transition:fade={{ duration: 200 }}>
+									<div class="toc-body grid">
+										<div class="min-h-0 overflow-hidden">
+											<div
+												class="toc-list max-h-[calc(100vh-8rem)] w-64 overflow-y-auto p-4"
+												inert={!sidebarOpen}
+											>
+												<nav class="space-y-0.5">
 													{@render tocItems(note.toc as TocItem[], 0, false)}
 												</nav>
-											{/if}
+											</div>
 										</div>
-									{/if}
+									</div>
 								</div>
 							</div>
 						</aside>
@@ -1326,6 +1368,109 @@
 		}
 	}
 
+	/* ---- Table of contents ------------------------------------------------ */
+	/* Sidebar open/close. --toc-ease is an ease-out-quint: fast start, soft landing. */
+	.toc-panel {
+		--toc-ease: cubic-bezier(0.22, 1, 0.36, 1);
+		width: 3rem;
+		transition: width 320ms var(--toc-ease);
+	}
+	.toc-panel.toc-open {
+		width: 16rem;
+	}
+	.toc-head {
+		border-bottom: 1px solid transparent;
+		transition:
+			border-color 200ms,
+			background-color 150ms;
+	}
+	.toc-open .toc-head {
+		border-color: var(--color-base-300);
+	}
+	.toc-title {
+		opacity: 0;
+		transition: opacity 150ms;
+	}
+	.toc-open .toc-title {
+		opacity: 1;
+		transition-delay: 120ms;
+	}
+	:global(.toc-icon-x),
+	:global(.toc-icon-list) {
+		transition:
+			opacity 200ms,
+			transform 320ms var(--toc-ease);
+	}
+	:global(.toc-panel:not(.toc-open) .toc-icon-x),
+	:global(.toc-open .toc-icon-list) {
+		opacity: 0;
+		transform: rotate(-90deg) scale(0.6);
+	}
+	.toc-body {
+		grid-template-rows: 0fr;
+		transition: grid-template-rows 320ms var(--toc-ease);
+	}
+	.toc-open .toc-body {
+		grid-template-rows: 1fr;
+	}
+	.toc-list {
+		opacity: 0;
+		transform: translateY(-4px);
+		transition:
+			opacity 150ms,
+			transform 320ms var(--toc-ease);
+	}
+	.toc-open .toc-list {
+		opacity: 1;
+		transform: none;
+		transition-delay: 100ms;
+	}
+
+	/* Items: no tint, no border. The current one is just dark and bold. */
+	/* Tailwind 4 gives buttons the default arrow; these are links in spirit. */
+	:global(.toc-item),
+	.toc-head {
+		cursor: pointer;
+	}
+	:global(.toc-item) {
+		color: color-mix(in oklch, var(--color-base-content) 58%, transparent);
+		transition: color 200ms;
+	}
+	:global(.toc-item:hover) {
+		color: var(--color-base-content);
+	}
+	:global(.toc-item.toc-lit) {
+		color: var(--color-base-content);
+	}
+	/* The sweep: each letter thickens a little after the one before it, both
+	   when the bold arrives and when it leaves, so it travels through the word.
+	   The bold is a text stroke, not font-weight: it changes no widths (so lines
+	   never rewrap mid-sweep) and animates smoothly in any font. */
+	:global(.toc-chars > span) {
+		-webkit-text-stroke: 0 currentColor;
+		transition: -webkit-text-stroke-width 160ms ease-out;
+		transition-delay: calc(var(--i) * var(--step));
+	}
+	:global(.toc-lit .toc-chars > span) {
+		-webkit-text-stroke-width: 0.55px;
+	}
+	/* Headings the bold only passes through sweep faster. */
+	:global(.toc-passing .toc-chars > span) {
+		transition-duration: 90ms;
+		transition-delay: calc(var(--i) * var(--step) * 0.35);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.toc-panel,
+		.toc-body,
+		.toc-list,
+		.toc-title,
+		:global(.toc-icon-x),
+		:global(.toc-icon-list),
+		:global(.toc-chars > span) {
+			transition: none !important;
+		}
+	}
+
 	/* Footnotes: the list at the end of the note, and the popover. */
 	/* Quiet, like a book: a short hairline, small muted text, tiny numbers
 	   hanging in the margin, and the whole note is the link back up. */
@@ -1405,6 +1550,8 @@
 		color: inherit;
 	}
 	:global(.prose sup:has(> a[data-footnote-ref])) {
+		cursor: pointer;
+		user-select: none;
 		display: inline-block;
 		padding-left: 0.2em;
 		font-size: 0.65em;
