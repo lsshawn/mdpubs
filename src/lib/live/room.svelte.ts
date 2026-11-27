@@ -6,6 +6,13 @@
  * page to refetch comments, since it may have missed changes while away.
  */
 
+/**
+ * What someone last clicked or selected: block `b` of the page, and for a
+ * selection the characters [s, e) of the page text. `h` hashes the page text
+ * they saw (pageHash), so a pointer into another version of the page is ignored.
+ */
+export type LivePointer = { b: number; s?: number; e?: number; h: number };
+
 export type LivePerson = {
 	/** This connection. */
 	c: string;
@@ -18,6 +25,7 @@ export type LivePerson = {
 	mode: 'reading' | 'editing';
 	/** Heading link they are at, e.g. "#pricing". */
 	s: string | null;
+	p: LivePointer | null;
 };
 
 export type NoteEvent = { t: 'note'; version: number; by: string; silent: boolean };
@@ -29,6 +37,17 @@ type Handlers = {
 
 const PING_MS = 45_000;
 const SECTION_DEBOUNCE_MS = 3_000;
+const POINTER_GAP_MS = 250;
+
+/** FNV-1a over the page text: same text, same number, in every browser. */
+export function pageHash(text: string): number {
+	let h = 0x811c9dc5;
+	for (let i = 0; i < text.length; i++) {
+		h ^= text.charCodeAt(i);
+		h = Math.imul(h, 0x01000193) >>> 0;
+	}
+	return h;
+}
 
 /** A colour per person, steady across reloads. */
 export function personHue(u: string): number {
@@ -65,7 +84,9 @@ export class LiveRoom {
 	#retry: ReturnType<typeof setTimeout> | null = null;
 	#sectionTimer: ReturnType<typeof setTimeout> | null = null;
 	#section: string | null = null;
-	#sentSection: string | null = null;
+	#pointer: LivePointer | null = null;
+	#sent = '';
+	#pointerTimer: ReturnType<typeof setTimeout> | null = null;
 
 	constructor(url: string, handlers: Handlers = {}) {
 		this.#url = url;
@@ -81,8 +102,8 @@ export class LiveRoom {
 			this.#attempt = 0;
 			if (this.#everOpen) this.#handlers.onComments?.();
 			this.#everOpen = true;
-			this.#sentSection = null;
-			this.#flushSection();
+			this.#sent = '';
+			this.#flush();
 			this.#ping = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send('ping'), PING_MS);
 		};
 		ws.onmessage = (e) => {
@@ -117,21 +138,33 @@ export class LiveRoom {
 		if (this.#sectionTimer) return;
 		this.#sectionTimer = setTimeout(() => {
 			this.#sectionTimer = null;
-			this.#flushSection();
+			this.#flush();
 		}, SECTION_DEBOUNCE_MS);
 	}
 
-	#flushSection(): void {
-		if (this.#section === this.#sentSection) return;
+	/** What this reader clicked or selected; null to clear. Sent within a moment. */
+	setPointer(p: LivePointer | null): void {
+		this.#pointer = p;
+		if (this.#pointerTimer) return;
+		this.#pointerTimer = setTimeout(() => {
+			this.#pointerTimer = null;
+			this.#flush();
+		}, POINTER_GAP_MS);
+	}
+
+	#flush(): void {
+		const msg = JSON.stringify({ t: 'at', s: this.#section, p: this.#pointer });
+		if (msg === this.#sent) return;
 		if (this.#ws?.readyState !== WebSocket.OPEN) return;
-		this.#ws.send(JSON.stringify({ t: 'at', s: this.#section }));
-		this.#sentSection = this.#section;
+		this.#ws.send(msg);
+		this.#sent = msg;
 	}
 
 	close(): void {
 		this.#closed = true;
 		if (this.#retry) clearTimeout(this.#retry);
 		if (this.#sectionTimer) clearTimeout(this.#sectionTimer);
+		if (this.#pointerTimer) clearTimeout(this.#pointerTimer);
 		if (this.#ping) clearInterval(this.#ping);
 		this.#ws?.close(1000);
 		this.#ws = null;

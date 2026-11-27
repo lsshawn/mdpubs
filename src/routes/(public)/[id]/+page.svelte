@@ -31,6 +31,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { LiveRoom, personHue, type NoteEvent } from '#lib/live/room.svelte.js';
 	import LivePresence from '#lib/live/LivePresence.svelte';
+	import LiveMarks from '#lib/live/LiveMarks.svelte';
 
 	type TocItem = {
 		title: string;
@@ -1097,6 +1098,9 @@
 									<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 									{@html note.html}
 								</article>
+								{#if live}
+									<LiveMarks article={articleElement} html={note.html} room={live} />
+								{/if}
 								{#snippet pageTools()}
 									{#if live}
 										<LivePresence room={live} {sectionTitle} />

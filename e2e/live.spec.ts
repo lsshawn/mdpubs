@@ -137,3 +137,41 @@ test('a note without mdpubs-live opens no connection', async ({ browser }) => {
 	await page.waitForTimeout(1500);
 	expect(sockets).toEqual([]);
 });
+
+test('a click shows a bar and face beside that line for others', async ({ browser }) => {
+	const owner = await openAs(browser, OWNER.session);
+	const guest = await openAs(browser);
+	await expect(owner.locator('.live-face')).toHaveCount(1);
+
+	const para = guest.locator('article p', { hasText: 'Payment is due' });
+	await para.click({ position: { x: 10, y: 5 } });
+	await expect(owner.locator('.lm-bar')).toHaveCount(1);
+	await expect(owner.locator('.lm-face')).toHaveAttribute('data-tip', 'Guest is here');
+
+	// Level with the paragraph the guest clicked, in the owner's page.
+	const bar = (await owner.locator('.lm-bar').boundingBox())!;
+	const target = (await owner.locator('article p', { hasText: 'Payment is due' }).boundingBox())!;
+	expect(Math.abs(bar.y - target.y)).toBeLessThan(4);
+});
+
+test('a selection tints the same words for others', async ({ browser }) => {
+	const owner = await openAs(browser, OWNER.session);
+	const guest = await openAs(browser);
+	await expect(owner.locator('.live-face')).toHaveCount(1);
+
+	// Drag across the start of a paragraph.
+	const para = guest.locator('article p', { hasText: 'We will build' });
+	const box = (await para.boundingBox())!;
+	await guest.mouse.move(box.x + 2, box.y + 8);
+	await guest.mouse.down();
+	await guest.mouse.move(box.x + 160, box.y + 8, { steps: 5 });
+	await guest.mouse.up();
+	const selected = await guest.evaluate(() => window.getSelection()?.toString().trim());
+	expect(selected?.length).toBeGreaterThan(5);
+
+	await expect(owner.locator('.lm-tint').first()).toBeVisible();
+	await expect(owner.locator('.lm-face')).toHaveAttribute('data-tip', 'Guest selected this');
+	const tint = (await owner.locator('.lm-tint').first().boundingBox())!;
+	const target = (await owner.locator('article p', { hasText: 'We will build' }).boundingBox())!;
+	expect(Math.abs(tint.y - target.y)).toBeLessThan(6);
+});

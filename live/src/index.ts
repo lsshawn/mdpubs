@@ -35,11 +35,19 @@ type Ticket = {
 	exp: number;
 };
 
+/**
+ * What a reader last clicked or selected: block `b` of the page, and for a
+ * selection the characters [s, e) of the page text. `h` is a hash of the page
+ * text they saw, so a pointer into an older version of the page is ignored.
+ */
+type Pointer = { b: number; s?: number; e?: number; h: number };
+
 type Seat = Ticket & {
 	/** This connection. */
 	c: string;
 	/** Heading link the reader is at, e.g. "#pricing". */
 	s: string | null;
+	p: Pointer | null;
 };
 
 /** One person as another viewer sees them. `name` is null when hidden from that viewer. */
@@ -50,7 +58,20 @@ type PersonOut = {
 	mgr: boolean;
 	mode: 'reading' | 'editing';
 	s: string | null;
+	p: Pointer | null;
 };
+
+const MAX_OFFSET = 10_000_000;
+const okInt = (v: unknown, max = MAX_OFFSET): v is number =>
+	typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= max;
+
+function cleanPointer(v: unknown): Pointer | null {
+	if (!v || typeof v !== 'object') return null;
+	const p = v as Record<string, unknown>;
+	if (!okInt(p.b) || !okInt(p.h, 0xffffffff)) return null;
+	if (okInt(p.s) && okInt(p.e) && p.e > p.s) return { b: p.b, s: p.s, e: p.e, h: p.h };
+	return { b: p.b, h: p.h };
+}
 
 export class NoteRoom extends DurableObject<Env> {
 	constructor(ctx: DurableObjectState, env: Env) {
@@ -65,7 +86,7 @@ export class NoteRoom extends DurableObject<Env> {
 		const pair = new WebSocketPair();
 		const [client, server] = Object.values(pair);
 		this.ctx.acceptWebSocket(server);
-		const seat: Seat = { ...ticket, c: crypto.randomUUID().slice(0, 8), s: null };
+		const seat: Seat = { ...ticket, c: crypto.randomUUID().slice(0, 8), s: null, p: null };
 		server.serializeAttachment(seat);
 		server.send(JSON.stringify({ t: 'hello', me: seat.c }));
 		this.sendPresence();
@@ -74,7 +95,7 @@ export class NoteRoom extends DurableObject<Env> {
 
 	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
 		if (typeof message !== 'string' || message.length > 512) return;
-		let m: { t?: unknown; s?: unknown };
+		let m: { t?: unknown; s?: unknown; p?: unknown };
 		try {
 			m = JSON.parse(message);
 		} catch {
@@ -83,8 +104,10 @@ export class NoteRoom extends DurableObject<Env> {
 		if (m.t !== 'at') return;
 		const seat = ws.deserializeAttachment() as Seat;
 		const s = typeof m.s === 'string' && m.s ? m.s.slice(0, 200) : null;
-		if (s === seat.s) return;
+		const p = cleanPointer(m.p);
+		if (s === seat.s && JSON.stringify(p) === JSON.stringify(seat.p)) return;
 		seat.s = s;
+		seat.p = p;
 		ws.serializeAttachment(seat);
 		this.sendPresence();
 	}
@@ -130,7 +153,8 @@ export class NoteRoom extends DurableObject<Env> {
 			name: x.name,
 			mgr: x.mgr,
 			mode: x.mode,
-			s: x.s
+			s: x.s,
+			p: x.p ?? null
 		}));
 		const forManagers = JSON.stringify({ t: 'presence', people: all });
 		const forReaders = JSON.stringify({
