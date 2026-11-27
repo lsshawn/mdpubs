@@ -1073,14 +1073,14 @@
 									<a
 										href="https://mdpubs.com"
 										class="group mx-auto flex w-fit flex-col items-center gap-1.5 text-base-content/55 transition-colors hover:text-base-content/85"
-										aria-label="Published with MdPubs: hit save, it's live on the web"
+										aria-label="Published with MdPubs: prompt it, publish it, share the link"
 									>
 										<span class="flex items-center gap-2 text-xs">
 											Published with
 											<Logo class="h-7 w-auto text-base-content/75 group-hover:text-base-content" />
 										</span>
 										<span class="text-xs text-base-content/45 group-hover:text-base-content/65">
-											Hit save. It's live on the web.
+											Prompt it. Publish it. Share the link.
 										</span>
 									</a>
 								</footer>
