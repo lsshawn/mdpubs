@@ -1382,14 +1382,19 @@
 	}
 	:global(.prose section[data-footnotes] a:not([data-footnote-backref])),
 	:global(.footnote-popover a) {
-		/* A plain blue, lighter on dark themes (daisyUI sets color-scheme). */
-		--fn-link: light-dark(oklch(0.52 0.2 258), oklch(0.74 0.14 250));
+		/* A plain blue; lighter on the dark theme (rule below). Not light-dark():
+		   the production CSS build rewrites it into variables nothing sets. */
+		--fn-link: oklch(0.52 0.2 258);
 		color: var(--fn-link);
 		font-weight: inherit;
 		text-decoration: underline;
 		text-decoration-thickness: 1px;
 		text-decoration-color: color-mix(in oklch, var(--fn-link) 50%, transparent);
 		text-underline-offset: 2px;
+	}
+	:global([data-theme='night'] .prose section[data-footnotes] a:not([data-footnote-backref])),
+	:global([data-theme='night'] .footnote-popover a) {
+		--fn-link: oklch(0.74 0.14 250);
 	}
 	:global(.prose section[data-footnotes] a:not([data-footnote-backref]):hover),
 	:global(.footnote-popover a:hover) {
