@@ -29,9 +29,9 @@
 	import Logo from '#lib/components/Logo.svelte';
 	import { resolve } from '$app/paths';
 	import { invalidateAll } from '$app/navigation';
-	import { LiveRoom, personHue, type NoteEvent } from '#lib/live/room.svelte.js';
+	import { LiveRoom, personHue, type LivePerson, type NoteEvent } from '#lib/live/room.svelte.js';
 	import LivePresence from '#lib/live/LivePresence.svelte';
-	import LiveMarks from '#lib/live/LiveMarks.svelte';
+	import LiveMarks, { pointerTop } from '#lib/live/LiveMarks.svelte';
 
 	type TocItem = {
 		title: string;
@@ -142,6 +142,8 @@
 	// they happen. Joined on mount; null when live is off or in the diff view.
 	let live = $state<LiveRoom | null>(null);
 	let marginComments = $state<{ reload: () => Promise<void> } | null>(null);
+	/** Other people's faces and tints in the text (a switch in the comments menu). */
+	let showPeople = $state(true);
 	/** "Updated by …" notice after the author saves a new version. */
 	let updatedBy = $state<string | null>(null);
 	let updatedTimer: ReturnType<typeof setTimeout> | null = null;
@@ -190,6 +192,16 @@
 		await invalidateAll();
 		await tick();
 		if (note?.html !== before) hydrateCustomComponents();
+	}
+
+	/** A face in the corner was clicked: go to the line they clicked, or their section. */
+	function jumpToPerson(p: LivePerson) {
+		const y = articleElement ? pointerTop(articleElement, p) : null;
+		if (y !== null) {
+			window.scrollTo({ top: Math.max(0, y - window.innerHeight / 3), behavior: 'smooth' });
+		} else if (p.s) {
+			scrollToSection(p.s.slice(1));
+		}
 	}
 
 	function onSignedShared(s: unknown) {
@@ -1099,11 +1111,16 @@
 									{@html note.html}
 								</article>
 								{#if live}
-									<LiveMarks article={articleElement} html={note.html} room={live} />
+									<LiveMarks
+										article={articleElement}
+										html={note.html}
+										room={live}
+										hidden={!showPeople}
+									/>
 								{/if}
 								{#snippet pageTools()}
 									{#if live}
-										<LivePresence room={live} {sectionTitle} />
+										<LivePresence room={live} {sectionTitle} onjump={jumpToPerson} />
 									{/if}
 									<PrintMenu
 										bind:settings={printSettings}
@@ -1138,6 +1155,8 @@
 											initial={data.comments}
 											embedToken={data.embed?.token}
 											tools={pageTools}
+											live={!!live}
+											bind:showPeople
 										/>
 									{/key}
 								{:else}

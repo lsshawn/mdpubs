@@ -8,9 +8,12 @@
 
 	let {
 		room,
-		sectionTitle = () => null
+		sectionTitle = () => null,
+		onjump
 	}: {
 		room: LiveRoom;
+		/** Take the reader to where this person is. */
+		onjump?: (p: LivePerson) => void;
 		/** The heading text for a section link, for the tooltip. */
 		sectionTitle?: (link: string) => string | null;
 	} = $props();
@@ -39,14 +42,16 @@
 	>
 		{#each shown as p (p.u)}
 			<div class="tooltip tooltip-bottom -ml-1.5 first:ml-0" data-tip={label(p)}>
-				<span
-					class="live-face flex size-8 items-center justify-center rounded-full text-xs font-semibold text-white ring-2 ring-base-100"
+				<button
+					type="button"
+					class="live-face flex size-8 cursor-pointer items-center justify-center rounded-full text-xs font-semibold text-white ring-2 ring-base-100"
 					class:live-editing={p.mode === 'editing'}
 					style="--hue: {personHue(p.u)}"
-					aria-label={label(p)}
+					aria-label="{label(p)}. Go there"
+					onclick={() => onjump?.(p)}
 				>
 					{p.name ? p.name.slice(0, 1).toUpperCase() : ''}
-				</span>
+				</button>
 			</div>
 		{/each}
 		{#if extra > 0}

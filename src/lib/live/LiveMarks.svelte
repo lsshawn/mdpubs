@@ -1,15 +1,4 @@
-<script lang="ts">
-	/**
-	 * Where other people are in the text: the words they selected, tinted in their
-	 * colour, or a bar beside the line they clicked, with their face in the left
-	 * gutter. Also reports this reader's own clicks and selections to the room.
-	 *
-	 * Sits in the `position: relative` box around the <article>, like the comments
-	 * layer, and draws from positions re-measured whenever the layout changes.
-	 * Pointers are block numbers and character offsets into the page text
-	 * (comment-dom.ts), so they land on the same words at any screen width. One
-	 * made on a different version of the page is skipped (pageHash).
-	 */
+<script lang="ts" module>
 	import {
 		blockBox,
 		blockOfNode,
@@ -20,19 +9,48 @@
 	import { blockAt } from '#lib/helpers/comment-anchor.js';
 	import { pageHash, personHue, type LivePerson, type LiveRoom } from './room.svelte.js';
 
+	/** Where on the page (document y) this person last clicked or selected, if it still matches. */
+	export function pointerTop(article: HTMLElement, person: LivePerson): number | null {
+		const p = person.p;
+		if (!p) return null;
+		const index = indexArticle(article);
+		if (p.h !== pageHash(index.doc.text) || p.b >= index.blocks.length) return null;
+		const box = blockBox(index, p.b);
+		return box ? box.top + window.scrollY : null;
+	}
+</script>
+
+<script lang="ts">
+	/**
+	 * Where other people are in the text: the words they selected, tinted in their
+	 * colour, and their face just right of the margin bracket, level with the line
+	 * they clicked. Also reports this reader's own clicks and selections to the room.
+	 *
+	 * Sits in the `position: relative` box around the <article>, like the comments
+	 * layer, and draws from positions re-measured whenever the layout changes.
+	 * Pointers are block numbers and character offsets into the page text
+	 * (comment-dom.ts), so they land on the same words at any screen width. One
+	 * made on a different version of the page is skipped (pageHash).
+	 */
+
 	let {
 		article,
 		html,
-		room
+		room,
+		hidden = false
 	}: {
 		article: HTMLElement | null;
 		/** The note's HTML. Only read so marks are re-measured when it changes. */
 		html: string;
 		room: LiveRoom;
+		/** The reader turned other people's marks off (comments menu). */
+		hidden?: boolean;
 	} = $props();
 
-	const FACE = 20;
-	const FACE_GAP = 4;
+	const FACE = 18;
+	const FACE_GAP = 3;
+	/** Past the article's right edge: the comment bracket's width, then a little air. */
+	const FACE_OFFSET = 14;
 
 	let layoutTick = $state(0);
 
@@ -43,7 +61,6 @@
 		hue: number;
 		label: string;
 		lines: Line[];
-		bar: Line | null;
 		faceTop: number;
 		faceLeft: number;
 	};
@@ -57,11 +74,14 @@
 		void layoutTick;
 		void html;
 		const wrapper = article?.parentElement;
-		const pointing = room.others.filter((p) => p.p);
+		const pointing = hidden ? [] : room.others.filter((p) => p.p);
 		if (!article || !wrapper || !pointing.length) return [];
 		const index = indexArticle(article);
 		const hash = pageHash(index.doc.text);
 		const base = wrapper.getBoundingClientRect();
+		const right = article.getBoundingClientRect().right - base.left + FACE_OFFSET;
+		// Never past the screen's right edge (a phone has no margin to spare).
+		const maxLeft = document.documentElement.clientWidth - base.left - FACE - 2;
 		const perBlock: Record<number, number> = {};
 		const out: Mark[] = [];
 		for (const person of pointing) {
@@ -86,17 +106,9 @@
 				hue: personHue(person.u),
 				label: label(person),
 				lines,
-				bar: lines.length
-					? null
-					: {
-							left: box.left - base.left - 8,
-							top: box.top - base.top,
-							width: 3,
-							height: box.bottom - box.top
-						},
-				faceTop: top,
-				// Never past the screen's left edge (a phone has a narrow gutter).
-				faceLeft: Math.max(-base.left + 2, box.left - base.left - 14 - FACE - k * (FACE + FACE_GAP))
+				// Several people on one line stack downwards, clear of the notes column.
+				faceTop: top + k * (FACE + FACE_GAP),
+				faceLeft: Math.min(right, maxLeft)
 			});
 		}
 		return out;
@@ -183,15 +195,8 @@
 				style="left: {l.left}px; top: {l.top}px; width: {l.width}px; height: {l.height}px; --hue: {m.hue}"
 			></div>
 		{/each}
-		{#if m.bar}
-			<div
-				class="lm-bar"
-				style="left: {m.bar.left}px; top: {m.bar.top}px; width: {m.bar.width}px; height: {m.bar
-					.height}px; --hue: {m.hue}"
-			></div>
-		{/if}
 		<div
-			class="lm-face tooltip tooltip-right"
+			class="lm-face tooltip tooltip-left"
 			data-tip={m.label}
 			style="left: {m.faceLeft}px; top: {m.faceTop}px; width: {FACE}px; height: {FACE}px; --hue: {m.hue}"
 		>
@@ -219,12 +224,6 @@
 			left 0.2s,
 			width 0.2s;
 	}
-	.lm-bar {
-		position: absolute;
-		border-radius: 2px;
-		background: hsl(var(--hue) 60% 50% / 0.8);
-		transition: top 0.2s;
-	}
 	.lm-face {
 		position: absolute;
 		pointer-events: auto;
@@ -234,13 +233,12 @@
 		border-radius: 9999px;
 		background: hsl(var(--hue) 55% 48%);
 		color: white;
-		font-size: 0.65rem;
+		font-size: 0.6rem;
 		font-weight: 600;
 		transition: top 0.2s;
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.lm-tint,
-		.lm-bar,
 		.lm-face {
 			transition: none;
 		}

@@ -138,20 +138,35 @@ test('a note without mdpubs-live opens no connection', async ({ browser }) => {
 	expect(sockets).toEqual([]);
 });
 
-test('a click shows a bar and face beside that line for others', async ({ browser }) => {
+test('a click puts their face right of that line, in the margin', async ({ browser }) => {
 	const owner = await openAs(browser, OWNER.session);
 	const guest = await openAs(browser);
 	await expect(owner.locator('.live-face')).toHaveCount(1);
 
 	const para = guest.locator('article p', { hasText: 'Payment is due' });
 	await para.click({ position: { x: 10, y: 5 } });
-	await expect(owner.locator('.lm-bar')).toHaveCount(1);
-	await expect(owner.locator('.lm-face')).toHaveAttribute('data-tip', 'Guest is here');
+	const face = owner.locator('.lm-face');
+	await expect(face).toHaveAttribute('data-tip', 'Guest is here');
 
-	// Level with the paragraph the guest clicked, in the owner's page.
-	const bar = (await owner.locator('.lm-bar').boundingBox())!;
+	// Level with the paragraph the guest clicked, just past the article's right edge.
+	const f = (await face.boundingBox())!;
 	const target = (await owner.locator('article p', { hasText: 'Payment is due' }).boundingBox())!;
-	expect(Math.abs(bar.y - target.y)).toBeLessThan(4);
+	const art = (await owner.locator('article').boundingBox())!;
+	expect(Math.abs(f.y - target.y)).toBeLessThan(6);
+	expect(f.x).toBeGreaterThan(art.x + art.width);
+	expect(f.x).toBeLessThan(art.x + art.width + 40);
+
+	// Clicking their face in the corner scrolls there.
+	await owner.setViewportSize({ width: 1440, height: 400 });
+	await owner.evaluate(() => window.scrollTo(0, 0));
+	await owner.locator('.live-face').click();
+	await expect.poll(() => owner.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+	await expect(owner.locator('article p', { hasText: 'Payment is due' })).toBeInViewport();
+
+	// The comments menu can hide them.
+	await owner.locator('.mc-toggle-main').hover();
+	await owner.getByRole('switch', { name: "Show who's where" }).click();
+	await expect(owner.locator('.lm-face')).toHaveCount(0);
 });
 
 test('a selection tints the same words for others', async ({ browser }) => {

@@ -49,6 +49,10 @@
 		tools?: Snippet;
 		/** Shown inside another app: the token that opens this note and names the reader. */
 		embedToken?: string | null;
+		/** The note is live: the menu gets a switch for other people's marks. */
+		live?: boolean;
+		/** Show where other people are in the text. Remembered with the other prefs. */
+		showPeople?: boolean;
 	};
 	let {
 		article,
@@ -58,7 +62,9 @@
 		initial,
 		visible = $bindable(true),
 		tools,
-		embedToken = null
+		embedToken = null,
+		live = false,
+		showPeople = $bindable(true)
 	}: Props = $props();
 
 	const HIDDEN_KEY = 'mdpubs:comments-hidden';
@@ -72,8 +78,11 @@
 
 	function setPref(patch: Partial<Prefs>) {
 		prefs = { ...prefs, ...patch };
+		save();
+	}
+	function save() {
 		try {
-			localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+			localStorage.setItem(PREFS_KEY, JSON.stringify({ ...prefs, people: showPeople }));
 		} catch {
 			// The choice just won't be remembered.
 		}
@@ -865,6 +874,7 @@
 						size: saved.size === 's' || saved.size === 'l' ? saved.size : 'm',
 						colours: saved.colours !== false
 					};
+					showPeople = saved.people !== false;
 				}
 			} catch {
 				// Storage blocked: comments stay on.
@@ -1464,6 +1474,22 @@
 							onclick={toggle}><span></span></button
 						>
 					</div>
+					{#if live}
+						<div class="mc-menu-row">
+							<span>Show who's where</span>
+							<button
+								type="button"
+								role="switch"
+								class="mc-switch"
+								aria-checked={showPeople}
+								aria-label="Show who's where"
+								onclick={() => {
+									showPeople = !showPeople;
+									save();
+								}}><span></span></button
+							>
+						</div>
+					{/if}
 					{#snippet choice(label: string, on: boolean, pick: () => void)}
 						<button type="button" class="mc-choice" aria-pressed={on} onclick={pick}>{label}</button
 						>
