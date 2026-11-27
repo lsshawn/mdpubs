@@ -26,7 +26,7 @@
 		loadPrintSettings,
 		type PrintSettings
 	} from '#lib/components/PrintMenu.svelte';
-	import { config } from '#lib/config.js';
+	import Logo from '#lib/components/Logo.svelte';
 	import { resolve } from '$app/paths';
 
 	type TocItem = {
@@ -1068,16 +1068,21 @@
 							<!-- Footer — omitted on org custom domains (whitelabelled) -->
 							{#if !data.isCustomDomain}
 								<footer class="mt-32 border-t border-base-300 pt-8 print:hidden lg:pb-0 pb-12">
-									<div class="flex flex-col items-center justify-center text-base-content/60">
-										<a
-											href="http://mdpubs.com"
-											class="inline-flex items-center text-xs text-base-content/60 underline transition-colors hover:text-base-content/80"
-										>
-											<span class="mr-2">📝</span>
-											Powered by {config.name}
-										</a>
-										<div class="mt-1 text-xs">{config.description}</div>
-									</div>
+									<!-- The whole block is one link; the logo takes the muted text colour
+									     and darkens with it on hover. -->
+									<a
+										href="https://mdpubs.com"
+										class="group mx-auto flex w-fit flex-col items-center gap-1.5 text-base-content/55 transition-colors hover:text-base-content/85"
+										aria-label="Published with MdPubs: hit save, it's live on the web"
+									>
+										<span class="flex items-center gap-2 text-xs">
+											Published with
+											<Logo class="h-7 w-auto text-base-content/75 group-hover:text-base-content" />
+										</span>
+										<span class="text-xs text-base-content/45 group-hover:text-base-content/65">
+											Hit save. It's live on the web.
+										</span>
+									</a>
 								</footer>
 							{/if}
 						</div>
