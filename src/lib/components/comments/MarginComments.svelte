@@ -81,6 +81,12 @@
 	/** Clicks on these belong to the thing clicked, not to commenting. */
 	const INTERACTIVE =
 		'a,button,input,textarea,select,label,summary,video,audio,iframe,[role="button"],[contenteditable="true"],[data-mdpubs-sign-here],[data-comments-ignore]';
+	/**
+	 * A highlighter extension's pen is on (ZenHighlight marks the page with this
+	 * class). Every drag is a highlight then, so selecting or clicking text must
+	 * not also start a comment. Comments already there stay readable.
+	 */
+	const penOn = () => document.documentElement.classList.contains('reading-highlighter-on');
 	const NOTE_GAP = 32;
 	const NOTE_WIDTH = 256;
 
@@ -629,7 +635,7 @@
 	}
 
 	function onZoneClick(e: MouseEvent) {
-		if (!visible || !index || !frame || e.button !== 0 || e.defaultPrevented) return;
+		if (!visible || !index || !frame || e.button !== 0 || e.defaultPrevented || penOn()) return;
 		const target = e.target as Element;
 		if (rootEl?.contains(target) || target.closest(INTERACTIVE)) return;
 		const sel = window.getSelection();
@@ -685,7 +691,7 @@
 	}
 
 	function readSelection() {
-		if (!visible || !index || !config.canComment) return (pending = null);
+		if (!visible || !index || !config.canComment || penOn()) return (pending = null);
 		const sel = window.getSelection();
 		if (!sel || sel.isCollapsed || !sel.rangeCount) return (pending = null);
 		const range = sel.getRangeAt(0);
