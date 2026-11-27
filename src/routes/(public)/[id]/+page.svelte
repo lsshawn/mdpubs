@@ -1382,16 +1382,18 @@
 	}
 	:global(.prose section[data-footnotes] a:not([data-footnote-backref])),
 	:global(.footnote-popover a) {
-		color: inherit;
+		/* A plain blue, lighter on dark themes (daisyUI sets color-scheme). */
+		--fn-link: light-dark(oklch(0.52 0.2 258), oklch(0.74 0.14 250));
+		color: var(--fn-link);
 		font-weight: inherit;
 		text-decoration: underline;
-		text-decoration-color: var(--color-base-300);
+		text-decoration-thickness: 1px;
+		text-decoration-color: color-mix(in oklch, var(--fn-link) 50%, transparent);
 		text-underline-offset: 2px;
 	}
 	:global(.prose section[data-footnotes] a:not([data-footnote-backref]):hover),
 	:global(.footnote-popover a:hover) {
-		color: var(--color-base-content);
-		text-decoration-color: currentColor;
+		text-decoration-color: var(--fn-link);
 	}
 	:global(.prose section[data-footnotes] code) {
 		font-size: inherit;
