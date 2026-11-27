@@ -27,5 +27,8 @@ export const variables = defineEnvVars({
 	FEEDBACK_DATABASE_AUTH_TOKEN: { schema: (input) => input ?? '' },
 	ADMIN_API_KEY: { schema: (input) => input ?? '' },
 	PUBLIC_UI_ORIGIN: { schema: (input) => input ?? '' },
-	STRIPE_WEBHOOK_SECRET: { schema: (input) => input ?? '' }
+	STRIPE_WEBHOOK_SECRET: { schema: (input) => input ?? '' },
+	// Live presence (live/ Worker). Unset = off.
+	LIVE_URL: { schema: (input) => input ?? '' },
+	LIVE_SECRET: { schema: (input) => input ?? '' }
 });

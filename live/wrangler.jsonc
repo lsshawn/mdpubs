@@ -1,0 +1,24 @@
+{
+	"$schema": "../node_modules/wrangler/config-schema.json",
+	// Live presence + updates for mdpubs notes. See src/index.ts.
+	// Deploy this BEFORE the main app: the main Worker's LIVE service binding
+	// points at it by name.
+	//   npx wrangler deploy -c live/wrangler.jsonc
+	//   npx wrangler secret put LIVE_SECRET -c live/wrangler.jsonc   (same value as the main app's)
+	"name": "mdpubs-live",
+	"account_id": "20275e70544c64c131854ca82ba1ca32",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-07-21",
+	// The custom domain gives live.mdpubs.com its DNS record and certificate. The
+	// route is what actually sends traffic here: the main Worker's `*/*` route on
+	// the mdpubs.com zone otherwise answers first, custom domain or not.
+	"routes": [
+		{ "pattern": "live.mdpubs.com", "custom_domain": true },
+		{ "pattern": "live.mdpubs.com/*", "zone_name": "mdpubs.com" }
+	],
+	"durable_objects": {
+		"bindings": [{ "name": "ROOMS", "class_name": "NoteRoom" }]
+	},
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["NoteRoom"] }],
+	"observability": { "enabled": true }
+}

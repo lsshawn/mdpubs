@@ -34,6 +34,13 @@ export default defineConfig({
 		url: `${BASE_URL}/api/ping`,
 		reuseExistingServer: false,
 		timeout: 120_000,
-		env: { DATABASE_URL: DB_URL, DATABASE_AUTH_TOKEN: '' }
+		// live.spec.ts needs the live Worker running (wrangler dev -c live/wrangler.jsonc
+		// --port 8788 --var LIVE_SECRET:e2e-live-secret) and LIVE_E2E=1; skipped otherwise.
+		env: {
+			DATABASE_URL: DB_URL,
+			DATABASE_AUTH_TOKEN: '',
+			LIVE_URL: process.env.LIVE_E2E ? 'ws://127.0.0.1:8788' : '',
+			LIVE_SECRET: process.env.LIVE_E2E ? 'e2e-live-secret' : ''
+		}
 	}
 });

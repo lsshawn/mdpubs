@@ -95,6 +95,7 @@ const page = (frontmatter: string) => `---\ntitle: Proposal\n${frontmatter}---\n
 /** publicId → the note. Each spec area gets its own note so tests don't share comments. */
 export const NOTES: Record<string, { content: string; isPrivate?: boolean }> = {
 	'e2e-public': { content: page('mdpubs-comments: public\n') },
+	'e2e-live': { content: page('mdpubs-comments: public\nmdpubs-live: true\n') },
 	'e2e-elements': { content: page('mdpubs-comments: public\n') },
 	'e2e-edit': { content: page('mdpubs-comments: public\n') },
 	'e2e-owner': { content: page('mdpubs-comments: public\n') },

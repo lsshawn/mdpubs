@@ -12,6 +12,8 @@ declare global {
 			IMAGES: import('@cloudflare/workers-types').ImagesBinding;
 			// Static assets (static/), e.g. the TTF fonts the OG cards read.
 			ASSETS: import('@cloudflare/workers-types').Fetcher;
+			// The mdpubs-live Worker (live/): presence rooms, one per note.
+			LIVE?: { notify(noteId: string, msg: unknown): Promise<void> };
 		}
 	}
 

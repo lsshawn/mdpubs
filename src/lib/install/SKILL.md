@@ -74,6 +74,10 @@ Rules:
   shows what changed between versions, paragraph by paragraph. Without it only
   the owner sees it. Leave it out if earlier wording (an old price) should not
   be shown to the client.
+- Optional: `mdpubs-live: true` shows readers who else is on the page and
+  where, makes comments appear without a reload, and refreshes the page when
+  the author saves. Off by default. Use it when several people review a doc
+  together.
 - Quote any frontmatter value that contains `: `.
 - End the frontmatter with a one-line key such as `mdpubs-sign: true`, never
   with a list. A list that is the last key is ignored.

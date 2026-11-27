@@ -7,6 +7,7 @@ import { type RequestEvent } from '@sveltejs/kit';
 import { optionalApiAuth, isAuthError } from '#lib/server/api/auth.js';
 import { access, clientIp, fail } from './shared.js';
 import { addComment, getCommentsState } from '#lib/server/api/services/comments.js';
+import { notifyLive } from '#lib/server/live.js';
 
 export async function GET(event: RequestEvent): Promise<Response> {
 	const auth = await optionalApiAuth(event);
@@ -30,6 +31,7 @@ export async function POST(event: RequestEvent): Promise<Response> {
 			return Response.json({ error: 'Send the comment as JSON.' }, { status: 400 });
 		}
 		const comment = await addComment(note, viewer, input, clientIp(event.request));
+		notifyLive(event.params.id!, note.content, { t: 'comments' });
 		return Response.json(comment, { status: 201 });
 	} catch (error) {
 		return fail(error);

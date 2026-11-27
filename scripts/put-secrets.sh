@@ -80,6 +80,8 @@ KNOWN=(
   HERMES_WEBHOOK_SECRET HERMES_APP_TOKEN
   # Cloudflare for SaaS custom-hostname provisioning (src/lib/server/cloudflare.ts).
   CF_API_TOKEN CF_ZONE_ID
+  # Signs live presence tickets (src/lib/server/live.ts); same value on mdpubs-live.
+  LIVE_SECRET
 )
 
 in_list() {

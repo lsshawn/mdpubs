@@ -3,8 +3,21 @@
 	import { resolve } from '$app/paths';
 	import { beforeNavigate } from '$app/navigation';
 	import { formatDateTime } from '#lib/helpers/index.js';
+	import { onMount } from 'svelte';
+	import { LiveRoom } from '#lib/live/room.svelte.js';
+	import LivePresence from '#lib/live/LivePresence.svelte';
 
 	let { data } = $props();
+
+	// Readers of the published note see you editing; you see who is reading.
+	let live = $state<LiveRoom | null>(null);
+	onMount(() => {
+		if (!data.live) return;
+		const room = new LiveRoom(data.live.url);
+		room.connect();
+		live = room;
+		return () => room.close();
+	});
 
 	/**
 	 * The editor's source of truth is this string. It is plain markdown text —
@@ -383,6 +396,9 @@
 			>
 		</div>
 
+		{#if live}
+			<LivePresence room={live} />
+		{/if}
 		<a
 			href={resolve('/(public)/[id]', { id: data.note.publicId })}
 			target="_blank"

@@ -12,6 +12,7 @@ import {
 	getCommentEdits,
 	updateComment
 } from '#lib/server/api/services/comments.js';
+import { notifyLive } from '#lib/server/live.js';
 
 export async function PATCH(event: RequestEvent): Promise<Response> {
 	const auth = await optionalApiAuth(event);
@@ -31,9 +32,11 @@ export async function PATCH(event: RequestEvent): Promise<Response> {
 				(input as { body: unknown }).body,
 				clientIp(event.request)
 			);
+			notifyLive(event.params.id!, note.content, { t: 'comments' });
 			return Response.json(edited);
 		}
 		await updateComment(note, viewer, event.params.commentId!, input);
+		notifyLive(event.params.id!, note.content, { t: 'comments' });
 		return Response.json({ ok: true });
 	} catch (error) {
 		return fail(error);
@@ -46,6 +49,7 @@ export async function DELETE(event: RequestEvent): Promise<Response> {
 	try {
 		const { note, viewer } = await access(event, auth);
 		await deleteComment(note, viewer, event.params.commentId!);
+		notifyLive(event.params.id!, note.content, { t: 'comments' });
 		return Response.json({ ok: true });
 	} catch (error) {
 		return fail(error);

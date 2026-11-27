@@ -79,8 +79,14 @@
 		// Images URL transforms. See src/lib/server/storage.ts.
 		"PUBLIC_IMG_BASE": "https://img.mdpubs.com",
 		"PUBLIC_STRIPE_MONTHLY_LINK": "https://buy.stripe.com/bJe6oI0kE4AM4gB2Nx0oM1d",
-		"PUBLIC_STRIPE_YEARLY_LINK": "https://buy.stripe.com/fZu5kE4AUgjufZjafZ0oM1e"
+		"PUBLIC_STRIPE_YEARLY_LINK": "https://buy.stripe.com/fZu5kE4AUgjufZjafZ0oM1e",
+		// The live presence Worker (live/). Browsers connect here; LIVE_SECRET (a
+		// secret, same value in both Workers) signs their tickets.
+		"LIVE_URL": "wss://live.mdpubs.com"
 	},
+	// Who is on a note right now, live comments and note updates. The live/
+	// Worker must be deployed first (see live/wrangler.jsonc).
+	"services": [{ "binding": "LIVE", "service": "mdpubs-live" }],
 	// R2 bucket for note images/assets (was S3 API + keys on the old VPS; now a
 	// native binding — no access keys).
 	"r2_buckets": [

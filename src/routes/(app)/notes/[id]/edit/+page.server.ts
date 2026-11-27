@@ -15,6 +15,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { note as noteTable } from '#lib/server/db/schema.js';
 import { database } from '#lib/server/api/db.js';
+import { liveEnabled, liveJoin } from '#lib/server/live.js';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -55,6 +56,10 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			tags: row.tags,
 			updatedAt: row.updatedAt
 		},
-		locked
+		locked,
+		// Readers of the published note see "<you> is editing" while this is open.
+		live: liveEnabled(row.content)
+			? liveJoin(row.publicId, { user: locals.user, canManage: true, mode: 'editing' })
+			: null
 	};
 };

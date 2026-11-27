@@ -22,6 +22,7 @@ import { signService } from '#lib/server/api/services/sign.js';
 import { NotFoundError, NoteNotOwnedError, NoteLockedError } from '#lib/server/api/db.js';
 import { embedTokenOf, readEmbedGrant } from '#lib/server/embed.js';
 import { env } from 'cloudflare:workers';
+import { notifyLive } from '#lib/server/live.js';
 
 const noteService = new NoteService();
 
@@ -159,6 +160,12 @@ export async function PUT(event: RequestEvent): Promise<Response> {
 			{ ...validation.data, files, skipVersion: silent },
 			user.defaultOrgId
 		);
+		notifyLive(event.params.id!, updatedNote.content, {
+			t: 'note',
+			version: updatedNote.version ?? 0,
+			by: user.username || 'The author',
+			silent
+		});
 		return Response.json({
 			...updatedNote,
 			url: await noteUrl(updatedNote, event.url.origin)

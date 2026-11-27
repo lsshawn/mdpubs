@@ -8,6 +8,7 @@ import { canManageNote } from '#lib/server/org.js';
 import { plainTitle, warmOgImage } from '#lib/server/og.js';
 import { parseCustomComponentsInHtml } from '#lib/helpers/custom-components-parser.js';
 import { embedAllows, readEmbedGrant } from '#lib/server/embed.js';
+import { liveEnabled, liveJoin } from '#lib/server/live.js';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -153,23 +154,35 @@ export const load: PageServerLoad = async ({ params, fetch, url, locals }) => {
 		// The history button ("what changed?"). The note's owner always gets it;
 		// everyone else only when the note says `mdpubs-history: public`, so old
 		// wording (an earlier price, say) is not one click away by default.
+		const canManage =
+			!!locals.user &&
+			!!note?.userId &&
+			(await canManageNote({ userId: note.userId, orgId: note.orgId ?? null }, locals.user.id));
 		let historyOpen = false;
 		if (!isHtml) {
 			const setting = note?.frontmatter?.['mdpubs-history'];
-			historyOpen = setting === 'public' || setting === true || !!grant?.h;
-			if (!historyOpen && locals.user && note?.userId) {
-				historyOpen = await canManageNote(
-					{ userId: note.userId, orgId: note.orgId ?? null },
-					locals.user.id
-				);
-			}
+			historyOpen = setting === 'public' || setting === true || !!grant?.h || canManage;
 		}
+
+		// Who else is here, live comments and note updates (src/lib/server/live.ts).
+		// Only when the note asks for it (`mdpubs-live: true`); never in the diff
+		// view, which is a look at the past.
+		const live =
+			showDiffs || isHtml || !liveEnabled(note?.frontmatter ?? null)
+				? null
+				: liveJoin(params.id, {
+						user: locals.user,
+						guestName: grant?.m,
+						canManage,
+						mode: 'reading'
+					});
 
 		return {
 			note,
 			isHtml,
 			comments,
 			history: historyOpen,
+			live,
 			embed: grant && embedToken ? { token: embedToken } : null,
 			rawUrl: isHtml
 				? `${config.apiUrl}/notes/${params.id}/raw${grant && embedToken ? `?embed=${encodeURIComponent(embedToken)}` : ''}`

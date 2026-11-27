@@ -28,6 +28,9 @@
 	} from '#lib/components/PrintMenu.svelte';
 	import Logo from '#lib/components/Logo.svelte';
 	import { resolve } from '$app/paths';
+	import { invalidateAll } from '$app/navigation';
+	import { LiveRoom, personHue, type NoteEvent } from '#lib/live/room.svelte.js';
+	import LivePresence from '#lib/live/LivePresence.svelte';
 
 	type TocItem = {
 		title: string;
@@ -134,6 +137,60 @@
 	let inlineSignBoxes: Array<{ refresh: (s: unknown) => void }> = [];
 	let signPanelRef = $state<{ refresh: (s: unknown) => void } | null>(null);
 
+	// Live room (src/lib/live): who else is here, comments and note changes as
+	// they happen. Joined on mount; null when live is off or in the diff view.
+	let live = $state<LiveRoom | null>(null);
+	let marginComments = $state<{ reload: () => Promise<void> } | null>(null);
+	/** "Updated by …" notice after the author saves a new version. */
+	let updatedBy = $state<string | null>(null);
+	let updatedTimer: ReturnType<typeof setTimeout> | null = null;
+	let noteRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+	let lastNoteRefresh = 0;
+	const NOTE_REFRESH_GAP_MS = 5000;
+
+	/** Readers in each section, for the dots beside the contents. */
+	let readersAt = $derived.by(() => {
+		const at: Record<string, string[]> = {};
+		for (const p of live?.others ?? []) {
+			if (p.mode === 'reading' && p.s) (at[p.s] ??= []).push(p.u);
+		}
+		return at;
+	});
+
+	function sectionTitle(link: string): string | null {
+		return (
+			flattenToc(note?.toc as TocItem[] | undefined).find((i) => i.link === link)?.title ?? null
+		);
+	}
+
+	function onNoteChanged(e: NoteEvent) {
+		if (!e.silent) {
+			updatedBy = e.by;
+			if (updatedTimer) clearTimeout(updatedTimer);
+			updatedTimer = setTimeout(() => (updatedBy = null), 5000);
+		}
+		// The editor autosaves every couple of seconds; fetch at most every few.
+		if (noteRefreshTimer) return;
+		const wait = Math.max(800, lastNoteRefresh + NOTE_REFRESH_GAP_MS - Date.now());
+		noteRefreshTimer = setTimeout(refreshNote, wait);
+	}
+
+	async function refreshNote() {
+		// Don't swap the text out from under someone selecting or typing a comment.
+		const selecting = !(window.getSelection()?.isCollapsed ?? true);
+		const typing = document.activeElement?.matches('textarea, input, [contenteditable="true"]');
+		if (selecting || typing) {
+			noteRefreshTimer = setTimeout(refreshNote, 3000);
+			return;
+		}
+		noteRefreshTimer = null;
+		lastNoteRefresh = Date.now();
+		const before = note?.html;
+		await invalidateAll();
+		await tick();
+		if (note?.html !== before) hydrateCustomComponents();
+	}
+
 	function onSignedShared(s: unknown) {
 		sharedSignState = s as typeof sharedSignState;
 		inlineSignBoxes.forEach((b) => b.refresh(s));
@@ -160,6 +217,14 @@
 		// 200ms setup delay below, so an early click can't slip through either.
 		window.addEventListener('click', onFootnoteClick, true);
 		window.addEventListener('mousedown', onFootnoteMouseDown, true);
+
+		if (data.live) {
+			live = new LiveRoom(data.live.url, {
+				onComments: () => marginComments?.reload(),
+				onNote: onNoteChanged
+			});
+			live.connect();
+		}
 
 		// Wait for the DOM to update with the server-loaded content
 		await tick();
@@ -362,6 +427,9 @@
 	}
 
 	onDestroy(() => {
+		live?.close();
+		if (noteRefreshTimer) clearTimeout(noteRefreshTimer);
+		if (updatedTimer) clearTimeout(updatedTimer);
 		if (scrollCleanup) {
 			scrollCleanup();
 		}
@@ -548,6 +616,7 @@
 		const prev = activeSection;
 		if (next === prev) return;
 		activeSection = next;
+		live?.setSection(next);
 
 		tocWaveTimers.forEach(clearTimeout);
 		tocWaveTimers = [];
@@ -619,6 +688,16 @@
 					>{#each [...item.title] as ch, i (i)}<span style="--i: {i}">{ch}</span>{/each}</span
 				></span
 			>
+			{#if readersAt[item.link]}
+				<span
+					class="ml-1.5 inline-flex gap-0.5 align-middle"
+					title="{readersAt[item.link].length} reading here"
+				>
+					{#each readersAt[item.link].slice(0, 3) as u (u)}
+						<span class="live-dot size-1.5 rounded-full" style="--hue: {personHue(u)}"></span>
+					{/each}
+				</span>
+			{/if}
 		</button>
 		{#if item.children?.length > 0}
 			{@render tocItems(item.children, level + 1, isMobile)}
@@ -627,6 +706,17 @@
 {/snippet}
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && (footnote = null)} />
+
+{#if updatedBy}
+	<div
+		class="fixed top-3 left-1/2 z-50 -translate-x-1/2 rounded-full bg-base-content px-4 py-1.5 text-sm text-base-100 shadow-lg print:hidden"
+		role="status"
+		data-comments-ignore
+		transition:fade={{ duration: 150 }}
+	>
+		{updatedBy} just updated this note
+	</div>
+{/if}
 
 <!-- Footnote popover, opened by clicking a footnote number in the text. -->
 {#if footnote}
@@ -1008,6 +1098,9 @@
 									{@html note.html}
 								</article>
 								{#snippet pageTools()}
+									{#if live}
+										<LivePresence room={live} {sectionTitle} />
+									{/if}
 									<PrintMenu
 										bind:settings={printSettings}
 										hasToc={note?.toc?.length > 0}
@@ -1033,6 +1126,7 @@
 								{#if data.comments?.enabled}
 									{#key data.noteId}
 										<MarginComments
+											bind:this={marginComments}
 											article={articleElement}
 											html={note.html}
 											noteId={data.noteId}
@@ -1116,6 +1210,9 @@
 {/if}
 
 <style>
+	.live-dot {
+		background: hsl(var(--hue) 55% 48%);
+	}
 	/* KaTeX display math ($$...$$) can be wider than the column on small
 	   screens; scroll it instead of overflowing the page. */
 	:global(.prose .katex-display) {

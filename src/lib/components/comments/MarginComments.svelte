@@ -733,10 +733,25 @@
 		return data;
 	}
 
+	/**
+	 * Fetch the comments again: someone else added, edited, resolved or deleted
+	 * one (the live room says so). Each viewer's copy differs (`mine`, emails for
+	 * moderators), which is why the room sends a nudge, not the comments.
+	 */
+	export async function reload(): Promise<void> {
+		try {
+			const s: CommentsState = await api('', 'GET');
+			comments = s.comments;
+		} catch {
+			// The next change, or a reload, will catch up.
+		}
+	}
+
 	async function post(input: object): Promise<string | null> {
 		try {
 			const created: CommentDto = await api('', 'POST', input);
-			comments = [...comments, created];
+			// The live room may have fetched it already (see reload).
+			comments = [...comments.filter((c) => c.id !== created.id), created];
 			return null;
 		} catch (e) {
 			return e instanceof Error ? e.message : 'Could not post the comment.';
